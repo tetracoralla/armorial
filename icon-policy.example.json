@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "collections": ["icon-park"],
+  "defaults": {
+    "theme": "outline",
+    "size": 24,
+    "strokeWidth": 2,
+    "strokeLinecap": "round",
+    "strokeLinejoin": "round",
+    "colors": {
+      "primary": "currentColor",
+      "secondary": "#2F88FF",
+      "innerStroke": "#FFFFFF",
+      "innerFill": "#43CCF8"
+    }
+  },
+  "contexts": {
+    "toolbar": {
+      "size": 20,
+      "strokeWidth": 2
+    }
+  },
+  "selections": {
+    "settings": "icon-park:setting-two",
+    "设置": "icon-park:setting-two"
+  }
+}

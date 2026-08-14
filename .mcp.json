@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "icon_svg_select": {
+      "command": "node",
+      "args": [
+        "./dist/adapters/mcp.js"
+      ],
+      "cwd": "."
+    }
+  }
+}

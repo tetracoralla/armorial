@@ -1,0 +1,4 @@
+interface:
+  display_name: "Icon SVG Select"
+  short_description: "Select policy-compliant icons without redrawing."
+  default_prompt: "Use $icon-svg-select to find or visually choose a policy-compliant icon."

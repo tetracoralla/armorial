@@ -1,0 +1,57 @@
+{
+  "name": "icon-svg-select",
+  "version": "0.1.0",
+  "description": "Design-system-aware IconPark selection and SVG policy kernel for humans and AI agents.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "bin": {
+    "icon-svg-select": "./dist/adapters/cli.js",
+    "icon-svg-select-mcp": "./dist/adapters/mcp.js",
+    "icon-svg-select-ui": "./dist/adapters/web-server.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "npm run build:web && npm run build:mcp-app && npm run build:node",
+    "build:node": "tsc -p tsconfig.build.json",
+    "build:web": "vite build",
+    "build:mcp-app": "ICON_MCP_APP=1 vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "schema:generate": "node --import tsx scripts/generate-policy-schema.ts",
+    "schema:check": "node --import tsx scripts/check-policy-schema.ts",
+    "runtime:probe": "node scripts/probe-built-runtime.mjs",
+    "check": "npm run typecheck && npm test && npm run schema:check && npm run build && npm run runtime:probe",
+    "start:mcp": "node dist/adapters/mcp.js",
+    "start:ui": "node dist/adapters/web-server.js",
+    "ui:e2e": "npm run build && playwright test"
+  },
+  "dependencies": {
+    "@icon-park/svg": "1.4.2",
+    "@modelcontextprotocol/ext-apps": "1.7.5",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "19.1.10",
+    "@types/react-dom": "19.1.7",
+    "@vitejs/plugin-react": "5.0.2",
+    "ajv": "^8.20.0",
+    "tsx": "4.23.12",
+    "typescript": "7.0.2",
+    "vite": "7.1.2",
+    "vite-plugin-singlefile": "2.3.0"
+  }
+}
