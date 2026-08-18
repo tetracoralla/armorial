@@ -1,4 +1,4 @@
-# Contributing to Icon SVG Select
+# Contributing to Armorial
 
 This repository's working contract lives in [AGENTS.md](./AGENTS.md): one
 deterministic kernel, adapters that only translate transport, and acceptance

@@ -10,15 +10,15 @@ import { presentBatch, presentSearch } from "./presentation.js";
 
 type Format = "json" | "text" | "svg";
 
-const HELP = `icon-svg-select ${KERNEL_VERSION}
+const HELP = `armorial ${KERNEL_VERSION}
 
 Usage:
-  icon-svg-select search <query...> [--limit 8] [--format text|json] [--policy file]
-  icon-svg-select resolve <intent...> [--context name] [--alternatives 3] [--format json|svg] [--policy file]
-  icon-svg-select get <icon-id> [--context name] [--format json|svg] [--policy file]
-  icon-svg-select batch <icon-id...> [--context name] [--format json|text] [--policy file]
-  icon-svg-select policy validate <file>
-  icon-svg-select policy schema
+  armorial search <query...> [--limit 8] [--format text|json] [--policy file]
+  armorial resolve <intent...> [--context name] [--alternatives 3] [--format json|svg] [--policy file]
+  armorial get <icon-id> [--context name] [--format json|svg] [--policy file]
+  armorial batch <icon-id...> [--context name] [--format json|text] [--policy file]
+  armorial policy validate <file>
+  armorial policy schema
 
 Policy resolution order: --policy file, $ICON_SVG_SELECT_POLICY, ./icon-policy.json, built-in default.
 

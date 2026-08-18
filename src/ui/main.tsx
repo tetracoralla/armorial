@@ -12,5 +12,5 @@ createPickerRuntime()
   })
   .catch((error: unknown) => {
     const message = error instanceof Error ? error.message : "The icon picker could not start.";
-    root.render(<main className="startup-error" role="alert"><h1>Icon SVG Select</h1><p>{message}</p></main>);
+    root.render(<main className="startup-error" role="alert"><h1>Armorial</h1><p>{message}</p></main>);
   });

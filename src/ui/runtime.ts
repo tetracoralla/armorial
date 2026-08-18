@@ -205,7 +205,7 @@ export async function createPickerRuntime(): Promise<PickerRuntime> {
   if (window.parent === window || forceStandalone) return new StandaloneRuntime();
 
   const app = new App(
-    { name: "Icon SVG Select", version: KERNEL_VERSION },
+    { name: "Armorial", version: KERNEL_VERSION },
     {},
     { autoResize: true, strict: true },
   );

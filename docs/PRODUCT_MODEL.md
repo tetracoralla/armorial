@@ -1,5 +1,19 @@
 # Product model
 
+## Product identity and stable identifiers
+
+The public product, repository, npm package, and Codex plugin are named
+**Armorial**. The `openAdam` name is the public developer attribution; the
+GitHub repository is maintained under `tetracoralla/armorial`.
+
+Brand identity is not the protocol contract. The descriptive Skill name,
+`resolve_icon` and sibling MCP tool names, the `icon_svg_select` server key,
+`ICON_SVG_SELECT_POLICY`, `ui://icon-svg-select/picker.html`, the
+`[icon-selection:v1]` carrier, and deterministic SVG id prefixes remain stable.
+The package exposes `armorial`, `armorial-mcp`, and `armorial-ui` as the primary
+commands while retaining the earlier descriptive commands as compatibility
+aliases.
+
 ## Users and tasks
 
 The human user is a designer or product engineer selecting an existing icon and applying one project's visual rules. Their primary flow is search or browse, compare, select, preview, and then copy, download, or drag the SVG into another tool. This flow is complete without an Agent, account, cloud service, or Figma-specific integration.

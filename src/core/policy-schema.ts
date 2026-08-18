@@ -10,7 +10,7 @@ import {
 export function createPolicyJsonSchema(): Record<string, unknown> {
   return {
     $id: "https://icon-svg-select.local/icon-policy.schema.json",
-    title: "Icon SVG Select Policy",
+    title: "Armorial Policy",
     description: "Executable IconPark rendering and semantic-selection policy.",
     ...z.toJSONSchema(IconPolicySchema, {
       target: "draft-2020-12",

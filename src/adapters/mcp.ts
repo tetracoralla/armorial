@@ -58,7 +58,6 @@ const SearchMcpOutputSchema = z.strictObject({ result: SearchOutputSchema });
 const GetIconMcpOutputSchema = z.strictObject({ result: GetIconOutputSchema });
 const GetIconsMcpOutputSchema = z.strictObject({ result: GetIconsOutputSchema });
 const ChooseIconMcpOutputSchema = z.strictObject({ result: ChooseIconSummarySchema, session: ChooseIconInputSchema });
-const BrowseIconsMcpOutputSchema = z.strictObject({ result: BrowseIconsOutputSchema });
 
 const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
@@ -93,7 +92,7 @@ export function createMcpServer(
   kernel: IconKernel,
   loadPickerHtml: () => Promise<string> = loadBuiltPickerHtml,
 ): McpServer {
-  const server = new McpServer({ name: "icon-svg-select", version: KERNEL_VERSION });
+  const server = new McpServer({ name: "armorial", version: KERNEL_VERSION });
 
   server.registerTool(
     "resolve_icon",
@@ -197,12 +196,15 @@ export function createMcpServer(
       title: "Browse icons for picker",
       description: "Load one bounded page of rendered icons for the picker.",
       inputSchema: BrowseIconsInputSchema,
-      outputSchema: BrowseIconsMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: ICON_PICKER_RESOURCE_URI, visibility: ["app"] } },
     },
     (input) => {
-      const output = kernel.browse(input);
+      // This helper is visible only to the bundled app, which already owns the
+      // typed catalog contract. Omitting its large advertised output schema
+      // keeps that app-only contract out of every model tool listing; the
+      // executable Zod validation remains at the adapter boundary.
+      const output = BrowseIconsOutputSchema.parse(kernel.browse(input));
       const envelope = mcpResult(
         output as Record<string, unknown>,
         `Loaded ${output.status === "ok" ? output.items.length : 0} icon candidates.`,
@@ -215,7 +217,7 @@ export function createMcpServer(
 
   registerAppResource(
     server,
-    "Icon SVG Select picker",
+    "Armorial picker",
     ICON_PICKER_RESOURCE_URI,
     {
       description: "Local-first visual icon selection workbench.",

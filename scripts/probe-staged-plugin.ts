@@ -10,7 +10,7 @@ import { removeOwnedTree } from "./stage-plugin.js";
 
 const workspace = resolve(import.meta.dirname, "..");
 const pluginDirectory = realpathSync(resolve(
-  process.env.ICON_SVG_SELECT_PLUGIN_DIRECTORY ?? join(workspace, "plugins", "icon-svg-select"),
+  process.env.ICON_SVG_SELECT_PLUGIN_DIRECTORY ?? join(workspace, "plugins", "armorial"),
 ));
 const packageJson = JSON.parse(readFileSync(join(pluginDirectory, "package.json"), "utf8")) as { version: string };
 const manifest = JSON.parse(readFileSync(join(pluginDirectory, ".codex-plugin", "plugin.json"), "utf8")) as {
@@ -24,7 +24,7 @@ assert.match(manifest.version, new RegExp(`^${packageJson.version.replaceAll("."
 assert.deepEqual(mcpConfig.mcpServers.icon_svg_select.args, ["./dist/adapters/mcp.js"]);
 assert.equal(mcpConfig.mcpServers.icon_svg_select.cwd, ".");
 assert.deepEqual(mcpConfig.mcpServers.icon_svg_select.env_vars, ["ICON_SVG_SELECT_POLICY"]);
-assert.equal(existsSync(join(pluginDirectory, ".icon-svg-select-generated")), true);
+assert.equal(existsSync(join(pluginDirectory, ".armorial-generated")), true);
 assert.equal(existsSync(join(pluginDirectory, "package-lock.json")), false);
 assert.equal(existsSync(join(pluginDirectory, "node_modules", "typescript")), false);
 
@@ -35,7 +35,7 @@ const dependencyTree = JSON.parse(execFileSync("npm", ["ls", "--omit=dev", "--al
 assert.deepEqual(dependencyTree.problems ?? [], []);
 
 const temporaryRoot = realpathSync(tmpdir());
-const projectDirectory = mkdtempSync(join(temporaryRoot, "icon-svg-select-plugin-probe-"));
+const projectDirectory = mkdtempSync(join(temporaryRoot, "armorial-plugin-probe-"));
 const policyPath = join(projectDirectory, "project-policy.json");
 writeFileSync(policyPath, JSON.stringify({
   ...structuredClone(DEFAULT_POLICY),
@@ -51,7 +51,7 @@ const transport = new StdioClientTransport({
   env: cleanEnvironment,
   stderr: "pipe",
 });
-const client = new Client({ name: "icon-svg-select-staged-probe", version: "1.0.0" });
+const client = new Client({ name: "armorial-staged-probe", version: "1.0.0" });
 
 try {
   await client.connect(transport);
@@ -147,7 +147,7 @@ try {
   assert.ok(Buffer.byteLength((pickerResource.contents[0] as { text?: string } | undefined)?.text ?? "", "utf8") > 100_000);
 } finally {
   await client.close();
-  removeOwnedTree(projectDirectory, temporaryRoot, ["icon-svg-select-plugin-probe-"]);
+  removeOwnedTree(projectDirectory, temporaryRoot, ["armorial-plugin-probe-"]);
 }
 
 process.stdout.write(`${JSON.stringify({

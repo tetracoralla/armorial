@@ -3,7 +3,7 @@ name: icon-svg-select
 description: Select and render existing policy-compliant IconPark SVG icons for product UI work. Use when an Agent needs an icon, should not draw SVG geometry, must follow a project icon policy, needs alternatives, or the human asks to choose visually or rejects an earlier icon choice.
 ---
 
-# Icon SVG Select
+# Armorial
 
 Use the installed tools as the only icon geometry and policy authority. Never redraw, approximate, or silently edit returned paths.
 

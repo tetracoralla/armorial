@@ -1,4 +1,4 @@
-# Icon SVG Select repository contract
+# Armorial repository contract
 
 This repository owns a design-system-aware icon selection kernel. Current source and executable contracts outrank generated examples or prior reports.
 
@@ -15,6 +15,6 @@ This repository owns a design-system-aware icon selection kernel. Current source
 ## Acceptance lanes
 
 - Development regression: `npm run check`.
-- Runtime Agent transport: start `icon-svg-select-mcp`, verify five model-visible tools plus one app-only helper, execute resolve/search/get/batch/choose through MCP, and read the MCP App resource.
+- Runtime Agent transport: start `armorial-mcp`, verify five model-visible tools plus one app-only helper, execute resolve/search/get/batch/choose through MCP, and read the MCP App resource.
 - Runtime human surface: execute CLI search, ambiguity, policy-pinned resolve, SVG output, and invalid-policy recovery; launch the web UI and exercise search, selection, Copy SVG, download, drag data, Copy for Agent, and narrow layout.
 - Business and experience acceptance remains an owner judgment; green checks do not make that verdict.

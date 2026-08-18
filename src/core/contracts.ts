@@ -15,7 +15,7 @@ export const MAX_BATCH_SIZE = 20;
 export const MAX_SVG_BYTES = 64 * 1024;
 export const MAX_BATCH_RESPONSE_BYTES = 512 * 1024;
 export const MAX_POLICY_BYTES = 64 * 1024;
-export const MAX_MCP_TOOL_CATALOG_BYTES = 24 * 1024;
+export const MAX_MCP_TOOL_CATALOG_BYTES = 20 * 1024;
 export const MAX_MCP_APP_RESOURCE_BYTES = 900 * 1024;
 export const MAX_POLICY_CONTEXTS = 32;
 export const MAX_POLICY_SELECTIONS = 256;
@@ -201,7 +201,7 @@ export const CandidateSchema = z.strictObject({
   rankScore: z.number().int(),
   matchKind: MatchKindSchema,
   matchedOn: z.array(z.string()).max(8),
-});
+}).meta({ id: "Candidate" });
 
 export const WarningSchema = z.strictObject({
   code: z.enum(["CONTEXT_NOT_CONFIGURED"]),
@@ -273,7 +273,7 @@ export const ErrorSchema = z.strictObject({
   code: ErrorCodeSchema,
   message: z.string(),
   field: z.string().optional(),
-});
+}).meta({ id: "Error" });
 
 export const SearchSuccessSchema = z.strictObject({
   status: z.literal("ok"),

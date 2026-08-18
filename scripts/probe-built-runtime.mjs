@@ -10,8 +10,8 @@ import { IconKernel } from "../dist/core/kernel.js";
 
 const workspace = process.cwd();
 const entryDirectory = mkdtempSync(join(tmpdir(), "icon svg select runtime-"));
-const cliEntry = join(entryDirectory, "icon-svg-select");
-const mcpEntry = join(entryDirectory, "icon-svg-select-mcp");
+const cliEntry = join(entryDirectory, "armorial");
+const mcpEntry = join(entryDirectory, "armorial-mcp");
 symlinkSync(resolve(workspace, "dist/adapters/cli.js"), cliEntry);
 symlinkSync(resolve(workspace, "dist/adapters/mcp.js"), mcpEntry);
 const cleanEntryDirectory = () => rmSync(entryDirectory, { recursive: true, force: true });
@@ -124,7 +124,7 @@ const transport = new StdioClientTransport({
   cwd: workspace,
   stderr: "pipe",
 });
-const client = new Client({ name: "icon-svg-select-built-probe", version: "1.0.0" });
+const client = new Client({ name: "armorial-built-probe", version: "1.0.0" });
 await client.connect(transport);
 
 let toolNames;
@@ -256,7 +256,7 @@ async function resolveWithoutArguments(cwd, env) {
     env,
     stderr: "pipe",
   });
-  const probeClient = new Client({ name: "icon-svg-select-installed-probe", version: "1.0.0" });
+  const probeClient = new Client({ name: "armorial-installed-probe", version: "1.0.0" });
   await probeClient.connect(transport);
   try {
     const result = await probeClient.callTool({

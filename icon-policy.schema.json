@@ -1,6 +1,6 @@
 {
   "$id": "https://icon-svg-select.local/icon-policy.schema.json",
-  "title": "Icon SVG Select Policy",
+  "title": "Armorial Policy",
   "description": "Executable IconPark rendering and semantic-selection policy.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",

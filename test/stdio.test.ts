@@ -14,7 +14,7 @@ test("real stdio MCP process lists and executes the policy-pinned dominant route
     cwd: workspace,
     stderr: "pipe",
   });
-  const client = new Client({ name: "icon-svg-select-stdio-test", version: "1.0.0" });
+  const client = new Client({ name: "armorial-stdio-test", version: "1.0.0" });
   await client.connect(transport);
 
   try {

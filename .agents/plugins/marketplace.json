@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "icon-svg-select",
+      "name": "armorial",
       "source": {
         "source": "local",
-        "path": "./plugins/icon-svg-select"
+        "path": "./plugins/armorial"
       },
       "policy": {
         "installation": "AVAILABLE",

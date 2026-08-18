@@ -1,21 +1,24 @@
 {
-  "name": "icon-svg-select",
+  "name": "armorial",
   "version": "0.1.0",
   "description": "Design-system-aware IconPark selection and SVG policy kernel for humans and AI agents.",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/openAdam/icon-svg-select.git"
+    "url": "git+https://github.com/tetracoralla/armorial.git"
   },
   "bugs": {
-    "url": "https://github.com/openAdam/icon-svg-select/issues"
+    "url": "https://github.com/tetracoralla/armorial/issues"
   },
-  "homepage": "https://github.com/openAdam/icon-svg-select#readme",
+  "homepage": "https://github.com/tetracoralla/armorial#readme",
   "engines": {
     "node": ">=22.0.0"
   },
   "bin": {
+    "armorial": "./dist/adapters/cli.js",
+    "armorial-mcp": "./dist/adapters/mcp.js",
+    "armorial-ui": "./dist/adapters/web-server.js",
     "icon-svg-select": "./dist/adapters/cli.js",
     "icon-svg-select-mcp": "./dist/adapters/mcp.js",
     "icon-svg-select-ui": "./dist/adapters/web-server.js"

@@ -1,6 +1,6 @@
 # Security policy
 
-Icon SVG Select is a local-first tool: the web UI binds to loopback only, and
+Armorial is a local-first tool: the web UI binds to loopback only, and
 the MCP server reads one operator-selected policy file at startup. MCP tool
 inputs never accept paths, URLs, raw SVG, or source code, and generated SVG is
 sanitized and size-bounded.

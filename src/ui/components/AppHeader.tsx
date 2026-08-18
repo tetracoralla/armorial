@@ -5,7 +5,7 @@ export function AppHeader({ runtime }: { runtime: PickerRuntime }) {
     <header className="app-header">
       <div className="brand">
         <span className="brand-mark" aria-hidden="true"><span /></span>
-        <span>Icon SVG Select</span>
+        <span>Armorial</span>
       </div>
       <div className="header-actions">
         {runtime.canFullscreen && (

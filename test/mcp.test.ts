@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { test } from "node:test";
-import { DEFAULT_POLICY, MAX_MCP_TOOL_CATALOG_BYTES } from "../src/core/contracts.js";
+import {
+  BrowseIconsOutputSchema,
+  DEFAULT_POLICY,
+  MAX_MCP_TOOL_CATALOG_BYTES,
+} from "../src/core/contracts.js";
 import { IconKernel } from "../src/core/kernel.js";
 import {
   ALL_TOOL_NAMES,
@@ -22,7 +26,7 @@ function structured(value: unknown): Record<string, unknown> {
 test("MCP exposes bounded model tools plus one app-only catalog tool", async () => {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const server = createMcpServer(new IconKernel(), async () => "<!doctype html><title>Icon picker</title>");
-  const client = new Client({ name: "icon-svg-select-test", version: "1.0.0" });
+  const client = new Client({ name: "armorial-test", version: "1.0.0" });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
   try {
@@ -39,7 +43,9 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
       assert.equal(tool.annotations?.idempotentHint, true);
       assert.equal(tool.annotations?.openWorldHint, false);
       assert.equal(tool.inputSchema.additionalProperties, false);
-      assert.ok(tool.outputSchema, `${tool.name} must declare an output schema`);
+      if ((PUBLIC_TOOL_NAMES as readonly string[]).includes(tool.name)) {
+        assert.ok(tool.outputSchema, `${tool.name} must declare an output schema`);
+      }
     }
     const chooseTool = listed.tools.find((tool) => tool.name === "choose_icon");
     assert.deepEqual((chooseTool?._meta?.ui as { visibility?: string[] } | undefined)?.visibility, ["model"]);
@@ -53,6 +59,7 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
     assert.match(resolveProperties?.context?.description ?? "", /omit prose or unknown/);
     const browseTool = listed.tools.find((tool) => tool.name === APP_ONLY_TOOL_NAMES[0]);
     assert.deepEqual((browseTool?._meta?.ui as { visibility?: string[] } | undefined)?.visibility, ["app"]);
+    assert.equal(browseTool?.outputSchema, undefined, "app-only catalog output must not inflate model listings");
 
     const resources = await client.listResources();
     assert.equal(resources.resources.some((resource) => resource.uri === ICON_PICKER_RESOURCE_URI), true);
@@ -72,7 +79,7 @@ test("MCP resolve, ambiguity, validation, and batch partial failure use structur
   };
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const server = createMcpServer(new IconKernel(policy), async () => "<!doctype html>");
-  const client = new Client({ name: "icon-svg-select-test", version: "1.0.0" });
+  const client = new Client({ name: "armorial-test", version: "1.0.0" });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
   try {
@@ -151,6 +158,7 @@ test("MCP resolve, ambiguity, validation, and batch partial failure use structur
     });
     assert.equal(browsePage.isError, undefined);
     const browseContent = structured(structured(browsePage.structuredContent).result);
+    assert.equal(BrowseIconsOutputSchema.safeParse(browseContent).success, true);
     const browseItems = browseContent.items as Array<{ id?: string; asset?: { svg?: string } }>;
     assert.equal(browseItems[0]?.id, "icon-park:remind");
     assert.match(browseItems[0]?.asset?.svg ?? "", /<svg/);
