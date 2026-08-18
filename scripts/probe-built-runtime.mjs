@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { MAX_MCP_TOOL_CATALOG_BYTES } from "../dist/core/contracts.js";
+import { DEFAULT_POLICY, KERNEL_VERSION, MAX_MCP_TOOL_CATALOG_BYTES } from "../dist/core/contracts.js";
 import { IconKernel } from "../dist/core/kernel.js";
 
 const workspace = process.cwd();
@@ -22,7 +22,7 @@ const version = execFileSync(
   [cliEntry, "--version"],
   { cwd: workspace, encoding: "utf8" },
 ).trim();
-assert.equal(version, "0.1.0");
+assert.equal(version, KERNEL_VERSION);
 
 function visibleStrokeWidth(icon) {
   const nativeStrokeWidth = Number(icon.asset.svg.match(/stroke-width="([^"]+)"/)?.[1]);
@@ -76,6 +76,15 @@ assert.equal(pinnedPhrase.selectionMethod, "policy");
 assert.equal(pinnedPhrase.icon?.id, "icon-park:setting-two");
 assert.equal(visibleStrokeWidth(pinnedPhrase.icon), 2);
 
+const compoundPhrase = spawnSync(
+  process.execPath,
+  [cliEntry, "resolve", "delete settings", "--policy", "icon-policy.example.json", "--format", "json"],
+  { cwd: workspace, encoding: "utf8" },
+);
+assert.equal(compoundPhrase.status, 2);
+assert.equal(JSON.parse(compoundPhrase.stdout).status, "ambiguous");
+assert.equal(JSON.parse(compoundPhrase.stdout).error?.code, "ICON_AMBIGUOUS");
+
 const invalidOption = spawnSync(
   process.execPath,
   [cliEntry, "search", "settings", "--invented"],
@@ -121,13 +130,16 @@ await client.connect(transport);
 let toolNames;
 let resolvedId;
 let ordinaryPhraseId;
+let compoundPhraseStatus;
 let toolCatalogBytes;
 let searchedId;
 let notificationId;
 let renderedId;
 let renderedStrokeWidth;
 let batchSummary;
-let pickerTop;
+let pickerSessionKind;
+let pickerEnvelopeBytes;
+let browseTop;
 let pickerResourceBytes;
 try {
   const tools = await client.listTools();
@@ -156,6 +168,15 @@ try {
   assert.equal(phraseResult.isError, undefined);
   ordinaryPhraseId = phraseResult.structuredContent?.result?.icon?.id;
   assert.equal(ordinaryPhraseId, "icon-park:add");
+
+  const compoundResult = await client.callTool({
+    name: "resolve_icon",
+    arguments: { intent: "delete settings", alternatives: 2 },
+  });
+  assert.equal(compoundResult.isError, undefined);
+  compoundPhraseStatus = compoundResult.structuredContent?.result?.status;
+  assert.equal(compoundPhraseStatus, "ambiguous");
+  assert.equal(compoundResult.structuredContent?.result?.error?.code, "ICON_AMBIGUOUS");
 
   const searchResult = await client.callTool({
     name: "search_icons",
@@ -196,9 +217,22 @@ try {
     arguments: { intent: "notification", requestId: "runtime-probe" },
   });
   assert.equal(pickerResult.isError, undefined);
-  pickerTop = pickerResult.structuredContent?.result?.items?.[0]?.id;
-  assert.equal(pickerTop, "icon-park:remind");
+  pickerEnvelopeBytes = Buffer.byteLength(JSON.stringify(pickerResult.structuredContent), "utf8");
+  assert.ok(pickerEnvelopeBytes <= MAX_MCP_TOOL_CATALOG_BYTES);
+  const pickerSummary = pickerResult.structuredContent?.result ?? {};
+  pickerSessionKind = pickerSummary.kind;
+  assert.equal(pickerSessionKind, "icon_picker_session");
+  assert.equal("items" in pickerSummary, false);
   assert.equal(pickerResult.structuredContent?.session?.requestId, "runtime-probe");
+
+  const browseResult = await client.callTool({
+    name: "browse_icons",
+    arguments: { query: "notification", offset: 0, limit: 8 },
+  });
+  assert.equal(browseResult.isError, undefined);
+  browseTop = browseResult.structuredContent?.result?.items?.[0]?.id;
+  assert.equal(browseTop, "icon-park:remind");
+  assert.match(browseResult.structuredContent?.result?.items?.[0]?.asset?.svg ?? "", /<svg/);
 
   const resources = await client.listResources();
   assert.equal(resources.resources.some((resource) => resource.uri === "ui://icon-svg-select/picker.html"), true);
@@ -211,6 +245,51 @@ try {
   await client.close();
 }
 
+// Plugin hosts launch the MCP entry without arguments, so the project policy
+// must still reach the built server through the working directory or the
+// ICON_SVG_SELECT_POLICY environment variable.
+async function resolveWithoutArguments(cwd, env) {
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [mcpEntry],
+    cwd,
+    env,
+    stderr: "pipe",
+  });
+  const probeClient = new Client({ name: "icon-svg-select-installed-probe", version: "1.0.0" });
+  await probeClient.connect(transport);
+  try {
+    const result = await probeClient.callTool({
+      name: "resolve_icon",
+      arguments: { intent: "设置", context: "toolbar", alternatives: 2 },
+    });
+    assert.equal(result.isError, undefined);
+    const summary = result.structuredContent?.result;
+    assert.equal(summary?.selectionMethod, "policy");
+    assert.equal(summary?.icon?.id, "icon-park:setting-two");
+    return summary.icon.id;
+  } finally {
+    await probeClient.close();
+  }
+}
+
+const discoveryDirectory = mkdtempSync(join(tmpdir(), "icon svg select discovery-"));
+const environmentDirectory = mkdtempSync(join(tmpdir(), "icon svg select environment-"));
+const projectPolicyPath = join(discoveryDirectory, "icon-policy.json");
+writeFileSync(projectPolicyPath, JSON.stringify({
+  ...structuredClone(DEFAULT_POLICY),
+  selections: { settings: "icon-park:setting-two", 设置: "icon-park:setting-two" },
+}));
+const cleanEnvironment = { ...process.env };
+delete cleanEnvironment.ICON_SVG_SELECT_POLICY;
+const discoveredResolvedId = await resolveWithoutArguments(discoveryDirectory, cleanEnvironment);
+const envResolvedId = await resolveWithoutArguments(environmentDirectory, {
+  ...cleanEnvironment,
+  ICON_SVG_SELECT_POLICY: projectPolicyPath,
+});
+rmSync(discoveryDirectory, { recursive: true, force: true });
+rmSync(environmentDirectory, { recursive: true, force: true });
+
 process.removeListener("exit", cleanEntryDirectory);
 cleanEntryDirectory();
 
@@ -221,6 +300,7 @@ process.stdout.write(`${JSON.stringify({
     notificationTop: notificationSearch.items[0].id,
     ordinaryPhraseId: ordinaryPhrase.icon.id,
     pinnedPhraseId: pinnedPhrase.icon.id,
+    compoundPhraseStatus: "ambiguous",
     genericPhraseError: "ICON_NOT_FOUND",
     invalidOptionError: "INVALID_INPUT",
     inheritedContextWarning: "CONTEXT_NOT_CONFIGURED",
@@ -232,12 +312,19 @@ process.stdout.write(`${JSON.stringify({
     toolCatalogBytes,
     resolvedId,
     ordinaryPhraseId,
+    compoundPhraseStatus,
     searchedId,
     notificationId,
     renderedId,
     renderedStrokeWidth,
     batchSummary,
-    pickerTop,
+    pickerSessionKind,
+    pickerEnvelopeBytes,
+    browseTop,
     pickerResourceBytes,
+  },
+  installedState: {
+    discoveredResolvedId,
+    envResolvedId,
   },
 })}\n`);

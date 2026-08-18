@@ -2,7 +2,7 @@ import { App } from "@modelcontextprotocol/ext-apps";
 import {
   BrowseIconsOutputSchema,
   ChooseIconInputSchema,
-  GetIconOutputSchema,
+  KERNEL_VERSION,
   type BrowseIconsInput,
   type BrowseIconsOutput,
   type ChooseIconInput,
@@ -23,7 +23,7 @@ export interface PickerRuntime {
   onInitialState(listener: (catalog: CatalogData | null, session: ChooseIconInput | null) => void): () => void;
   browse(input: BrowseIconsInput): Promise<BrowseIconsOutput>;
   attach(decision: IconSelectionDecision, message: string): Promise<void>;
-  continueTask(decision: IconSelectionDecision, message: string): Promise<void>;
+  continueTask(message: string): Promise<void>;
   download(filename: string, svg: string): Promise<void>;
   requestFullscreen(): Promise<void>;
 }
@@ -34,7 +34,9 @@ type ToolResultEnvelope = {
 };
 
 function extractBrowseResult(value: ToolResultEnvelope): BrowseIconsOutput {
-  return BrowseIconsOutputSchema.parse(value.structuredContent?.["result"]);
+  const parsed = BrowseIconsOutputSchema.safeParse(value.structuredContent?.["result"]);
+  if (!parsed.success) throw new Error("The icon picker could not load these candidates.");
+  return parsed.data;
 }
 
 function safeFilename(value: string): string {
@@ -51,7 +53,7 @@ function browserDownload(filename: string, svg: string): void {
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
 class StandaloneRuntime implements PickerRuntime {
@@ -67,14 +69,23 @@ class StandaloneRuntime implements PickerRuntime {
   }
 
   async browse(input: BrowseIconsInput): Promise<BrowseIconsOutput> {
-    const response = await fetch("/api/browse", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    const payload = await response.json() as Record<string, unknown>;
-    if (!response.ok) throw new Error("The local icon service rejected this request.");
-    return BrowseIconsOutputSchema.parse(payload["result"]);
+    let payload: unknown;
+    try {
+      const response = await fetch("/api/browse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      payload = await response.json();
+    } catch {
+      throw new Error("The local icon service is not responding correctly.");
+    }
+    const output = BrowseIconsOutputSchema.safeParse(
+      (payload as Record<string, unknown> | null)?.["result"],
+    );
+    if (!output.success) throw new Error("The local icon service is not responding correctly.");
+    if (output.data.status === "error") throw new Error(output.data.error.message);
+    return output.data;
   }
 
   async attach(): Promise<void> {
@@ -100,7 +111,7 @@ type EmbeddedInitialState = {
   listeners: Set<(catalog: CatalogData | null, session: ChooseIconInput | null) => void>;
 };
 
-class EmbeddedRuntime implements PickerRuntime {
+export class EmbeddedRuntime implements PickerRuntime {
   readonly mode = "embedded" as const;
   readonly canAttach: boolean;
   readonly canContinue: boolean;
@@ -134,8 +145,9 @@ class EmbeddedRuntime implements PickerRuntime {
 
   async browse(input: BrowseIconsInput): Promise<BrowseIconsOutput> {
     const result = await this.app.callServerTool({ name: "browse_icons", arguments: input });
-    if (result.isError) throw new Error("The icon picker could not load these candidates.");
-    return extractBrowseResult(result);
+    const output = extractBrowseResult(result);
+    if (output.status === "error") throw new Error(output.error.message);
+    return output;
   }
 
   async attach(decision: IconSelectionDecision, message: string): Promise<void> {
@@ -146,9 +158,12 @@ class EmbeddedRuntime implements PickerRuntime {
     });
   }
 
-  async continueTask(decision: IconSelectionDecision, message: string): Promise<void> {
+  async continueTask(message: string): Promise<void> {
     if (!this.canContinue) throw new Error("This host cannot send a follow-up from the picker.");
-    if (this.canAttach) await this.attach(decision, message);
+    // One commit mechanism only: the user-role message already carries the
+    // typed decision text. updateModelContext content is deferred by hosts
+    // until the next ui/message, so attaching here as well would deliver the
+    // same decision twice and leave context applied if the message is rejected.
     const result = await this.app.sendMessage({
       role: "user",
       content: [{ type: "text", text: message }],
@@ -190,7 +205,7 @@ export async function createPickerRuntime(): Promise<PickerRuntime> {
   if (window.parent === window || forceStandalone) return new StandaloneRuntime();
 
   const app = new App(
-    { name: "Icon SVG Select", version: "0.1.0" },
+    { name: "Icon SVG Select", version: KERNEL_VERSION },
     {},
     { autoResize: true, strict: true },
   );
@@ -243,8 +258,4 @@ export function setSvgDragData(event: DragEvent, filename: string, svg: string):
   event.dataTransfer.setData("image/svg+xml", svg);
   event.dataTransfer.setData("text/plain", svg);
   event.dataTransfer.setData("DownloadURL", `image/svg+xml:${safeFilename(filename)}:data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
-}
-
-export function validateExactIconResult(value: unknown): void {
-  GetIconOutputSchema.parse(value);
 }

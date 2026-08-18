@@ -3,8 +3,15 @@
   "version": "0.1.0",
   "description": "Design-system-aware IconPark selection and SVG policy kernel for humans and AI agents.",
   "type": "module",
-  "private": true,
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openAdam/icon-svg-select.git"
+  },
+  "bugs": {
+    "url": "https://github.com/openAdam/icon-svg-select/issues"
+  },
+  "homepage": "https://github.com/openAdam/icon-svg-select#readme",
   "engines": {
     "node": ">=22.0.0"
   },
@@ -19,6 +26,16 @@
       "import": "./dist/index.js"
     }
   },
+  "files": [
+    ".codex-plugin",
+    ".mcp.json",
+    "skills",
+    "dist",
+    "!dist/**/*.map",
+    "icon-policy.schema.json",
+    "icon-policy.example.json",
+    "NOTICE"
+  ],
   "scripts": {
     "build": "npm run build:web && npm run build:mcp-app && npm run build:node",
     "build:node": "tsc -p tsconfig.build.json",
@@ -30,6 +47,9 @@
     "schema:check": "node --import tsx scripts/check-policy-schema.ts",
     "runtime:probe": "node scripts/probe-built-runtime.mjs",
     "check": "npm run typecheck && npm test && npm run schema:check && npm run build && npm run runtime:probe",
+    "prepack": "npm run build",
+    "plugin:stage": "node --import tsx scripts/stage-plugin.ts",
+    "plugin:check": "npm run plugin:stage && node --import tsx scripts/probe-staged-plugin.ts",
     "start:mcp": "node dist/adapters/mcp.js",
     "start:ui": "node dist/adapters/web-server.js",
     "ui:e2e": "npm run build && playwright test"
@@ -43,7 +63,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "1.55.0",
+    "@playwright/test": "1.62.1",
     "@types/node": "^24.0.0",
     "@types/react": "19.1.10",
     "@types/react-dom": "19.1.7",
@@ -51,7 +71,7 @@
     "ajv": "^8.20.0",
     "tsx": "4.23.12",
     "typescript": "7.0.2",
-    "vite": "7.1.2",
+    "vite": "7.3.6",
     "vite-plugin-singlefile": "2.3.0"
   }
 }

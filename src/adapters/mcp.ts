@@ -12,14 +12,17 @@ import { parseArgs } from "node:util";
 import { z } from "zod";
 import {
   BrowseIconsInputSchema,
+  BrowseIconsOutputSchema,
   ChooseIconInputSchema,
-  DEFAULT_POLICY,
+  ChooseIconSummarySchema,
   GetIconInputSchema,
   GetIconOutputSchema,
   GetIconsInputSchema,
   GetIconsOutputSchema,
   KERNEL_VERSION,
   MAX_MCP_APP_RESOURCE_BYTES,
+  MAX_MCP_TOOL_CATALOG_BYTES,
+  MAX_UI_CATALOG_RESPONSE_BYTES,
   ResolveInputSchema,
   ResolveOutputSchema,
   SearchInputSchema,
@@ -28,7 +31,7 @@ import {
 import { IconKernelError, toKernelError } from "../core/errors.js";
 import { IconKernel } from "../core/kernel.js";
 import { isMainModule } from "./main-module.js";
-import { loadPolicyFile } from "./policy-file.js";
+import { resolvePolicyInput } from "./policy-file.js";
 import { presentBatch, presentGet, presentResolve, presentSearch } from "./presentation.js";
 
 export const ICON_PICKER_RESOURCE_URI = "ui://icon-svg-select/picker.html";
@@ -54,6 +57,8 @@ const ResolveMcpOutputSchema = z.strictObject({ result: ResolveOutputSchema });
 const SearchMcpOutputSchema = z.strictObject({ result: SearchOutputSchema });
 const GetIconMcpOutputSchema = z.strictObject({ result: GetIconOutputSchema });
 const GetIconsMcpOutputSchema = z.strictObject({ result: GetIconsOutputSchema });
+const ChooseIconMcpOutputSchema = z.strictObject({ result: ChooseIconSummarySchema, session: ChooseIconInputSchema });
+const BrowseIconsMcpOutputSchema = z.strictObject({ result: BrowseIconsOutputSchema });
 
 const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
@@ -74,6 +79,16 @@ function mcpResult(
   };
 }
 
+function assertToolResultEnvelope(name: string, envelope: unknown, limit: number): void {
+  const bytes = Buffer.byteLength(JSON.stringify(envelope), "utf8");
+  if (bytes > limit) {
+    throw new IconKernelError({
+      code: "RESPONSE_TOO_LARGE",
+      message: `Tool result envelope for ${name} exceeds the ${limit}-byte limit.`,
+    });
+  }
+}
+
 export function createMcpServer(
   kernel: IconKernel,
   loadPickerHtml: () => Promise<string> = loadBuiltPickerHtml,
@@ -84,7 +99,7 @@ export function createMcpServer(
     "resolve_icon",
     {
       title: "Resolve approved icon",
-      description: "Choose and render one policy-compliant IconPark SVG from a semantic intent such as settings, search, 设置, or 搜索. Use this as the one-call default instead of drawing SVG.",
+      description: "Select and render one policy-compliant IconPark SVG for a semantic intent. Default one-call route; the result includes the asset, so do not follow with get_icon. Never draw SVG. Context is a known configured ASCII policy key, never prose; omit when unknown.",
       inputSchema: ResolveInputSchema,
       outputSchema: ResolveMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -99,7 +114,7 @@ export function createMcpServer(
     "search_icons",
     {
       title: "Search approved icons",
-      description: "Find compact IconPark candidates by English or Chinese name, title, tag, alias, or category. Use when alternatives are needed before choosing an exact id.",
+      description: "Find compact IconPark candidates by English/Chinese name, title, tag, alias, or category. Use only when alternatives are needed.",
       inputSchema: SearchInputSchema,
       outputSchema: SearchMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -114,7 +129,7 @@ export function createMcpServer(
     "get_icon",
     {
       title: "Render exact approved icon",
-      description: "Render a known IconPark id with the server's project policy and optional context. Returns deterministic SVG, effective policy, capability, policy compliance, license, and hash.",
+      description: "Render a known IconPark id under project policy. Returns deterministic SVG, effective policy, capabilities, compliance, license, and hash.",
       inputSchema: GetIconInputSchema,
       outputSchema: GetIconMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -129,7 +144,7 @@ export function createMcpServer(
     "get_icons",
     {
       title: "Render approved icon batch",
-      description: "Render up to 20 known IconPark ids with one policy and context. Preserves input order and reports each failed id without hiding successful items.",
+      description: "Render up to 20 known IconPark ids under one policy/context, preserving order and per-id failures.",
       inputSchema: GetIconsInputSchema,
       outputSchema: GetIconsMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -145,23 +160,33 @@ export function createMcpServer(
     "choose_icon",
     {
       title: "Open visual icon picker",
-      description: "Open the human icon picker when the user asks to choose visually, rejects a prior icon, or an exact visual decision is required. Wait for the user's icon_selection message before continuing.",
+      description: "Open the human picker only for visual choice, rejection, or unresolved taste. Wait for the user's icon_selection message.",
       inputSchema: ChooseIconInputSchema,
+      outputSchema: ChooseIconMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: ICON_PICKER_RESOURCE_URI, visibility: ["model"] } },
     },
     (input) => {
-      const result = kernel.browse({
-        query: input.intent,
-        ...(input.context === undefined ? {} : { context: input.context }),
-        offset: 0,
-        limit: 60,
+      // The model only needs the session handle; the app-visible picker fetches
+      // candidate pages itself through browse_icons, so no rendered SVGs enter
+      // the model context from this call.
+      const result = ChooseIconSummarySchema.parse({
+        status: "ok" as const,
+        kind: "icon_picker_session" as const,
+        intent: input.intent,
+        context: input.context ?? null,
+        requestId: input.requestId ?? null,
+        resourceUri: ICON_PICKER_RESOURCE_URI,
       });
-      return {
-        content: [{ type: "text" as const, text: "The visual icon picker is open. Wait for the user's explicit icon_selection message before continuing." }],
+      const envelope = {
+        content: [{
+          type: "text" as const,
+          text: "The visual icon picker is open for the human to choose. Wait for the user's icon_selection message before continuing.",
+        }],
         structuredContent: { result, session: input },
-        ...(result.status === "error" ? { isError: true as const } : {}),
       };
+      assertToolResultEnvelope("choose_icon", envelope, MAX_MCP_TOOL_CATALOG_BYTES);
+      return envelope;
     },
   );
 
@@ -170,14 +195,21 @@ export function createMcpServer(
     "browse_icons",
     {
       title: "Browse icons for picker",
-      description: "Load one bounded page of policy-rendered icons for the interactive picker.",
+      description: "Load one bounded page of rendered icons for the picker.",
       inputSchema: BrowseIconsInputSchema,
+      outputSchema: BrowseIconsMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: ICON_PICKER_RESOURCE_URI, visibility: ["app"] } },
     },
     (input) => {
       const output = kernel.browse(input);
-      return mcpResult(output as Record<string, unknown>, `Loaded ${output.status === "ok" ? output.items.length : 0} icon candidates.`, output.status === "error");
+      const envelope = mcpResult(
+        output as Record<string, unknown>,
+        `Loaded ${output.status === "ok" ? output.items.length : 0} icon candidates.`,
+        output.status === "error",
+      );
+      assertToolResultEnvelope("browse_icons", envelope, MAX_UI_CATALOG_RESPONSE_BYTES);
+      return envelope;
     },
   );
 
@@ -211,7 +243,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       policy: { type: "string" },
     },
   });
-  const policy = parsed.values.policy === undefined ? DEFAULT_POLICY : await loadPolicyFile(parsed.values.policy);
+  const policy = await resolvePolicyInput(parsed.values.policy);
   const server = createMcpServer(new IconKernel(policy));
   await server.connect(new StdioServerTransport());
 }

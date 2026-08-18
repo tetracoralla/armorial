@@ -1,6 +1,7 @@
+import { useCallback } from "react";
 import type { CatalogItem } from "../../core/contracts.js";
-import { setSvgDragData } from "../runtime.js";
 import type { KeyboardEvent } from "react";
+import { IconCell } from "./IconCell.js";
 
 type Props = {
   items: CatalogItem[];
@@ -10,10 +11,6 @@ type Props = {
   onSelect: (item: CatalogItem) => void;
   onLoadMore: () => void;
 };
-
-function svgDataUri(svg: string): string {
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
 
 function optionButtons(listbox: HTMLElement): HTMLButtonElement[] {
   return Array.from(listbox.querySelectorAll<HTMLButtonElement>('[role="option"]'));
@@ -41,6 +38,23 @@ function keyboardTargetIndex(key: string, current: number, count: number, column
 }
 
 export function IconGrid({ items, selectedId, hasMore, loading, onSelect, onLoadMore }: Props) {
+  const handleCellKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
+    const listbox = event.currentTarget.parentElement;
+    if (listbox === null) return;
+    const options = optionButtons(listbox);
+    const current = options.indexOf(event.currentTarget);
+    if (current < 0) return;
+    const target = keyboardTargetIndex(event.key, current, options.length, visualColumnCount(options));
+    if (target === null) return;
+    event.preventDefault();
+    if (target === current) return;
+    const targetOption = options[target];
+    const targetItem = items[target];
+    if (targetOption === undefined || targetItem === undefined) return;
+    onSelect(targetItem);
+    targetOption.focus();
+  }, [items, onSelect]);
+
   if (items.length === 0 && !loading) {
     return <div className="empty-state">No matching icons</div>;
   }
@@ -49,37 +63,14 @@ export function IconGrid({ items, selectedId, hasMore, loading, onSelect, onLoad
     <div className="catalog-scroll">
       <div className="icon-grid" role="listbox" aria-label="Icon results">
         {items.map((item, index) => (
-          <button
-            className={`icon-cell ${selectedId === item.id ? "is-selected" : ""}`}
-            type="button"
-            role="option"
-            aria-selected={selectedId === item.id}
-            tabIndex={selectedId === item.id || (selectedId === null && index === 0) ? 0 : -1}
+          <IconCell
             key={item.id}
-            draggable
-            title={`${item.name} · ${item.title}`}
-            onClick={() => onSelect(item)}
-            onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
-              const listbox = event.currentTarget.parentElement;
-              if (listbox === null) return;
-              const options = optionButtons(listbox);
-              const current = options.indexOf(event.currentTarget);
-              if (current < 0) return;
-              const target = keyboardTargetIndex(event.key, current, options.length, visualColumnCount(options));
-              if (target === null) return;
-              event.preventDefault();
-              if (target === current) return;
-              const targetOption = options[target];
-              const targetItem = items[target];
-              if (targetOption === undefined || targetItem === undefined) return;
-              onSelect(targetItem);
-              targetOption.focus();
-            }}
-            onDragStart={(event) => setSvgDragData(event.nativeEvent, item.name, item.asset.svg)}
-          >
-            <img src={svgDataUri(item.asset.svg)} alt="" draggable={false} />
-            <span>{item.name}</span>
-          </button>
+            item={item}
+            selected={selectedId === item.id}
+            tabIndex={selectedId === item.id || (selectedId === null && index === 0) ? 0 : -1}
+            onSelect={onSelect}
+            onKeyDown={handleCellKeyDown}
+          />
         ))}
       </div>
       {hasMore && (

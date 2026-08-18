@@ -4,16 +4,11 @@ import { realpath, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
-import {
-  BrowseIconsInputSchema,
-  DEFAULT_POLICY,
-  GetIconInputSchema,
-  KERNEL_VERSION,
-} from "../core/contracts.js";
+import { KERNEL_VERSION, type BrowseIconsInput, type GetIconInput } from "../core/contracts.js";
 import { IconKernelError, toKernelError } from "../core/errors.js";
 import { IconKernel } from "../core/kernel.js";
 import { isMainModule } from "./main-module.js";
-import { loadPolicyFile } from "./policy-file.js";
+import { resolvePolicyInput } from "./policy-file.js";
 
 const MAX_HTTP_BODY_BYTES = 16 * 1024;
 const DEFAULT_PORT = 4178;
@@ -109,11 +104,16 @@ export async function resolveStaticAssetPath(staticRoot: string, pathname: strin
   }
 }
 
-async function serveStatic(response: ServerResponse, pathname: string, staticRoot: string): Promise<void> {
+async function serveStatic(
+  response: ServerResponse,
+  pathname: string,
+  staticRoot: string,
+  method: string,
+): Promise<void> {
   const target = await resolveStaticAssetPath(staticRoot, pathname);
   if (target === null) {
     response.statusCode = 404;
-    response.end("Not found");
+    response.end(method === "HEAD" ? undefined : "Not found");
     return;
   }
   const targetStat = await stat(target);
@@ -121,7 +121,32 @@ async function serveStatic(response: ServerResponse, pathname: string, staticRoo
   response.statusCode = 200;
   response.setHeader("Content-Length", targetStat.size);
   response.setHeader("Content-Type", MIME_TYPES[extname(target)] ?? "application/octet-stream");
-  createReadStream(target).pipe(response);
+  if (method === "HEAD") {
+    response.end();
+    return;
+  }
+  const fileStream = createReadStream(target);
+  fileStream.on("error", () => {
+    if (!response.headersSent) {
+      const body = "Internal server error";
+      response.statusCode = 500;
+      response.setHeader("Content-Type", "text/plain; charset=utf-8");
+      response.setHeader("Content-Length", Buffer.byteLength(body));
+      response.end(body);
+    } else {
+      response.destroy();
+    }
+  });
+  fileStream.pipe(response);
+}
+
+// The kernel reports unexpected internal failures as error outputs (the new
+// INTERNAL_ERROR code), not as thrown exceptions, so the status decision must
+// inspect the output's error code; only thrown adapter-side failures reach the
+// outer catch.
+function apiResponseStatus(output: { status: string; error?: { code?: string } }): number {
+  if (output.status !== "error") return 200;
+  return output.error?.code === "INTERNAL_ERROR" ? 500 : 400;
 }
 
 export function createIconWebServer(
@@ -136,14 +161,21 @@ export function createIconWebServer(
         writeJson(response, 200, { status: "ok", version: KERNEL_VERSION });
         return;
       }
+      if (url.pathname === "/favicon.ico" && (request.method === "GET" || request.method === "HEAD")) {
+        // The page ships an inline data-URI icon; answer legacy .ico requests
+        // with no content instead of static-file 404 noise.
+        response.statusCode = 204;
+        response.end();
+        return;
+      }
       if (url.pathname === "/api/browse" && request.method === "POST") {
-        const input = BrowseIconsInputSchema.parse(await readJsonBody(request));
-        writeJson(response, 200, { result: kernel.browse(input) });
+        const output = kernel.browse(await readJsonBody(request) as BrowseIconsInput);
+        writeJson(response, apiResponseStatus(output), { result: output });
         return;
       }
       if (url.pathname === "/api/get" && request.method === "POST") {
-        const input = GetIconInputSchema.parse(await readJsonBody(request));
-        writeJson(response, 200, { result: kernel.getIcon(input) });
+        const output = kernel.getIcon(await readJsonBody(request) as GetIconInput);
+        writeJson(response, apiResponseStatus(output), { result: output });
         return;
       }
       if (url.pathname.startsWith("/api/")) {
@@ -155,9 +187,12 @@ export function createIconWebServer(
         response.end("Method not allowed");
         return;
       }
-      await serveStatic(response, url.pathname, staticRoot);
+      await serveStatic(response, url.pathname, staticRoot, request.method);
     } catch (error) {
-      writeJson(response, 400, { status: "error", error: toKernelError(error) });
+      const kernelError = toKernelError(error);
+      // Client-caused failures are 4xx; unexpected internal failures must not
+      // masquerade as client errors.
+      writeJson(response, kernelError.code === "INTERNAL_ERROR" ? 500 : 400, { status: "error", error: kernelError });
     }
   });
 }
@@ -187,11 +222,13 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       port: { type: "string" },
     },
   });
-  const port = parsed.values.port === undefined ? DEFAULT_PORT : Number(parsed.values.port);
+  const port = parsed.values.port === undefined
+    ? DEFAULT_PORT
+    : (/^\d+$/.test(parsed.values.port) ? Number.parseInt(parsed.values.port, 10) : Number.NaN);
   if (!Number.isInteger(port) || port < 0 || port > 65_535) {
     throw new IconKernelError({ code: "INVALID_INPUT", message: "Port must be an integer from 0 to 65535.", field: "port" });
   }
-  const policy = parsed.values.policy === undefined ? DEFAULT_POLICY : await loadPolicyFile(parsed.values.policy);
+  const policy = await resolvePolicyInput(parsed.values.policy);
   const server = createIconWebServer(new IconKernel(policy));
   const address = await listenIconWebServer(server, port);
   process.stdout.write(`${JSON.stringify({ status: "ok", kind: "icon_ui_server", ...address })}\n`);

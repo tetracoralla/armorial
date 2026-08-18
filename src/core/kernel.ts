@@ -30,7 +30,7 @@ import {
   type SearchInput,
   type SearchOutput,
 } from "./contracts.js";
-import { IconKernelError, toKernelError } from "./errors.js";
+import { IconKernelError, toKernelError, zodIssuesToKernelError } from "./errors.js";
 import {
   findSemanticSelection,
   parseIconPolicy,
@@ -40,41 +40,69 @@ import { IconParkProvider, type IconRecord } from "./provider.js";
 import { IconSearchIndex } from "./search.js";
 
 function invalidInput(error: z.ZodError): KernelError {
-  const issue = error.issues[0];
-  return {
-    code: "INVALID_INPUT",
-    message: issue?.message ?? "The icon request is invalid.",
-    ...(issue?.path.length ? { field: issue.path.join(".") } : {}),
-  };
+  return zodIssuesToKernelError("INVALID_INPUT", error, "The icon request is invalid.");
 }
 
 function failure(error: KernelError): { status: "error"; error: KernelError } {
   return { status: "error", error };
 }
 
-function isSemanticAmbiguity(candidates: readonly Candidate[]): boolean {
+function isSemanticAmbiguity(
+  candidates: readonly Candidate[],
+  hasMultipleDirectSemanticTargets: boolean,
+): boolean {
   const first = candidates[0];
   const second = candidates[1];
   if (first === undefined || second === undefined) return false;
   if (first.matchKind === "exact_id" || first.matchKind === "exact_name") return false;
-  return first.rankScore - second.rankScore <= 4;
+  return hasMultipleDirectSemanticTargets || first.rankScore - second.rankScore <= 4;
 }
 
 function hasAutoResolvableBasis(candidate: Candidate): boolean {
-  if (candidate.matchKind === "category") return false;
+  // Upstream IconPark tags are uncontrolled and can carry unrelated meanings
+  // (e.g. 粘贴 also tags the "intersection" icon), so a tag-only match must
+  // never decide an icon without a policy selection or explicit choice.
+  if (candidate.matchKind === "category" || candidate.matchKind === "exact_tag") return false;
   if (candidate.matchKind !== "contains") return true;
   return candidate.matchedOn.some((match) => match.startsWith("name:") || match.startsWith("title:"));
+}
+
+type CatalogCategory = {
+  id: string;
+  label: string;
+  labelCN: string;
+  count: number;
+};
+
+function buildCategories(records: readonly IconRecord[]): readonly CatalogCategory[] {
+  const categoriesById = new Map<string, CatalogCategory>();
+  for (const record of records) {
+    const current = categoriesById.get(record.category);
+    if (current === undefined) {
+      categoriesById.set(record.category, {
+        id: record.category,
+        label: record.category,
+        labelCN: record.categoryCN,
+        count: 1,
+      });
+    } else {
+      current.count += 1;
+    }
+  }
+  return [...categoriesById.values()].sort((left, right) => left.label.localeCompare(right.label, "en"));
 }
 
 export class IconKernel {
   readonly policy: IconPolicy;
   readonly provider: IconParkProvider;
   readonly searchIndex: IconSearchIndex;
+  readonly #categories: readonly CatalogCategory[];
 
   constructor(policyInput: unknown = DEFAULT_POLICY) {
     this.policy = parseIconPolicy(policyInput);
     this.provider = new IconParkProvider();
     this.searchIndex = new IconSearchIndex(this.provider.records);
+    this.#categories = buildCategories(this.provider.records);
 
     for (const [intent, iconId] of Object.entries(this.policy.selections)) {
       if (this.provider.get(iconId) === undefined) {
@@ -91,15 +119,19 @@ export class IconKernel {
     const parsed = SearchInputSchema.safeParse(input);
     if (!parsed.success) return SearchOutputSchema.parse(failure(invalidInput(parsed.error)));
 
-    const ranked = this.searchIndex.rank(parsed.data.query);
-    const items = ranked.slice(0, parsed.data.limit).map(({ candidate }) => CandidateSchema.parse(candidate));
-    return SearchOutputSchema.parse({
-      status: "ok",
-      kind: "icon_search",
-      query: parsed.data.query,
-      items,
-      truncated: ranked.length > items.length,
-    });
+    try {
+      const ranked = this.searchIndex.rank(parsed.data.query);
+      const items = ranked.slice(0, parsed.data.limit).map(({ candidate }) => CandidateSchema.parse(candidate));
+      return SearchOutputSchema.parse({
+        status: "ok",
+        kind: "icon_search",
+        query: parsed.data.query,
+        items,
+        truncated: ranked.length > items.length,
+      });
+    } catch (error) {
+      return SearchOutputSchema.parse(failure(toKernelError(error)));
+    }
   }
 
   browse(input: BrowseIconsInput): BrowseIconsOutput {
@@ -118,21 +150,6 @@ export class IconKernel {
         : rankedRecords.filter((record) => record.category === parsed.data.category);
       const page = filtered.slice(parsed.data.offset, parsed.data.offset + parsed.data.limit);
       const effective = resolveEffectivePolicy(this.policy, parsed.data.context);
-      const categoriesById = new Map<string, { id: string; label: string; labelCN: string; count: number }>();
-
-      for (const record of this.provider.records) {
-        const current = categoriesById.get(record.category);
-        if (current === undefined) {
-          categoriesById.set(record.category, {
-            id: record.category,
-            label: record.category,
-            labelCN: record.categoryCN,
-            count: 1,
-          });
-        } else {
-          current.count += 1;
-        }
-      }
 
       const output = {
         status: "ok" as const,
@@ -144,7 +161,7 @@ export class IconKernel {
         total: filtered.length,
         truncated: parsed.data.offset + page.length < filtered.length,
         policy: effective.policy,
-        categories: [...categoriesById.values()].sort((left, right) => left.label.localeCompare(right.label, "en")),
+        categories: this.#categories,
         items: page.map((record) => ({
           ...this.#recordSummary(record),
           asset: this.provider.render(record, effective.policy),
@@ -180,57 +197,61 @@ export class IconKernel {
     const parsed = GetIconsInputSchema.safeParse(input);
     if (!parsed.success) return GetIconsOutputSchema.parse(failure(invalidInput(parsed.error)));
 
-    const items = parsed.data.ids.map((id, index) => {
-      try {
-        return {
-          index,
-          inputId: id,
-          status: "ok" as const,
-          icon: this.#renderIcon(id, parsed.data.context),
-        };
-      } catch (error) {
-        return {
-          index,
-          inputId: id,
-          status: "error" as const,
-          error: toKernelError(error),
-        };
+    try {
+      const items = parsed.data.ids.map((id, index) => {
+        try {
+          return {
+            index,
+            inputId: id,
+            status: "ok" as const,
+            icon: this.#renderIcon(id, parsed.data.context),
+          };
+        } catch (error) {
+          return {
+            index,
+            inputId: id,
+            status: "error" as const,
+            error: toKernelError(error),
+          };
+        }
+      });
+
+      const output = {
+        status: "ok" as const,
+        kind: "icon_batch" as const,
+        items,
+        summary: {
+          requested: items.length,
+          rendered: items.filter((item) => item.status === "ok").length,
+          failed: items.filter((item) => item.status === "error").length,
+        },
+      };
+
+      if (Buffer.byteLength(JSON.stringify(output), "utf8") > MAX_BATCH_RESPONSE_BYTES) {
+        return GetIconsOutputSchema.parse(
+          failure({
+            code: "RESPONSE_TOO_LARGE",
+            message: `Batch response exceeds the ${MAX_BATCH_RESPONSE_BYTES}-byte limit. Request fewer icons.`,
+          }),
+        );
       }
-    });
 
-    const output = {
-      status: "ok" as const,
-      kind: "icon_batch" as const,
-      items,
-      summary: {
-        requested: items.length,
-        rendered: items.filter((item) => item.status === "ok").length,
-        failed: items.filter((item) => item.status === "error").length,
-      },
-    };
-
-    if (Buffer.byteLength(JSON.stringify(output), "utf8") > MAX_BATCH_RESPONSE_BYTES) {
-      return GetIconsOutputSchema.parse(
-        failure({
-          code: "RESPONSE_TOO_LARGE",
-          message: `Batch response exceeds the ${MAX_BATCH_RESPONSE_BYTES}-byte limit. Request fewer icons.`,
-        }),
-      );
+      return GetIconsOutputSchema.parse(output);
+    } catch (error) {
+      return GetIconsOutputSchema.parse(failure(toKernelError(error)));
     }
-
-    return GetIconsOutputSchema.parse(output);
   }
 
   resolve(input: ResolveInput): ResolveOutput {
     const parsed = ResolveInputSchema.safeParse(input);
     if (!parsed.success) return ResolveOutputSchema.parse(failure(invalidInput(parsed.error)));
 
-    const selection = findSemanticSelection(this.policy, parsed.data.intent);
-    const ranked = this.searchIndex.rank(parsed.data.intent);
-    const candidates = ranked.slice(0, Math.max(2, parsed.data.alternatives + 1)).map(({ candidate }) => candidate);
+    try {
+      const selection = findSemanticSelection(this.policy, parsed.data.intent);
+      const { ranked, hasMultipleDirectSemanticTargets } = this.searchIndex.rankForResolution(parsed.data.intent);
+      const candidates = ranked.slice(0, Math.max(2, parsed.data.alternatives + 1)).map(({ candidate }) => candidate);
 
-    if (selection !== undefined) {
-      try {
+      if (selection !== undefined) {
         const icon = this.#renderIcon(selection, parsed.data.context);
         return ResolveOutputSchema.parse({
           status: "ok",
@@ -240,35 +261,54 @@ export class IconKernel {
           icon,
           alternatives: candidates.filter((candidate) => candidate.id !== icon.id).slice(0, parsed.data.alternatives),
         });
-      } catch (error) {
-        return ResolveOutputSchema.parse(failure(toKernelError(error)));
       }
-    }
 
-    const first = candidates[0];
-    if (first === undefined || first.rankScore < 50 || !hasAutoResolvableBasis(first)) {
-      return ResolveOutputSchema.parse(
-        failure({
-          code: "ICON_NOT_FOUND",
-          message: `No sufficiently specific IconPark match was found for "${parsed.data.intent}".`,
-        }),
-      );
-    }
+      const first = candidates[0];
+      if (first === undefined || first.rankScore < 50) {
+        return ResolveOutputSchema.parse(
+          failure({
+            code: "ICON_NOT_FOUND",
+            message: `No sufficiently specific IconPark match was found for "${parsed.data.intent}".`,
+          }),
+        );
+      }
 
-    if (isSemanticAmbiguity(candidates)) {
-      return ResolveOutputSchema.parse({
-        status: "ambiguous",
-        kind: "icon_resolution",
-        intent: parsed.data.intent,
-        error: {
-          code: "ICON_AMBIGUOUS",
-          message: "Multiple icons have the same semantic basis. Choose an id or pin this intent in policy.selections.",
-        },
-        candidates: candidates.slice(0, Math.max(2, parsed.data.alternatives || 2)),
-      });
-    }
+      if (!hasAutoResolvableBasis(first)) {
+        if (candidates.length >= 2) {
+          return ResolveOutputSchema.parse({
+            status: "ambiguous",
+            kind: "icon_resolution",
+            intent: parsed.data.intent,
+            error: {
+              code: "ICON_AMBIGUOUS",
+              message: "The closest match rests on an upstream tag or weak containment, so the kernel will not decide it. Choose an id or pin this intent in policy.selections.",
+            },
+            candidates: candidates.slice(0, Math.max(2, parsed.data.alternatives || 2)),
+          });
+        }
+        return ResolveOutputSchema.parse(
+          failure({
+            code: "ICON_NOT_FOUND",
+            message: `Only upstream tag or weak matches were found for "${parsed.data.intent}". Pin the intent in policy.selections or choose an id via search_icons.`,
+          }),
+        );
+      }
 
-    try {
+      if (isSemanticAmbiguity(candidates, hasMultipleDirectSemanticTargets)) {
+        return ResolveOutputSchema.parse({
+          status: "ambiguous",
+          kind: "icon_resolution",
+          intent: parsed.data.intent,
+          error: {
+            code: "ICON_AMBIGUOUS",
+            message: hasMultipleDirectSemanticTargets
+              ? "The intent contains multiple icon semantics. Choose one intent, choose an id, or pin the complete intent in policy.selections."
+              : "Multiple icons have the same semantic basis. Choose an id or pin this intent in policy.selections.",
+          },
+          candidates: candidates.slice(0, Math.max(2, parsed.data.alternatives || 2)),
+        });
+      }
+
       const icon = this.#renderIcon(first.id, parsed.data.context);
       const selectionMethod = first.matchKind === "exact_id"
         ? "exact_id"

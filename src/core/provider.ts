@@ -1,4 +1,6 @@
+import { readdirSync } from "node:fs";
 import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import {
   COLLECTION_ID,
@@ -6,7 +8,6 @@ import {
   type RenderStyle,
 } from "./contracts.js";
 import { IconKernelError } from "./errors.js";
-import { normalizeIdentifier } from "./normalize.js";
 import { fillForStyle, finalizeSvg, parseSvgViewBox, type RenderedAsset } from "./svg.js";
 
 const require = createRequire(import.meta.url);
@@ -48,8 +49,12 @@ export const ICON_PARK_CAPABILITIES = CollectionCapabilitiesSchema.parse({
   supportsThemeTransform: true,
 });
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+function isIconRenderer(value: unknown): value is IconRenderer {
+  return typeof value === "function";
+}
+
+function rendererModuleSlug(name: string): string {
+  return name.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("");
 }
 
 export class IconParkProvider {
@@ -58,67 +63,59 @@ export class IconParkProvider {
   readonly records: readonly IconRecord[];
 
   readonly #recordsBySlug: ReadonlyMap<string, IconRecord>;
-  readonly #renderersBySlug: ReadonlyMap<string, IconRenderer>;
+  readonly #rendererModulesDir: string;
+  readonly #renderersBySlug = new Map<string, IconRenderer>();
   readonly #viewBoxExtentBySlug = new Map<string, number>();
 
   constructor() {
     const rawMetadata: unknown = require("@icon-park/svg/icons.json");
-    const rawExports: unknown = require("@icon-park/svg");
     const metadata = IconMetadataListSchema.safeParse(rawMetadata);
-
-    if (!metadata.success || !isObject(rawExports)) {
+    if (!metadata.success) {
       throw new IconKernelError({
         code: "ICON_RENDER_FAILED",
         message: "The pinned IconPark package does not match its expected metadata contract.",
       });
     }
 
-    const rendererByNormalizedName = new Map<string, IconRenderer>();
-    for (const [exportName, exported] of Object.entries(rawExports)) {
-      if (typeof exported !== "function") continue;
-      const normalized = normalizeIdentifier(exportName);
-      if (rendererByNormalizedName.has(normalized)) {
-        throw new IconKernelError({
-          code: "ICON_RENDER_FAILED",
-          message: `The IconPark export map contains a normalized name collision for "${exportName}".`,
-        });
-      }
-      rendererByNormalizedName.set(normalized, exported as IconRenderer);
+    const rendererModulesDir = join(
+      dirname(require.resolve("@icon-park/svg/package.json")),
+      "lib",
+      "icons",
+    );
+    let rendererFiles: ReadonlySet<string>;
+    try {
+      rendererFiles = new Set(readdirSync(rendererModulesDir).filter((fileName) => fileName.endsWith(".js")));
+    } catch {
+      throw new IconKernelError({
+        code: "ICON_RENDER_FAILED",
+        message: "The pinned IconPark package does not expose its per-icon renderer modules.",
+      });
     }
 
     const records: IconRecord[] = [];
     const recordsBySlug = new Map<string, IconRecord>();
-    const renderersBySlug = new Map<string, IconRenderer>();
-
     for (const item of metadata.data) {
-      const renderer = rendererByNormalizedName.get(normalizeIdentifier(item.name));
-      if (renderer === undefined) {
-        throw new IconKernelError({
-          code: "ICON_RENDER_FAILED",
-          message: `IconPark metadata entry "${item.name}" has no renderer export.`,
-        });
-      }
       if (recordsBySlug.has(item.name)) {
         throw new IconKernelError({
           code: "ICON_RENDER_FAILED",
           message: `IconPark metadata contains duplicate slug "${item.name}".`,
         });
       }
+      if (!rendererFiles.has(`${rendererModuleSlug(item.name)}.js`)) {
+        throw new IconKernelError({
+          code: "ICON_RENDER_FAILED",
+          message: `IconPark metadata entry "${item.name}" has no renderer export.`,
+        });
+      }
 
       const record = { ...item, canonicalId: `${COLLECTION_ID}:${item.name}` };
       records.push(record);
       recordsBySlug.set(item.name, record);
-      renderersBySlug.set(item.name, renderer);
     }
 
     this.records = records;
     this.#recordsBySlug = recordsBySlug;
-    this.#renderersBySlug = renderersBySlug;
-  }
-
-  canonicalizeId(input: string): string {
-    const slug = input.startsWith(`${COLLECTION_ID}:`) ? input.slice(COLLECTION_ID.length + 1) : input;
-    return `${COLLECTION_ID}:${slug}`;
+    this.#rendererModulesDir = rendererModulesDir;
   }
 
   get(input: string): IconRecord | undefined {
@@ -126,14 +123,32 @@ export class IconParkProvider {
     return this.#recordsBySlug.get(slug);
   }
 
-  render(record: IconRecord, style: RenderStyle): RenderedAsset {
-    const renderer = this.#renderersBySlug.get(record.name);
-    if (renderer === undefined) {
+  #renderer(record: IconRecord): IconRenderer {
+    const cached = this.#renderersBySlug.get(record.name);
+    if (cached !== undefined) return cached;
+
+    let module: unknown;
+    try {
+      module = require(join(this.#rendererModulesDir, `${rendererModuleSlug(record.name)}.js`));
+    } catch {
       throw new IconKernelError({
         code: "ICON_RENDER_FAILED",
-        message: `Icon "${record.canonicalId}" has no renderer.`,
+        message: `IconPark metadata entry "${record.name}" has no renderer export.`,
       });
     }
+    const renderer = (module as { default?: unknown }).default;
+    if (!isIconRenderer(renderer)) {
+      throw new IconKernelError({
+        code: "ICON_RENDER_FAILED",
+        message: `IconPark metadata entry "${record.name}" has no renderer export.`,
+      });
+    }
+    this.#renderersBySlug.set(record.name, renderer);
+    return renderer;
+  }
+
+  render(record: IconRecord, style: RenderStyle): RenderedAsset {
+    const renderer = this.#renderer(record);
 
     let rawSvg: string;
     try {

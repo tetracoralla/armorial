@@ -1,0 +1,20 @@
+{
+  "name": "openadam-local",
+  "interface": {
+    "displayName": "openAdam Local Plugins"
+  },
+  "plugins": [
+    {
+      "name": "icon-svg-select",
+      "source": {
+        "source": "local",
+        "path": "./plugins/icon-svg-select"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

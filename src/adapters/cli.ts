@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { DEFAULT_POLICY, KERNEL_VERSION } from "../core/contracts.js";
+import { KERNEL_VERSION } from "../core/contracts.js";
 import { IconKernelError, toKernelError } from "../core/errors.js";
 import { IconKernel } from "../core/kernel.js";
 import { createPolicyJsonSchema } from "../core/policy-schema.js";
 import { isMainModule } from "./main-module.js";
-import { loadPolicyFile } from "./policy-file.js";
-import { presentBatch, presentGet, presentResolve, presentSearch } from "./presentation.js";
+import { loadPolicyFile, resolvePolicyInput } from "./policy-file.js";
+import { presentBatch, presentSearch } from "./presentation.js";
 
 type Format = "json" | "text" | "svg";
 
@@ -20,12 +20,13 @@ Usage:
   icon-svg-select policy validate <file>
   icon-svg-select policy schema
 
+Policy resolution order: --policy file, $ICON_SVG_SELECT_POLICY, ./icon-policy.json, built-in default.
+
 The CLI writes results to stdout and never writes SVG files itself.`;
 
 function asInteger(value: string | undefined, fallback: number): number {
   if (value === undefined) return fallback;
-  const number = Number(value);
-  return Number.isInteger(number) ? number : Number.NaN;
+  return /^-?\d+$/.test(value) ? Number.parseInt(value, 10) : Number.NaN;
 }
 
 function parseFormat(value: string | undefined, allowed: readonly Format[], fallback: Format): Format {
@@ -41,7 +42,7 @@ function parseFormat(value: string | undefined, allowed: readonly Format[], fall
 }
 
 async function createKernel(policyPath?: string): Promise<IconKernel> {
-  return new IconKernel(policyPath === undefined ? DEFAULT_POLICY : await loadPolicyFile(policyPath));
+  return new IconKernel(await resolvePolicyInput(policyPath));
 }
 
 function writeJson(value: unknown): void {
@@ -227,5 +228,3 @@ if (isMainModule(import.meta.url, process.argv[1])) {
     process.exitCode = error instanceof IconKernelError ? 2 : 1;
   });
 }
-
-export { presentBatch, presentGet, presentResolve, presentSearch };

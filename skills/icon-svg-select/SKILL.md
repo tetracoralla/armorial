@@ -9,7 +9,7 @@ Use the installed tools as the only icon geometry and policy authority. Never re
 
 ## Route the request
 
-1. For an ordinary semantic request, call `resolve_icon` once with the user's intent and known surface context.
+1. For an ordinary semantic request, call `resolve_icon` once with the user's intent. Its successful result already contains the rendered asset; do not follow it with `get_icon`. Include `context` only when the exact configured 1-40 character ASCII key is already known; never turn a natural-language surface description into a context key, and omit it otherwise.
 2. If the user asks for alternatives, call `search_icons`, present the compact candidates, and call `get_icon` only after an exact id is chosen.
 3. If the user explicitly wants to choose visually, rejects the prior choice, or taste is the remaining ambiguity, call `choose_icon` once. Tell the user to choose in the picker, then stop and wait for its explicit `icon_selection` message.
 4. For an already-known id, call `get_icon`. For independent exact ids, call `get_icons` once.

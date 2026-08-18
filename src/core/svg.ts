@@ -6,9 +6,14 @@ const RANDOM_ICON_ID_PATTERN = /icon-[-a-f0-9]{1,16}/gi;
 const FORBIDDEN_SVG_PATTERNS = [
   /<script\b/i,
   /<foreignObject\b/i,
-  /\son[a-z]+\s*=/i,
-  /(?:href|xlink:href)\s*=\s*["'](?:https?:|data:|\/\/)/i,
-  /url\(\s*["']?(?:https?:|data:|\/\/)/i,
+  /<animate(?:Motion|Transform|Color)?\b/i,
+  /<set\b/i,
+  /<(?:image|iframe|embed|object)\b/i,
+  /[\s"'/]on[a-z]+\s*=/i,
+  /(?:href|xlink:href)\s*=\s*["'](?:https?:|data:|file:|javascript:|\/\/)/i,
+  /url\(\s*["']?(?:https?:|data:|file:|javascript:|\/\/)/i,
+  /[\s"']src\s*=\s*["']/i,
+  /@import\b/i,
 ] as const;
 
 const SVG_VIEWBOX_PATTERN = /\bviewBox="([^"]+)"/;

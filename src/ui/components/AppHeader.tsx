@@ -9,7 +9,13 @@ export function AppHeader({ runtime }: { runtime: PickerRuntime }) {
       </div>
       <div className="header-actions">
         {runtime.canFullscreen && (
-          <button className="quiet-button" type="button" onClick={() => void runtime.requestFullscreen()}>
+          <button
+            className="quiet-button"
+            type="button"
+            onClick={() => {
+              void runtime.requestFullscreen().catch(() => undefined);
+            }}
+          >
             Full screen
           </button>
         )}

@@ -39,13 +39,18 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
       assert.equal(tool.annotations?.idempotentHint, true);
       assert.equal(tool.annotations?.openWorldHint, false);
       assert.equal(tool.inputSchema.additionalProperties, false);
-      if (!APP_ONLY_TOOL_NAMES.includes(tool.name as (typeof APP_ONLY_TOOL_NAMES)[number]) && tool.name !== "choose_icon") {
-        assert.ok(tool.outputSchema);
-      }
+      assert.ok(tool.outputSchema, `${tool.name} must declare an output schema`);
     }
     const chooseTool = listed.tools.find((tool) => tool.name === "choose_icon");
     assert.deepEqual((chooseTool?._meta?.ui as { visibility?: string[] } | undefined)?.visibility, ["model"]);
     assert.equal((chooseTool?._meta?.ui as { resourceUri?: string } | undefined)?.resourceUri, ICON_PICKER_RESOURCE_URI);
+    const resolveTool = listed.tools.find((tool) => tool.name === "resolve_icon");
+    assert.match(resolveTool?.description ?? "", /never prose; omit when unknown/);
+    assert.match(resolveTool?.description ?? "", /do not follow with get_icon/);
+    const resolveProperties = resolveTool?.inputSchema.properties as
+      | Record<string, { description?: string }>
+      | undefined;
+    assert.match(resolveProperties?.context?.description ?? "", /omit prose or unknown/);
     const browseTool = listed.tools.find((tool) => tool.name === APP_ONLY_TOOL_NAMES[0]);
     assert.deepEqual((browseTool?._meta?.ui as { visibility?: string[] } | undefined)?.visibility, ["app"]);
 
@@ -89,6 +94,17 @@ test("MCP resolve, ambiguity, validation, and batch partial failure use structur
     assert.equal(ordinaryPhraseContent.status, "ok");
     assert.equal((ordinaryPhraseContent.icon as { id?: string } | undefined)?.id, "icon-park:add");
 
+    for (const intent of ["delete settings", "添加删除"]) {
+      const multiSemantic = await client.callTool({
+        name: "resolve_icon",
+        arguments: { intent, alternatives: 2 },
+      });
+      assert.equal(multiSemantic.isError, undefined, intent);
+      const multiSemanticContent = structured(structured(multiSemantic.structuredContent).result);
+      assert.equal(multiSemanticContent.status, "ambiguous", intent);
+      assert.equal(structured(multiSemanticContent.error).code, "ICON_AMBIGUOUS", intent);
+    }
+
     const ambiguous = await client.callTool({
       name: "resolve_icon",
       arguments: { intent: "关闭", alternatives: 2 },
@@ -117,10 +133,27 @@ test("MCP resolve, ambiguity, validation, and batch partial failure use structur
     });
     assert.equal(picker.isError, undefined);
     const pickerEnvelope = structured(picker.structuredContent);
-    assert.equal(structured(pickerEnvelope.result).status, "ok");
-    assert.equal((structured(pickerEnvelope.session).requestId), "req-42");
-    const firstPickerItem = (structured(pickerEnvelope.result).items as Array<{ id?: string }> | undefined)?.[0];
-    assert.equal(firstPickerItem?.id, "icon-park:remind");
+    assert.ok(
+      Buffer.byteLength(JSON.stringify(pickerEnvelope), "utf8") <= MAX_MCP_TOOL_CATALOG_BYTES,
+      "choose_icon model envelope must stay catalog-sized",
+    );
+    const pickerSummary = structured(pickerEnvelope.result);
+    assert.equal(pickerSummary.status, "ok");
+    assert.equal(pickerSummary.kind, "icon_picker_session");
+    assert.equal(pickerSummary.intent, "notification");
+    assert.equal("items" in pickerSummary, false);
+    assert.equal("svg" in pickerSummary, false);
+    assert.equal(structured(pickerEnvelope.session).requestId, "req-42");
+
+    const browsePage = await client.callTool({
+      name: "browse_icons",
+      arguments: { query: "notification", offset: 0, limit: 8 },
+    });
+    assert.equal(browsePage.isError, undefined);
+    const browseContent = structured(structured(browsePage.structuredContent).result);
+    const browseItems = browseContent.items as Array<{ id?: string; asset?: { svg?: string } }>;
+    assert.equal(browseItems[0]?.id, "icon-park:remind");
+    assert.match(browseItems[0]?.asset?.svg ?? "", /<svg/);
 
     const invalidBrowse = await client.callTool({
       name: "browse_icons",

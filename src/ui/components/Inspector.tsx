@@ -1,7 +1,8 @@
 import type { CatalogItem } from "../../core/contracts.js";
 import type { CatalogData, PickerRuntime } from "../runtime.js";
+import { svgDataUri } from "../svg-data-uri.js";
 
-type ActionState = "idle" | "copying" | "downloading" | "attaching" | "continuing";
+type ActionState = "idle" | "copying-svg" | "copying-agent" | "downloading" | "attaching" | "continuing";
 
 type Props = {
   selected: CatalogItem | null;
@@ -14,10 +15,6 @@ type Props = {
   onAttach: () => Promise<void>;
   onContinue: () => Promise<void>;
 };
-
-function svgDataUri(svg: string): string {
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
 
 function PolicySummary({ catalog }: { catalog: CatalogData }) {
   const policy = catalog.policy;
@@ -51,13 +48,13 @@ export function Inspector(props: Props) {
       </div>
       <div className="action-stack" aria-label="Human export actions">
         <button className="primary-action" type="button" disabled={actionState !== "idle"} onClick={() => void props.onCopySvg()}>
-          {actionState === "copying" ? "Copying…" : "Copy SVG"}
+          {actionState === "copying-svg" ? "Copying…" : "Copy SVG"}
         </button>
         <button type="button" disabled={actionState !== "idle"} onClick={() => void props.onDownload()}>
           {actionState === "downloading" ? "Downloading…" : "Download"}
         </button>
         <button type="button" disabled={actionState !== "idle"} onClick={() => void props.onCopyForAgent()}>
-          Copy for Agent
+          {actionState === "copying-agent" ? "Copying…" : "Copy for Agent"}
         </button>
       </div>
       {runtime.mode === "embedded" && (runtime.canAttach || runtime.canContinue) && (

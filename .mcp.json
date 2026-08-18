@@ -5,7 +5,10 @@
       "args": [
         "./dist/adapters/mcp.js"
       ],
-      "cwd": "."
+      "cwd": ".",
+      "env_vars": [
+        "ICON_SVG_SELECT_POLICY"
+      ]
     }
   }
 }

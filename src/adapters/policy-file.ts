@@ -1,7 +1,57 @@
 import { readFile, stat } from "node:fs/promises";
-import { MAX_POLICY_BYTES, type IconPolicy } from "../core/contracts.js";
+import { resolve } from "node:path";
+import { DEFAULT_POLICY, MAX_POLICY_BYTES, type IconPolicy } from "../core/contracts.js";
 import { IconKernelError } from "../core/errors.js";
 import { parseIconPolicy } from "../core/policy.js";
+
+export const POLICY_ENV_VAR = "ICON_SVG_SELECT_POLICY";
+export const PROJECT_POLICY_FILENAME = "icon-policy.json";
+
+export type PolicyResolutionContext = {
+  env?: NodeJS.ProcessEnv;
+  cwd?: string;
+};
+
+/**
+ * Resolves the single server-operator policy source at startup, in order: an
+ * explicit `--policy` path, the ICON_SVG_SELECT_POLICY environment variable,
+ * an `icon-policy.json` in the working directory, or the default policy.
+ */
+export async function resolvePolicyInput(
+  path: string | undefined,
+  context: PolicyResolutionContext = {},
+): Promise<IconPolicy> {
+  const env = context.env ?? process.env;
+  const cwd = context.cwd ?? process.cwd();
+  if (path !== undefined) return loadPolicyFile(resolve(cwd, path));
+
+  const envPath = env[POLICY_ENV_VAR]?.trim();
+  if (envPath) return loadPolicyFile(resolve(cwd, envPath));
+
+  const projectPolicyPath = resolve(cwd, PROJECT_POLICY_FILENAME);
+  if (await isExistingFile(projectPolicyPath)) return loadPolicyFile(projectPolicyPath);
+
+  return DEFAULT_POLICY;
+}
+
+async function isExistingFile(path: string): Promise<boolean> {
+  try {
+    if ((await stat(path)).isFile()) return true;
+    throw new IconKernelError({
+      code: "POLICY_FILE_READ_FAILED",
+      message: `Policy path "${path}" is not a regular file.`,
+    });
+  } catch (error) {
+    if (error instanceof IconKernelError) throw error;
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw new IconKernelError({
+        code: "POLICY_FILE_READ_FAILED",
+        message: error instanceof Error ? error.message : `Policy file "${path}" could not be inspected.`,
+      });
+    }
+    return false;
+  }
+}
 
 export async function loadPolicyFile(path: string): Promise<IconPolicy> {
   let size: number;

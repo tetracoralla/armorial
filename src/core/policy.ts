@@ -1,6 +1,6 @@
 import { expandAliases, isGenericTaskTerm } from "./aliases.js";
 import { COLLECTION_ID, IconPolicySchema, type IconPolicy, type RenderStyle } from "./contracts.js";
-import { IconKernelError } from "./errors.js";
+import { IconKernelError, zodIssuesToKernelError } from "./errors.js";
 import { normalizeText, queryTerms } from "./normalize.js";
 
 export type PolicyWarning = {
@@ -31,15 +31,55 @@ function canonicalSelectionId(iconId: string): string {
   return iconId.startsWith(`${COLLECTION_ID}:`) ? iconId : `${COLLECTION_ID}:${iconId}`;
 }
 
+type PreparedSelection = {
+  iconId: string;
+  normalized: string;
+  targets: readonly string[];
+  terms: readonly string[];
+};
+
+const preparedSelectionsByPolicy = new WeakMap<IconPolicy, readonly PreparedSelection[]>();
+
+function preparedSelections(policy: IconPolicy): readonly PreparedSelection[] {
+  const cached = preparedSelectionsByPolicy.get(policy);
+  if (cached !== undefined) return cached;
+
+  const prepared = Object.entries(policy.selections).map(([selectionIntent, iconId]) => ({
+    iconId,
+    normalized: normalizeText(selectionIntent),
+    targets: semanticTargets(selectionIntent),
+    terms: semanticTerms(selectionIntent),
+  }));
+  preparedSelectionsByPolicy.set(policy, prepared);
+  return prepared;
+}
+
+const RESERVED_RECORD_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+
+function rejectReservedRecordKeys(input: unknown): void {
+  if (typeof input !== "object" || input === null) return;
+  for (const field of ["contexts", "selections"] as const) {
+    const record = (input as Record<string, unknown>)[field];
+    if (typeof record !== "object" || record === null) continue;
+    for (const key of Reflect.ownKeys(record)) {
+      if (typeof key === "string" && RESERVED_RECORD_KEYS.has(key)) {
+        throw new IconKernelError({
+          code: "INVALID_POLICY",
+          message: `Policy "${field}" contains reserved key "${key}".`,
+          field: `${field}.${key}`,
+        });
+      }
+    }
+  }
+}
+
 export function parseIconPolicy(input: unknown): IconPolicy {
+  rejectReservedRecordKeys(input);
   const parsed = IconPolicySchema.safeParse(input);
   if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    throw new IconKernelError({
-      code: "INVALID_POLICY",
-      message: issue?.message ?? "The icon policy is invalid.",
-      ...(issue?.path.length ? { field: issue.path.join(".") } : {}),
-    });
+    throw new IconKernelError(
+      zodIssuesToKernelError("INVALID_POLICY", parsed.error, "The icon policy is invalid."),
+    );
   }
 
   const normalizedKeys = new Map<string, string>();
@@ -105,29 +145,25 @@ export function resolveEffectivePolicy(
 
 export function findSemanticSelection(policy: IconPolicy, intent: string): string | undefined {
   const normalizedIntent = normalizeText(intent);
-  const selections = Object.entries(policy.selections);
+  const selections = preparedSelections(policy);
 
-  for (const [selectionIntent, iconId] of selections) {
-    if (normalizeText(selectionIntent) === normalizedIntent) {
-      return iconId;
-    }
-  }
+  const exact = selections.find((selection) => selection.normalized === normalizedIntent);
+  if (exact !== undefined) return exact.iconId;
 
   const intentTargets = semanticTargets(intent);
   const intentTerms = semanticTerms(intent);
-  const matches = selections.filter(([selectionIntent]) => {
-    const selectionTargets = semanticTargets(selectionIntent);
+  const matches = selections.filter((selection) => {
     if (
       intentTargets.length === 1
-      && selectionTargets.length === 1
-      && intentTargets[0] === selectionTargets[0]
+      && selection.targets.length === 1
+      && intentTargets[0] === selection.targets[0]
     ) {
       return true;
     }
-    return hasSameTerms(intentTerms, semanticTerms(selectionIntent));
+    return hasSameTerms(intentTerms, selection.terms);
   });
 
   if (matches.length === 0) return undefined;
-  const selectedIds = new Set(matches.map(([, iconId]) => canonicalSelectionId(iconId)));
-  return selectedIds.size === 1 ? matches[0]?.[1] : undefined;
+  const selectedIds = new Set(matches.map((match) => canonicalSelectionId(match.iconId)));
+  return selectedIds.size === 1 ? matches[0]?.iconId : undefined;
 }

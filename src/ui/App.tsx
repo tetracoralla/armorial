@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { BrowseIconsInput, CatalogItem } from "../core/contracts.js";
+import {
+  MAX_UI_CATALOG_ITEMS,
+  type BrowseIconsInput,
+  type CatalogItem,
+  type ChooseIconInput,
+} from "../core/contracts.js";
 import { createIconSelectionDecision, formatIconSelectionMessage } from "../core/selection.js";
 import { AppHeader } from "./components/AppHeader.js";
 import { CategoryNav } from "./components/CategoryNav.js";
@@ -8,7 +13,12 @@ import { Inspector, type ActionState } from "./components/Inspector.js";
 import { SearchToolbar } from "./components/SearchToolbar.js";
 import { copyText, type CatalogData, type PickerRuntime } from "./runtime.js";
 
-const PAGE_SIZE = 60;
+const PAGE_SIZE = MAX_UI_CATALOG_ITEMS;
+
+type LoadBasis = {
+  query: string;
+  category: string | null;
+};
 
 export function App({ runtime }: { runtime: PickerRuntime }) {
   const initial = runtime.initialCatalog;
@@ -21,13 +31,16 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionState, setActionState] = useState<ActionState>("idle");
+  const [hostSession, setHostSession] = useState<ChooseIconInput | null>(runtime.session);
   const requestSequence = useRef(0);
   const hasInitialCatalog = useRef(initial !== null);
   const appliedHostInitialState = useRef(initial !== null);
+  const appliedSession = useRef<ChooseIconInput | null>(runtime.session);
+  const lastLoadBasis = useRef<LoadBasis | null>(null);
 
   const sessionIntent = useMemo(
-    () => runtime.session?.intent ?? (query.trim() || selected?.name || "selected icon"),
-    [query, runtime.session?.intent, selected?.name],
+    () => hostSession?.intent ?? (query.trim() || selected?.name || "selected icon"),
+    [query, hostSession?.intent, selected?.name],
   );
   const allIconCount = useMemo(
     () => catalog?.categories.reduce((sum, item) => sum + item.count, 0) ?? 0,
@@ -36,6 +49,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
 
   async function loadCatalog(input: BrowseIconsInput, append = false): Promise<void> {
     const sequence = ++requestSequence.current;
+    lastLoadBasis.current = { query: input.query ?? "", category: input.category ?? null };
     setLoading(true);
     setError(null);
     try {
@@ -57,7 +71,12 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
 
   useEffect(() => {
     return runtime.onInitialState((nextCatalog, nextSession) => {
-      if (nextSession !== null) setQuery(nextSession.intent);
+      if (nextSession !== null && nextSession !== appliedSession.current) {
+        appliedSession.current = nextSession;
+        setHostSession(nextSession);
+        setQuery(nextSession.intent);
+        setCategory(null);
+      }
       if (nextCatalog !== null && !appliedHostInitialState.current) {
         appliedHostInitialState.current = true;
         hasInitialCatalog.current = true;
@@ -79,14 +98,14 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
       const input: BrowseIconsInput = {
         query: query.trim(),
         ...(category === null ? {} : { category }),
-        ...(runtime.session?.context === undefined ? {} : { context: runtime.session.context }),
+        ...(hostSession?.context === undefined ? {} : { context: hostSession.context }),
         offset: 0,
         limit: PAGE_SIZE,
       };
       void loadCatalog(input);
-    }, 220);
+    }, 150);
     return () => window.clearTimeout(timer);
-  }, [category, query, runtime]);
+  }, [category, query, hostSession, runtime]);
 
   useEffect(() => {
     if (notice === null) return;
@@ -110,7 +129,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   async function selectionMessage() {
     if (selected === null) throw new Error("Select an icon first.");
     const decision = await createIconSelectionDecision({
-      ...(runtime.session?.requestId === undefined ? {} : { requestId: runtime.session.requestId }),
+      ...(hostSession?.requestId === undefined ? {} : { requestId: hostSession.requestId }),
       iconId: selected.id,
       intent: sessionIntent,
       context: catalog?.context ?? null,
@@ -125,10 +144,11 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   };
 
   const loadMore = async () => {
+    const basis = lastLoadBasis.current ?? { query: query.trim(), category };
     await loadCatalog({
-      query: query.trim(),
-      ...(category === null ? {} : { category }),
-      ...(runtime.session?.context === undefined ? {} : { context: runtime.session.context }),
+      query: basis.query,
+      ...(basis.category === null ? {} : { category: basis.category }),
+      ...(hostSession?.context === undefined ? {} : { context: hostSession.context }),
       offset: items.length,
       limit: PAGE_SIZE,
     }, true);
@@ -161,7 +181,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
           catalog={catalog}
           runtime={runtime}
           actionState={actionState}
-          onCopySvg={() => withAction("copying", async () => {
+          onCopySvg={() => withAction("copying-svg", async () => {
             if (selected === null) throw new Error("Select an icon first.");
             await copyText(selected.asset.svg);
           }, "SVG copied")}
@@ -169,7 +189,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
             if (selected === null) throw new Error("Select an icon first.");
             await runtime.download(selected.name, selected.asset.svg);
           }, "Download started")}
-          onCopyForAgent={() => withAction("copying", async () => {
+          onCopyForAgent={() => withAction("copying-agent", async () => {
             const { message } = await selectionMessage();
             await copyText(message);
           }, "Agent selection copied")}
@@ -178,8 +198,8 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
             await runtime.attach(decision, message);
           }, "Selection attached")}
           onContinue={() => withAction("continuing", async () => {
-            const { decision, message } = await selectionMessage();
-            await runtime.continueTask(decision, message);
+            const { message } = await selectionMessage();
+            await runtime.continueTask(message);
           }, "Selection sent")}
         />
       </div>

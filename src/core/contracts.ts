@@ -26,7 +26,9 @@ export const MAX_SELECTION_REQUEST_ID_LENGTH = 120;
 const ICON_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ICON_ID_PATTERN = /^(?:icon-park:)?[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const CONTEXT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,39}$/;
-const REQUEST_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,119}$/;
+const REQUEST_ID_PATTERN = new RegExp(
+  `^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,${MAX_SELECTION_REQUEST_ID_LENGTH - 1}}$`,
+);
 
 export const ThemeSchema = z.enum(["outline", "filled", "two-tone", "multi-color"]);
 export const StrokeLinecapSchema = z.enum(["butt", "round", "square"]);
@@ -131,7 +133,9 @@ export const SearchInputSchema = z.strictObject({
 
 export const ResolveInputSchema = z.strictObject({
   intent: z.string().trim().min(1).max(MAX_QUERY_LENGTH),
-  context: ContextSchema.optional(),
+  context: ContextSchema
+    .describe("Known configured ASCII policy key; omit prose or unknown.")
+    .optional(),
   alternatives: z.number().int().min(0).max(8).default(3),
 });
 
@@ -159,12 +163,22 @@ export const ChooseIconInputSchema = z.strictObject({
   requestId: z.string().regex(REQUEST_ID_PATTERN, "Use a bounded opaque request id.").optional(),
 });
 
+export const ChooseIconSummarySchema = z.strictObject({
+  status: z.literal("ok"),
+  kind: z.literal("icon_picker_session"),
+  intent: z.string(),
+  context: ContextSchema.nullable(),
+  requestId: z.string().nullable(),
+  resourceUri: z.string(),
+});
+
 export type SearchInput = z.infer<typeof SearchInputSchema>;
 export type ResolveInput = z.infer<typeof ResolveInputSchema>;
 export type GetIconInput = z.infer<typeof GetIconInputSchema>;
 export type GetIconsInput = z.infer<typeof GetIconsInputSchema>;
 export type BrowseIconsInput = z.infer<typeof BrowseIconsInputSchema>;
 export type ChooseIconInput = z.infer<typeof ChooseIconInputSchema>;
+export type ChooseIconSummary = z.infer<typeof ChooseIconSummarySchema>;
 
 export const MatchKindSchema = z.enum([
   "exact_id",
@@ -252,6 +266,7 @@ export const ErrorCodeSchema = z.enum([
   "RESPONSE_TOO_LARGE",
   "POLICY_FILE_TOO_LARGE",
   "POLICY_FILE_READ_FAILED",
+  "INTERNAL_ERROR",
 ]);
 
 export const ErrorSchema = z.strictObject({

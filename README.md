@@ -14,7 +14,7 @@ It does not ask a model to draw SVG. It also does not pretend arbitrary filled i
 - Standalone visual workbench with browse/search, preview, Copy SVG, download, and standards-based outward drag.
 - Optional MCP App picker with explicit Attach and Select & continue actions; ordinary human use never requires an Agent.
 - Five model-facing MCP tools: `resolve_icon`, `search_icons`, `get_icon`, `get_icons`, and the explicit visual-decision route `choose_icon`.
-- One app-only `browse_icons` helper, hidden from the model by MCP App visibility metadata.
+- One app-only `browse_icons` helper, excluded from model use by MCP App visibility metadata; enforcement is host-side.
 - CLI equivalents for human inspection and shell composition.
 - Strict input/output schemas, bounded queries and batches, safe color grammar, bounded SVG/response sizes, and per-item batch failures.
 - A deterministic, bounded `icon_selection` decision format for copy-to-chat and connected continuation. It contains no raw SVG or arbitrary instructions.
@@ -75,7 +75,7 @@ node dist/adapters/cli.js get icon-park:search --format svg
 node dist/adapters/cli.js policy validate icon-policy.example.json
 ```
 
-The CLI never writes SVG files. Pipe or redirect stdout when a human deliberately chooses a destination.
+The CLI never writes SVG files. Pipe or redirect stdout when a human deliberately chooses a destination. The CLI resolves its policy the same way as the MCP server: `--policy`, then `ICON_SVG_SELECT_POLICY`, then `./icon-policy.json` in the working directory, then the built-in default.
 
 ## MCP
 
@@ -86,7 +86,13 @@ node /absolute/path/to/icon-svg-select/dist/adapters/mcp.js \
   --policy /absolute/path/to/project/icon-policy.json
 ```
 
-The policy path is a server-operator startup argument. MCP tools do not accept paths, URLs, raw SVG, or source code.
+The policy is a server-operator startup decision, never a tool input. When no `--policy` argument is given, the server resolves one policy file at startup, in this order:
+
+1. the `ICON_SVG_SELECT_POLICY` environment variable (absolute or working-directory-relative path), which plugin hosts and shell profiles can inject without changing launch arguments; use an absolute path with the Codex plugin because its declared working directory is the cached plugin root;
+2. an `icon-policy.json` in the server's working directory, which is how a project pins its own design-system policy when the host launches the server from the project root;
+3. the built-in default policy.
+
+MCP tools do not accept paths, URLs, raw SVG, or source code.
 
 The dominant Agent request should take one call:
 
@@ -104,7 +110,18 @@ choose_icon({ intent: "notification", requestId: "optional-correlation" })
 
 An MCP Apps-capable host opens the same picker. Grid clicks only change the local preview. `Attach to conversation` updates future model context; `Select & continue` sends the typed decision as an explicit user message. Hosts without MCP Apps continue to use the four direct tools and the standalone UI/copy fallback.
 
-The repository root is also a Codex plugin bundle: [plugin.json](./.codex-plugin/plugin.json), [.mcp.json](./.mcp.json), and the thin [product Skill](./skills/icon-svg-select/SKILL.md) all route to the same built server.
+The repository root is also a Codex plugin bundle: [plugin.json](./.codex-plugin/plugin.json), [.mcp.json](./.mcp.json), and the thin [product Skill](./skills/icon-svg-select/SKILL.md) all route to the same built server. Published tarballs are self-contained: `npm pack` runs `prepack` and ships the built `dist/` (source maps excluded), so hosts that install npm packages without running lifecycle scripts start the entry points directly.
+
+For local host testing, run `npm run plugin:check`. It assembles the ignored `plugins/icon-svg-select/` directory from the exact `npm pack` contents, installs production dependencies from `package-lock.json` without lifecycle scripts, gives the staged manifest a fresh local Codex cachebuster, and probes the isolated MCP entry with a project policy. [`.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json) points at that generated directory, so a fresh clone must run this command before adding the local marketplace. The staging swap rejects symlink ancestors and does not expose a half-written plugin. The result contains no sources, tests, dev dependencies, package lock, or Git data. After changing the plugin, re-run the command, reinstall, and start a new Codex session so the cached copy updates. For public distribution after `npm publish`, switch the marketplace entry to an npm source:
+
+```json
+"source": {
+  "source": "npm",
+  "package": "icon-svg-select",
+  "version": "0.1.0",
+  "registry": "https://registry.npmjs.org"
+}
+```
 
 ## Policy
 
@@ -138,4 +155,4 @@ There is deliberately no cloud account, shared `lastSelection`, policy editor, f
 
 ## Licenses
 
-This project is MIT licensed. IconPark code and assets remain under Apache-2.0; rendered results identify that license.
+This project is licensed under the Apache License 2.0; see [LICENSE](./LICENSE) and [NOTICE](./NOTICE). IconPark code and assets remain under Apache-2.0; rendered results identify that license.

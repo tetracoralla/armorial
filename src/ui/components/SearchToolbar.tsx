@@ -1,3 +1,5 @@
+import { MAX_QUERY_LENGTH } from "../../core/contracts.js";
+
 type Props = {
   query: string;
   total: number;
@@ -15,7 +17,7 @@ export function SearchToolbar({ query, total, loading, onChange }: Props) {
           type="search"
           value={query}
           placeholder="Search icons"
-          maxLength={120}
+          maxLength={MAX_QUERY_LENGTH}
           autoComplete="off"
           onChange={(event) => onChange(event.target.value)}
         />

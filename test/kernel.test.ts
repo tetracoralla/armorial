@@ -113,13 +113,54 @@ test("resolve never auto-selects from generic icon words alone", () => {
   if (output.status === "error") assert.equal(output.error.code, "ICON_NOT_FOUND");
 });
 
-test("overlapping deletion aliases preserve the directly requested semantic target", () => {
+test("high-frequency UI actions resolve through controlled aliases in both languages", () => {
   const kernel = new IconKernel();
-  for (const intent of ["我要删除图标", "删除图标", "删除通知"]) {
+  const expected: ReadonlyArray<readonly [string, string]> = [
+    ["paste", "icon-park:clipboard"],
+    ["粘贴", "icon-park:clipboard"],
+    ["黏贴", "icon-park:clipboard"],
+    ["collapse", "icon-park:click-to-fold"],
+    ["折叠", "icon-park:click-to-fold"],
+    ["收起", "icon-park:click-to-fold"],
+    ["visibility", "icon-park:preview-open"],
+    ["visible", "icon-park:preview-open"],
+    ["可见", "icon-park:preview-open"],
+    ["hide", "icon-park:preview-close"],
+    ["hidden", "icon-park:preview-close"],
+    ["隐藏", "icon-park:preview-close"],
+    ["不可见", "icon-park:preview-close"],
+  ];
+  for (const [intent, iconId] of expected) {
+    const output = kernel.resolve({ intent, alternatives: 3 });
+    assert.equal(output.status, "ok", intent);
+    if (output.status === "ok") assert.equal(output.icon.id, iconId, intent);
+  }
+});
+
+test("an upstream tag match alone never auto-decides an icon", () => {
+  const kernel = new IconKernel();
+  // "粘贴" tags the unrelated "intersection" icon upstream; the controlled
+  // paste alias must outrank it, and a tag-only winner like "重合" must never
+  // become a silent deterministic decision.
+  for (const intent of ["重合", "拷贝"]) {
+    const output = kernel.resolve({ intent, alternatives: 3 });
+    assert.notEqual(output.status, "ok", intent);
+    if (output.status === "ambiguous") {
+      assert.equal(output.candidates.length >= 2, true, intent);
+    }
+  }
+});
+
+test("generic icon wording preserves a directly requested deletion target", () => {
+  const kernel = new IconKernel();
+  for (const intent of ["我要删除图标", "删除图标"]) {
     const output = kernel.resolve({ intent, alternatives: 3 });
     assert.equal(output.status, "ok", intent);
     if (output.status === "ok") assert.equal(output.icon.id, "icon-park:delete", intent);
   }
+
+  const compound = kernel.resolve({ intent: "删除通知", alternatives: 3 });
+  assert.equal(compound.status, "ambiguous");
 });
 
 test("resolve reports tied semantic choices instead of inventing SVG", () => {
@@ -185,8 +226,57 @@ test("policy selection survives ordinary English and Chinese icon wording", () =
 
 test("policy selection does not swallow a multi-semantic intent", () => {
   const policy = policyWith({ selections: { settings: "icon-park:setting-two" } });
-  const output = new IconKernel(policy).resolve({ intent: "delete settings", alternatives: 2 });
-  assert.notEqual(output.status === "ok" ? output.selectionMethod : undefined, "policy");
+  const kernel = new IconKernel(policy);
+
+  for (const intent of ["delete settings", "添加删除"]) {
+    const output = kernel.resolve({ intent, alternatives: 2 });
+    assert.equal(output.status, "ambiguous", intent);
+    if (output.status !== "ambiguous") continue;
+    assert.equal(output.error.code, "ICON_AMBIGUOUS", intent);
+    assert.ok(output.candidates.length >= 2, intent);
+  }
+});
+
+test("a longer direct Chinese intent is not split into its contained alias", () => {
+  const output = new IconKernel().resolve({ intent: "不可见", alternatives: 2 });
+  assert.equal(output.status, "ok");
+  if (output.status !== "ok") return;
+  assert.equal(output.icon.id, "icon-park:preview-close");
+  assert.equal(output.alternatives.some((candidate) => candidate.id === "icon-park:preview-open"), false);
+});
+
+test("compound Chinese intents through member aliases are never silently decided", () => {
+  const kernel = new IconKernel();
+  // 上传/下载 enter through members of English-triggered groups, so the
+  // compound-intent guard must see them just like the English equivalents.
+  const cases: ReadonlyArray<readonly [string, readonly string[]]> = [
+    ["上传 下载", ["icon-park:upload", "icon-park:download"]],
+    ["删除 上传", ["icon-park:delete", "icon-park:upload"]],
+    ["上传图片 下载文件", ["icon-park:upload", "icon-park:download"]],
+  ];
+  for (const [intent, expectedIds] of cases) {
+    const output = kernel.resolve({ intent, alternatives: 3 });
+    assert.equal(output.status, "ambiguous", intent);
+    if (output.status !== "ambiguous") continue;
+    assert.equal(output.error.code, "ICON_AMBIGUOUS", intent);
+    const candidateIds = new Set(output.candidates.map((candidate) => candidate.id));
+    for (const expectedId of expectedIds) assert.equal(candidateIds.has(expectedId), true, `${intent}: ${expectedId}`);
+  }
+});
+
+test("single Chinese member semantics still resolve after member-based direct matching", () => {
+  const kernel = new IconKernel();
+  const expected: ReadonlyArray<readonly [string, string]> = [
+    ["上传图片", "icon-park:upload"],
+    ["下载文件", "icon-park:download"],
+    ["取消", "icon-park:close"],
+    ["黏贴", "icon-park:clipboard"],
+  ];
+  for (const [intent, iconId] of expected) {
+    const output = kernel.resolve({ intent, alternatives: 3 });
+    assert.equal(output.status, "ok", intent);
+    if (output.status === "ok") assert.equal(output.icon.id, iconId, intent);
+  }
 });
 
 test("unknown context falls back visibly to default policy", () => {
@@ -224,7 +314,7 @@ test("all pinned icons render within the safety and response boundary", () => {
     assert.equal(output.status, "ok", record.canonicalId);
     if (output.status !== "ok") continue;
     assert.ok(output.icon.asset.bytes > 0, record.canonicalId);
-    assert.doesNotMatch(output.icon.asset.svg, /<script\b|<foreignObject\b|\son[a-z]+\s*=/i, record.canonicalId);
+    assert.doesNotMatch(output.icon.asset.svg, /<script\b|<foreignObject\b|\son[a-z]+\s*=|<animate\b|<set\b|@import\b|<image\b/i, record.canonicalId);
   }
 });
 

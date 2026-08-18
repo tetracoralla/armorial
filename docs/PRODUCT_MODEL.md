@@ -40,7 +40,7 @@ The UI returns a typed decision, not raw SVG, when communicating with an Agent:
   "version": 1,
   "decisionId": "sha256-of-the-stable-decision",
   "requestId": "optional-originating-request",
-  "iconId": "icon-park:notification",
+  "iconId": "icon-park:remind",
   "intent": "notification",
   "context": null,
   "assetSha256": "sha256-of-the-policy-rendered-svg",
