@@ -4,6 +4,7 @@ test("standalone human can search, select, copy for Agent, copy SVG, download, a
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:4178" });
   await page.goto("/");
   await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Primary color", { exact: true })).toHaveValue("#111827");
   await expect(page.getByRole("region", { name: "Agent" })).toHaveCount(0);
 
   await page.getByPlaceholder("Search icons", { exact: true }).fill("notification");
@@ -13,9 +14,10 @@ test("standalone human can search, select, copy for Agent, copy SVG, download, a
 
   await page.getByRole("button", { name: "Copy for Agent", exact: true }).click();
   const decision = await page.evaluate(() => navigator.clipboard.readText());
-  expect(decision).toContain("[icon-selection:v1]");
+  expect(decision).toContain("[icon-selection:v2]");
   expect(decision).toContain('"iconId": "icon-park:remind"');
   expect(decision).toContain('"intent": "notification"');
+  expect(decision).toContain('"render"');
   expect(decision).not.toContain("<svg");
 
   await page.getByRole("button", { name: "Copy SVG", exact: true }).click();
@@ -40,6 +42,153 @@ test("standalone human can search, select, copy for Agent, copy SVG, download, a
   expect(transfer.types).toEqual(expect.arrayContaining(["image/svg+xml", "text/plain", "downloadurl"]));
   expect(transfer.svg).toMatch(/<svg /);
   expect(transfer.downloadUrl).toContain("remind.svg");
+});
+
+test("appearance overrides restyle exports and carry the final render into decisions", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:4178" });
+  await page.goto("/");
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+
+  await page.getByPlaceholder("Search icons", { exact: true }).fill("notification");
+  await page.getByRole("option", { name: "remind", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "remind", exact: true })).toBeVisible();
+
+  await page.getByLabel("Size value", { exact: true }).fill("32");
+  await page.getByLabel("Size value", { exact: true }).press("Enter");
+  await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2232%22/);
+
+  await page.getByLabel("Primary", { exact: true }).fill("#0055ff");
+  await page.getByLabel("Primary", { exact: true }).press("Enter");
+  await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /%230055ff/);
+
+  await page.getByRole("button", { name: "Copy SVG", exact: true }).click();
+  const svg = await page.evaluate(() => navigator.clipboard.readText());
+  expect(svg).toContain('width="32"');
+  expect(svg).toContain("#0055ff");
+
+  await page.getByRole("button", { name: "Copy for Agent", exact: true }).click();
+  const decision = await page.evaluate(() => navigator.clipboard.readText());
+  expect(decision).toContain("[icon-selection:v2]");
+  expect(decision).toContain('"iconId": "icon-park:remind"');
+  expect(decision).toContain('"size": 32');
+  expect(decision).toContain('"primary": "#0055ff"');
+  expect(decision).not.toContain("<svg");
+
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2224%22/);
+
+  await page.getByRole("button", { name: "Copy SVG", exact: true }).click();
+  const resetSvg = await page.evaluate(() => navigator.clipboard.readText());
+  expect(resetSvg).toContain('width="24"');
+  expect(resetSvg).not.toContain("#0055ff");
+});
+
+test("appearance redraw blocks stale export and rejects invalid drafts locally", async ({ page }) => {
+  await page.route("**/api/browse", async (route) => {
+    const body = route.request().postDataJSON() as { render?: { size?: number } };
+    if (body.render?.size === 48) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+    await route.continue();
+  });
+  await page.goto("/");
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+
+  const size = page.getByLabel("Size value", { exact: true });
+  await size.fill("48");
+  await size.press("Enter");
+  await expect(page.getByText("Rendering…", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeDisabled();
+  await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2248%22/);
+  await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeEnabled();
+
+  const primary = page.getByLabel("Primary", { exact: true });
+  await primary.fill("not-a-color");
+  await primary.press("Enter");
+  await expect(primary).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("Use hex, currentColor, var(--token), or a CSS color.", { exact: true })).toBeVisible();
+  await expect(page.locator(".error-banner")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeEnabled();
+});
+
+test("a failed appearance redraw returns to the last usable render and can be retried", async ({ page }) => {
+  let failedOnce = false;
+  await page.route("**/api/browse", async (route) => {
+    const body = route.request().postDataJSON() as { render?: { size?: number } };
+    if (body.render?.size === 48 && !failedOnce) {
+      failedOnce = true;
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "injected redraw failure" }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto("/");
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+
+  const size = page.getByLabel("Size value", { exact: true });
+  await size.fill("48");
+  await size.press("Enter");
+  await expect(page.locator(".error-banner")).toBeVisible();
+
+  // The controls and actions must describe the still-usable asset rather than
+  // leaving the workbench permanently pending after the request has failed.
+  await expect(size).toHaveValue("24");
+  await expect(page.getByText("Rendering…", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeEnabled();
+
+  await size.fill("48");
+  await size.press("Enter");
+  await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2248%22/);
+  await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeEnabled();
+});
+
+test("focus and blur without an edit leaves appearance unmodified", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+
+  const size = page.getByLabel("Size value", { exact: true });
+  await size.focus();
+  await size.blur();
+  await expect(page.getByRole("button", { name: "Reset", exact: true })).toBeDisabled();
+  await expect(page.getByText("Modified", { exact: true })).toHaveCount(0);
+
+  const primary = page.getByLabel("Primary", { exact: true });
+  await primary.focus();
+  await primary.blur();
+  await expect(page.getByRole("button", { name: "Reset", exact: true })).toBeDisabled();
+  await expect(page.getByText("Modified", { exact: true })).toHaveCount(0);
+});
+
+test("load more during a pending appearance change keeps pages consistent", async ({ page }) => {
+  await page.clock.install();
+  const browseBodies: Array<Record<string, unknown>> = [];
+  await page.route("**/api/browse", async (route) => {
+    browseBodies.push(route.request().postDataJSON() as Record<string, unknown>);
+    await route.continue();
+  });
+  await page.goto("/");
+  await page.clock.fastForward(200);
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+
+  const size = page.getByLabel("Size value", { exact: true });
+  await size.fill("48");
+  await size.press("Enter");
+  // Advance inside the 150 ms debounce window: the restyle is pending but not sent.
+  await page.clock.fastForward(100);
+  await page.getByRole("button", { name: "Load more", exact: true }).click();
+  const appended = browseBodies.at(-1);
+  expect(appended?.offset).toBe(60);
+  expect(appended?.render).toBeUndefined();
+
+  // The pending restyle still reloads the whole list with the override applied.
+  await page.clock.fastForward(300);
+  const reloaded = browseBodies.at(-1);
+  expect((reloaded?.render as { size?: number } | undefined)?.size).toBe(48);
+  await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2248%22/);
 });
 
 test("category filtering and narrow layout preserve the complete human task", async ({ page }) => {
@@ -72,7 +221,8 @@ test("low-height host keeps primary export actions reachable", async ({ page }) 
 test("phone layout keeps selection and export in one viewport", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
-  const options = page.getByRole("option");
+  // Scope to the icon listbox: the appearance selects also expose implicit options.
+  const options = page.getByRole("listbox", { name: "Icon results" }).getByRole("option");
   await expect(options).toHaveCount(60);
   await options.nth(19).click();
   await expect(options.nth(19)).toHaveAttribute("aria-selected", "true");
@@ -84,7 +234,8 @@ test("phone layout keeps selection and export in one viewport", async ({ page })
 
 test("icon listbox supports roving focus and grid keyboard navigation", async ({ page }) => {
   await page.goto("/");
-  const options = page.getByRole("option");
+  // Scope to the icon listbox: the appearance selects also expose implicit options.
+  const options = page.getByRole("listbox", { name: "Icon results" }).getByRole("option");
   await expect(options).toHaveCount(60);
   await options.first().focus();
   await expect(options.first()).toBeFocused();

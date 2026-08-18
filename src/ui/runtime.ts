@@ -2,6 +2,7 @@ import { App } from "@modelcontextprotocol/ext-apps";
 import {
   BrowseIconsOutputSchema,
   ChooseIconInputSchema,
+  ICON_PICKER_SESSION_META_KEY,
   KERNEL_VERSION,
   type BrowseIconsInput,
   type BrowseIconsOutput,
@@ -224,7 +225,12 @@ export async function createPickerRuntime(): Promise<PickerRuntime> {
   app.ontoolresult = (params) => {
     const structured = params.structuredContent;
     if (structured === undefined) return;
-    const parsedSession = ChooseIconInputSchema.safeParse(structured["session"]);
+    const metaSession = ChooseIconInputSchema.safeParse(params._meta?.[ICON_PICKER_SESSION_META_KEY]);
+    // Keep accepting the v0.1 structured echo when an older server serves a
+    // newer cached app. Current servers use hidden result metadata so the
+    // model-visible output remains compact and fully typed.
+    const structuredSession = ChooseIconInputSchema.safeParse(structured["session"]);
+    const parsedSession = metaSession.success ? metaSession : structuredSession;
     if (parsedSession.success) initialState.session = parsedSession.data;
     const parsedCatalog = BrowseIconsOutputSchema.safeParse(structured["result"]);
     if (parsedCatalog.success) initialState.catalog = asCatalog(parsedCatalog.data);

@@ -1,4 +1,4 @@
 interface:
   display_name: "Armorial"
-  short_description: "Select policy-compliant icons without redrawing."
-  default_prompt: "Use $icon-svg-select to find or visually choose a policy-compliant icon."
+  short_description: "Select project-aware icons without redrawing."
+  default_prompt: "Use $icon-svg-select to find or visually choose an IconPark icon using project defaults."

@@ -25,6 +25,7 @@ import {
   type IconPolicy,
   type IconResult,
   type KernelError,
+  type RenderStyleOverride,
   type ResolveInput,
   type ResolveOutput,
   type SearchInput,
@@ -34,6 +35,7 @@ import { IconKernelError, toKernelError, zodIssuesToKernelError } from "./errors
 import {
   findSemanticSelection,
   parseIconPolicy,
+  renderStyleEquals,
   resolveEffectivePolicy,
 } from "./policy.js";
 import { IconParkProvider, type IconRecord } from "./provider.js";
@@ -149,7 +151,7 @@ export class IconKernel {
         ? rankedRecords
         : rankedRecords.filter((record) => record.category === parsed.data.category);
       const page = filtered.slice(parsed.data.offset, parsed.data.offset + parsed.data.limit);
-      const effective = resolveEffectivePolicy(this.policy, parsed.data.context);
+      const effective = resolveEffectivePolicy(this.policy, parsed.data.context, parsed.data.render);
 
       const output = {
         status: "ok" as const,
@@ -186,7 +188,7 @@ export class IconKernel {
     if (!parsed.success) return GetIconOutputSchema.parse(failure(invalidInput(parsed.error)));
 
     try {
-      const icon = this.#renderIcon(parsed.data.id, parsed.data.context);
+      const icon = this.#renderIcon(parsed.data.id, parsed.data.context, parsed.data.render);
       return GetIconOutputSchema.parse({ status: "ok", kind: "icon", icon });
     } catch (error) {
       return GetIconOutputSchema.parse(failure(toKernelError(error)));
@@ -204,7 +206,7 @@ export class IconKernel {
             index,
             inputId: id,
             status: "ok" as const,
-            icon: this.#renderIcon(id, parsed.data.context),
+            icon: this.#renderIcon(id, parsed.data.context, parsed.data.render),
           };
         } catch (error) {
           return {
@@ -252,7 +254,7 @@ export class IconKernel {
       const candidates = ranked.slice(0, Math.max(2, parsed.data.alternatives + 1)).map(({ candidate }) => candidate);
 
       if (selection !== undefined) {
-        const icon = this.#renderIcon(selection, parsed.data.context);
+        const icon = this.#renderIcon(selection, parsed.data.context, parsed.data.render);
         return ResolveOutputSchema.parse({
           status: "ok",
           kind: "icon_resolution",
@@ -309,7 +311,7 @@ export class IconKernel {
         });
       }
 
-      const icon = this.#renderIcon(first.id, parsed.data.context);
+      const icon = this.#renderIcon(first.id, parsed.data.context, parsed.data.render);
       const selectionMethod = first.matchKind === "exact_id"
         ? "exact_id"
         : first.matchKind === "exact_name"
@@ -328,7 +330,7 @@ export class IconKernel {
     }
   }
 
-  #renderIcon(inputId: string, context?: string): IconResult {
+  #renderIcon(inputId: string, context?: string, render?: RenderStyleOverride): IconResult {
     const record = this.provider.get(inputId);
     if (record === undefined) {
       throw new IconKernelError({
@@ -338,14 +340,15 @@ export class IconKernel {
       });
     }
 
-    const effective = resolveEffectivePolicy(this.policy, context);
+    const base = resolveEffectivePolicy(this.policy, context);
+    const effective = resolveEffectivePolicy(this.policy, context, render);
     const asset = this.provider.render(record, effective.policy);
     return IconResultSchema.parse({
       ...this.#recordSummary(record),
       license: "Apache-2.0",
       policy: effective.policy,
       capabilities: this.provider.capabilities,
-      policyCompliance: "compliant",
+      policyCompliance: renderStyleEquals(base.policy, effective.policy) ? "compliant" : "overridden",
       asset,
       warnings: effective.warnings,
     });

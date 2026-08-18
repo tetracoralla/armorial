@@ -8,11 +8,12 @@ import {
 function stableDecisionPayload(input: IconSelectionDecisionInput): string {
   return JSON.stringify({
     kind: "icon_selection",
-    version: 1,
+    version: 2,
     requestId: input.requestId ?? null,
     iconId: input.iconId,
     intent: input.intent,
     context: input.context,
+    render: input.render,
     assetSha256: input.assetSha256,
     scope: "current_task",
   });
@@ -31,12 +32,13 @@ export async function createIconSelectionDecision(
   const decisionId = await sha256(stableDecisionPayload(parsed));
   return IconSelectionDecisionSchema.parse({
     kind: "icon_selection",
-    version: 1,
+    version: 2,
     decisionId,
     ...(parsed.requestId === undefined ? {} : { requestId: parsed.requestId }),
     iconId: parsed.iconId,
     intent: parsed.intent,
     context: parsed.context,
+    render: parsed.render,
     assetSha256: parsed.assetSha256,
     scope: "current_task",
   });
@@ -45,8 +47,8 @@ export async function createIconSelectionDecision(
 export function formatIconSelectionMessage(decision: IconSelectionDecision): string {
   const value = IconSelectionDecisionSchema.parse(decision);
   return [
-    "[icon-selection:v1]",
+    "[icon-selection:v2]",
     JSON.stringify(value, null, 2),
-    "Use this exact human-selected icon via get_icon and continue the current task. Do not re-search or redraw it.",
+    "Use this exact human-selected icon via get_icon with this id and render style, then continue the current task. Do not re-search or redraw it.",
   ].join("\n");
 }

@@ -4,6 +4,8 @@ import {
   type BrowseIconsInput,
   type CatalogItem,
   type ChooseIconInput,
+  type RenderStyle,
+  type RenderStyleOverride,
 } from "../core/contracts.js";
 import { createIconSelectionDecision, formatIconSelectionMessage } from "../core/selection.js";
 import { AppHeader } from "./components/AppHeader.js";
@@ -20,6 +22,10 @@ type LoadBasis = {
   category: string | null;
 };
 
+function renderOverrideKey(value: RenderStyleOverride | null): string {
+  return JSON.stringify(value);
+}
+
 export function App({ runtime }: { runtime: PickerRuntime }) {
   const initial = runtime.initialCatalog;
   const [catalog, setCatalog] = useState<CatalogData | null>(initial);
@@ -27,6 +33,12 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   const [query, setQuery] = useState(runtime.session?.intent ?? initial?.query ?? "");
   const [category, setCategory] = useState<string | null>(initial?.category ?? null);
   const [selected, setSelected] = useState<CatalogItem | null>(initial?.items[0] ?? null);
+  const [styleOverride, setStyleOverride] = useState<RenderStyleOverride | null>(
+    runtime.session?.render ?? null,
+  );
+  const [appliedStyleOverride, setAppliedStyleOverride] = useState<RenderStyleOverride | null>(
+    initial === null ? null : runtime.session?.render ?? null,
+  );
   const [loading, setLoading] = useState(initial === null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -38,6 +50,28 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   const appliedSession = useRef<ChooseIconInput | null>(runtime.session);
   const lastLoadBasis = useRef<LoadBasis | null>(null);
 
+  // Optimistic display style: the loaded catalog reports the context-resolved
+  // policy with the previous override applied; the pending override leads so
+  // controls track the hand while the debounced reload lands.
+  const displayStyle = useMemo<RenderStyle | null>(() => {
+    if (catalog === null) return null;
+    const policy = catalog.policy;
+    const colors = styleOverride?.colors;
+    return {
+      theme: styleOverride?.theme ?? policy.theme,
+      size: styleOverride?.size ?? policy.size,
+      strokeWidth: styleOverride?.strokeWidth ?? policy.strokeWidth,
+      strokeLinecap: styleOverride?.strokeLinecap ?? policy.strokeLinecap,
+      strokeLinejoin: styleOverride?.strokeLinejoin ?? policy.strokeLinejoin,
+      colors: {
+        primary: colors?.primary ?? policy.colors.primary,
+        secondary: colors?.secondary ?? policy.colors.secondary,
+        innerStroke: colors?.innerStroke ?? policy.colors.innerStroke,
+        innerFill: colors?.innerFill ?? policy.colors.innerFill,
+      },
+    };
+  }, [catalog?.policy, styleOverride]);
+
   const sessionIntent = useMemo(
     () => hostSession?.intent ?? (query.trim() || selected?.name || "selected icon"),
     [query, hostSession?.intent, selected?.name],
@@ -46,6 +80,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
     () => catalog?.categories.reduce((sum, item) => sum + item.count, 0) ?? 0,
     [catalog?.categories],
   );
+  const renderPending = renderOverrideKey(styleOverride) !== renderOverrideKey(appliedStyleOverride);
 
   async function loadCatalog(input: BrowseIconsInput, append = false): Promise<void> {
     const sequence = ++requestSequence.current;
@@ -57,6 +92,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
       if (sequence !== requestSequence.current) return;
       if (output.status !== "ok") throw new Error(output.error.message);
       setCatalog(output);
+      setAppliedStyleOverride(input.render ?? null);
       setItems((current) => append ? [...current, ...output.items] : output.items);
       if (!append) {
         setSelected((current) => output.items.find((item) => item.id === current?.id) ?? output.items[0] ?? null);
@@ -64,6 +100,15 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
     } catch (loadError) {
       if (sequence !== requestSequence.current) return;
       setError(loadError instanceof Error ? loadError.message : "Could not load icons.");
+      if (
+        !append
+        && renderOverrideKey(input.render ?? null) !== renderOverrideKey(appliedStyleOverride)
+      ) {
+        // The selected SVGs still carry the last successful render. Return the
+        // controls to that usable state so a failed redraw cannot strand every
+        // export action behind a permanently pending optimistic override.
+        setStyleOverride(appliedStyleOverride);
+      }
     } finally {
       if (sequence === requestSequence.current) setLoading(false);
     }
@@ -76,6 +121,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
         setHostSession(nextSession);
         setQuery(nextSession.intent);
         setCategory(null);
+        setStyleOverride(nextSession.render ?? null);
       }
       if (nextCatalog !== null && !appliedHostInitialState.current) {
         appliedHostInitialState.current = true;
@@ -101,11 +147,12 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
         ...(hostSession?.context === undefined ? {} : { context: hostSession.context }),
         offset: 0,
         limit: PAGE_SIZE,
+        ...(styleOverride === null ? {} : { render: styleOverride }),
       };
       void loadCatalog(input);
     }, 150);
     return () => window.clearTimeout(timer);
-  }, [category, query, hostSession, runtime]);
+  }, [category, query, hostSession, styleOverride, runtime]);
 
   useEffect(() => {
     if (notice === null) return;
@@ -126,13 +173,35 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
     }
   }
 
+  const applyOverride = (patch: RenderStyleOverride) => {
+    setStyleOverride((current) => {
+      const base = current ?? {};
+      return {
+        ...base,
+        ...patch,
+        ...(patch.colors === undefined ? {} : { colors: { ...base.colors, ...patch.colors } }),
+      };
+    });
+  };
+
+  const resetOverride = () => setStyleOverride(null);
+
   async function selectionMessage() {
-    if (selected === null) throw new Error("Select an icon first.");
+    if (selected === null || catalog === null) throw new Error("Select an icon first.");
+    const render: RenderStyle = {
+      theme: catalog.policy.theme,
+      size: catalog.policy.size,
+      strokeWidth: catalog.policy.strokeWidth,
+      strokeLinecap: catalog.policy.strokeLinecap,
+      strokeLinejoin: catalog.policy.strokeLinejoin,
+      colors: catalog.policy.colors,
+    };
     const decision = await createIconSelectionDecision({
       ...(hostSession?.requestId === undefined ? {} : { requestId: hostSession.requestId }),
       iconId: selected.id,
       intent: sessionIntent,
-      context: catalog?.context ?? null,
+      context: catalog.context,
+      render,
       assetSha256: selected.asset.sha256,
     });
     return { decision, message: formatIconSelectionMessage(decision) };
@@ -151,6 +220,9 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
       ...(hostSession?.context === undefined ? {} : { context: hostSession.context }),
       offset: items.length,
       limit: PAGE_SIZE,
+      // Appended pages must match the pages they extend: the applied override,
+      // not one still waiting for its debounced reload.
+      ...(appliedStyleOverride === null ? {} : { render: appliedStyleOverride }),
     }, true);
   };
 
@@ -178,9 +250,14 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
         </main>
         <Inspector
           selected={selected}
-          catalog={catalog}
+          style={displayStyle}
+          context={catalog?.context ?? null}
+          hasOverride={styleOverride !== null}
+          renderPending={renderPending}
           runtime={runtime}
           actionState={actionState}
+          onAppearanceChange={applyOverride}
+          onAppearanceReset={resetOverride}
           onCopySvg={() => withAction("copying-svg", async () => {
             if (selected === null) throw new Error("Select an icon first.");
             await copyText(selected.asset.svg);

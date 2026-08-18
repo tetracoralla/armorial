@@ -1,6 +1,6 @@
 {
   "name": "armorial",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Design-system-aware IconPark selection and SVG policy kernel for humans and AI agents.",
   "type": "module",
   "license": "Apache-2.0",

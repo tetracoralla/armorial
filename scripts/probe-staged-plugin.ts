@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { DEFAULT_POLICY } from "../src/core/contracts.js";
+import { DEFAULT_POLICY, ICON_PICKER_SESSION_META_KEY } from "../src/core/contracts.js";
 import { removeOwnedTree } from "./stage-plugin.js";
 
 const workspace = resolve(import.meta.dirname, "..");
@@ -122,12 +122,12 @@ try {
   assert.equal(picker.isError, undefined);
   const pickerResult = picker.structuredContent as {
     result?: { kind?: unknown; resourceUri?: unknown; items?: unknown };
-    session?: { requestId?: unknown };
   } | undefined;
   assert.equal(pickerResult?.result?.kind, "icon_picker_session");
   assert.equal(pickerResult?.result?.resourceUri, "ui://icon-svg-select/picker.html");
   assert.equal(pickerResult?.result?.items, undefined);
-  assert.equal(pickerResult?.session?.requestId, "installed-probe");
+  const pickerMeta = picker._meta?.[ICON_PICKER_SESSION_META_KEY] as { requestId?: unknown } | undefined;
+  assert.equal(pickerMeta?.requestId, "installed-probe");
 
   const browsed = await client.callTool({
     name: "browse_icons",

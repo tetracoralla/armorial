@@ -32,7 +32,7 @@
           "type": "number",
           "minimum": 0.5,
           "maximum": 16,
-          "description": "Final visible stroke width in CSS pixels at the configured icon size."
+          "description": "Final visible stroke width in rendered px."
         },
         "strokeLinecap": {
           "$ref": "#/$defs/__schema2"
@@ -328,7 +328,7 @@
           "type": "number",
           "minimum": 0.5,
           "maximum": 16,
-          "description": "Final visible stroke width in CSS pixels at the configured icon size."
+          "description": "Final visible stroke width in rendered px."
         },
         "strokeLinecap": {
           "$ref": "#/$defs/__schema2"

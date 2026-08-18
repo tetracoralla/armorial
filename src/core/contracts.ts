@@ -7,7 +7,7 @@ import {
   HEX_COLOR_PATTERN,
 } from "./css-color.js";
 
-export const KERNEL_VERSION = "0.1.0";
+export const KERNEL_VERSION = "0.2.0";
 export const COLLECTION_ID = "icon-park" as const;
 export const MAX_QUERY_LENGTH = 120;
 export const MAX_SEARCH_RESULTS = 20;
@@ -15,13 +15,17 @@ export const MAX_BATCH_SIZE = 20;
 export const MAX_SVG_BYTES = 64 * 1024;
 export const MAX_BATCH_RESPONSE_BYTES = 512 * 1024;
 export const MAX_POLICY_BYTES = 64 * 1024;
-export const MAX_MCP_TOOL_CATALOG_BYTES = 20 * 1024;
+// v0.2 raised this from 20 KiB so the five render-parity input schemas fit
+// without deleting declared model-tool output schemas; the catalog stays
+// bounded for weak clients.
+export const MAX_MCP_TOOL_CATALOG_BYTES = 24 * 1024;
 export const MAX_MCP_APP_RESOURCE_BYTES = 900 * 1024;
 export const MAX_POLICY_CONTEXTS = 32;
 export const MAX_POLICY_SELECTIONS = 256;
 export const MAX_UI_CATALOG_ITEMS = 60;
 export const MAX_UI_CATALOG_RESPONSE_BYTES = 2 * 1024 * 1024;
 export const MAX_SELECTION_REQUEST_ID_LENGTH = 120;
+export const ICON_PICKER_SESSION_META_KEY = "armorial/session";
 
 const ICON_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ICON_ID_PATTERN = /^(?:icon-park:)?[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -63,7 +67,7 @@ export const RenderStyleSchema = z.strictObject({
   theme: ThemeSchema,
   size: z.number().int().min(8).max(512),
   strokeWidth: z.number().min(0.5).max(16)
-    .describe("Final visible stroke width in CSS pixels at the configured icon size."),
+    .describe("Final visible stroke width in rendered px."),
   strokeLinecap: StrokeLinecapSchema,
   strokeLinejoin: StrokeLinejoinSchema,
   colors: ColorPaletteSchema,
@@ -73,7 +77,7 @@ export const RenderStyleOverrideSchema = z.strictObject({
   theme: ThemeSchema.optional(),
   size: z.number().int().min(8).max(512).optional(),
   strokeWidth: z.number().min(0.5).max(16)
-    .describe("Final visible stroke width in CSS pixels at the configured icon size.")
+    .describe("Final visible stroke width in rendered px.")
     .optional(),
   strokeLinecap: StrokeLinecapSchema.optional(),
   strokeLinejoin: StrokeLinejoinSchema.optional(),
@@ -124,6 +128,7 @@ export const DEFAULT_POLICY = IconPolicySchema.parse({
 
 export type IconPolicy = z.infer<typeof IconPolicySchema>;
 export type RenderStyle = z.infer<typeof RenderStyleSchema>;
+export type RenderStyleOverride = z.infer<typeof RenderStyleOverrideSchema>;
 export type Theme = z.infer<typeof ThemeSchema>;
 
 export const SearchInputSchema = z.strictObject({
@@ -137,16 +142,19 @@ export const ResolveInputSchema = z.strictObject({
     .describe("Known configured ASCII policy key; omit prose or unknown.")
     .optional(),
   alternatives: z.number().int().min(0).max(8).default(3),
+  render: RenderStyleOverrideSchema.optional(),
 });
 
 export const GetIconInputSchema = z.strictObject({
   id: IconIdSchema,
   context: ContextSchema.optional(),
+  render: RenderStyleOverrideSchema.optional(),
 });
 
 export const GetIconsInputSchema = z.strictObject({
   ids: z.array(IconIdSchema).min(1).max(MAX_BATCH_SIZE),
   context: ContextSchema.optional(),
+  render: RenderStyleOverrideSchema.optional(),
 });
 
 export const BrowseIconsInputSchema = z.strictObject({
@@ -155,12 +163,14 @@ export const BrowseIconsInputSchema = z.strictObject({
   context: ContextSchema.optional(),
   offset: z.number().int().min(0).max(10_000).default(0),
   limit: z.number().int().min(1).max(MAX_UI_CATALOG_ITEMS).default(MAX_UI_CATALOG_ITEMS),
+  render: RenderStyleOverrideSchema.optional(),
 });
 
 export const ChooseIconInputSchema = z.strictObject({
   intent: z.string().trim().min(1).max(MAX_QUERY_LENGTH),
   context: ContextSchema.optional(),
   requestId: z.string().regex(REQUEST_ID_PATTERN, "Use a bounded opaque request id.").optional(),
+  render: RenderStyleOverrideSchema.optional(),
 });
 
 export const ChooseIconSummarySchema = z.strictObject({
@@ -252,7 +262,7 @@ export const IconResultSchema = z.strictObject({
   license: z.literal("Apache-2.0"),
   policy: EffectivePolicySchema,
   capabilities: CollectionCapabilitiesSchema,
-  policyCompliance: z.literal("compliant"),
+  policyCompliance: z.enum(["compliant", "overridden"]),
   asset: RenderedAssetSchema,
   warnings: z.array(WarningSchema),
 });
@@ -381,14 +391,17 @@ export const BrowseIconsSuccessSchema = z.strictObject({
 
 export const BrowseIconsOutputSchema = z.union([BrowseIconsSuccessSchema, FailureSchema]);
 
+// v2 carries the effective render style so an Agent can reproduce the exact
+// adjusted asset via get_icon({ id, render }) without knowing the context layer.
 export const IconSelectionDecisionSchema = z.strictObject({
   kind: z.literal("icon_selection"),
-  version: z.literal(1),
+  version: z.literal(2),
   decisionId: z.string().length(64),
   requestId: z.string().regex(REQUEST_ID_PATTERN, "Use a bounded opaque request id.").optional(),
   iconId: IconIdSchema,
   intent: z.string().trim().min(1).max(MAX_QUERY_LENGTH),
   context: ContextSchema.nullable(),
+  render: RenderStyleSchema,
   assetSha256: z.string().length(64),
   scope: z.literal("current_task"),
 });
@@ -398,6 +411,7 @@ export const IconSelectionDecisionInputSchema = z.strictObject({
   iconId: IconIdSchema,
   intent: z.string().trim().min(1).max(MAX_QUERY_LENGTH),
   context: ContextSchema.nullable(),
+  render: RenderStyleSchema,
   assetSha256: z.string().length(64),
 });
 

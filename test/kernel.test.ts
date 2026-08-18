@@ -191,6 +191,80 @@ test("policy selection resolves one call and applies context style", () => {
   assert.equal(output.icon.capabilities.strokeWidthUnit, "rendered-px");
 });
 
+test("per-call render override layers over context policy and reports the effective style", () => {
+  const policy = policyWith({
+    contexts: { toolbar: { size: 20, strokeWidth: 3 } },
+  });
+  const output = new IconKernel(policy).getIcon({
+    id: "search",
+    context: "toolbar",
+    render: { size: 32, colors: { primary: "#0F172A" } },
+  });
+  assert.equal(output.status, "ok");
+  if (output.status !== "ok") return;
+  assert.equal(output.icon.policy.size, 32);
+  assert.equal(output.icon.policy.strokeWidth, 3);
+  assert.equal(output.icon.policy.colors.primary, "#0f172a");
+  assert.equal(output.icon.policy.colors.secondary, DEFAULT_POLICY.defaults.colors.secondary);
+  assert.equal(output.icon.policy.context, "toolbar");
+  assert.equal(output.icon.policyCompliance, "overridden");
+  assert.match(output.icon.asset.svg, /width="32"/);
+
+  const unchanged = new IconKernel(policy).getIcon({
+    id: "search",
+    context: "toolbar",
+    render: { size: 20, strokeWidth: 3 },
+  });
+  assert.equal(unchanged.status, "ok");
+  if (unchanged.status === "ok") assert.equal(unchanged.icon.policyCompliance, "compliant");
+});
+
+test("render override is deterministic and rejected when it carries invalid values", () => {
+  const kernel = new IconKernel();
+  const render = { theme: "filled" as const, strokeWidth: 4 };
+  const first = kernel.getIcon({ id: "search", render });
+  const second = kernel.getIcon({ id: "search", render });
+  assert.equal(first.status, "ok");
+  assert.equal(second.status, "ok");
+  if (first.status !== "ok" || second.status !== "ok") return;
+  assert.equal(first.icon.asset.sha256, second.icon.asset.sha256);
+  assert.equal(first.icon.policy.theme, "filled");
+
+  for (const invalidRender of [
+    { strokeWidth: 99 },
+    { size: 4 },
+    { colors: { primary: 'red" onload="alert(1)' } },
+    { invented: true },
+  ]) {
+    const output = kernel.getIcon({ id: "search", render: invalidRender });
+    assert.equal(output.status, "error", JSON.stringify(invalidRender));
+    if (output.status === "error") assert.equal(output.error.code, "INVALID_INPUT");
+  }
+});
+
+test("resolve, batch, and browse honor the same per-call render override", () => {
+  const kernel = new IconKernel();
+  const render = { size: 40, strokeLinecap: "square" as const };
+
+  const resolved = kernel.resolve({ intent: "我要新增图标", alternatives: 2, render });
+  assert.equal(resolved.status, "ok");
+  if (resolved.status !== "ok") return;
+  assert.equal(resolved.icon.id, "icon-park:add");
+  assert.equal(resolved.icon.policy.size, 40);
+  assert.match(resolved.icon.asset.svg, /width="40"/);
+
+  const batch = kernel.getIcons({ ids: ["search", "setting"], render });
+  assert.equal(batch.status, "ok");
+  if (batch.status !== "ok") return;
+  assert.deepEqual(batch.items.map((item) => item.status === "ok" ? item.icon.policy.strokeLinecap : item.status), ["square", "square"]);
+
+  const browsed = kernel.browse({ query: "notification", offset: 0, limit: 3, render });
+  assert.equal(browsed.status, "ok");
+  if (browsed.status !== "ok") return;
+  assert.equal(browsed.policy.size, 40);
+  assert.ok(browsed.items.every((item) => item.asset.svg.includes('width="40"')));
+});
+
 test("policy stroke width is the final visible width at different rendered sizes", () => {
   for (const [size, strokeWidth] of [[24, 2], [20, 2], [20, 3]] as const) {
     const output = new IconKernel(policyWith({

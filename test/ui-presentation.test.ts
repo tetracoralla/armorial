@@ -44,9 +44,14 @@ function renderInspector(runtime: PickerRuntime): string {
   const noop = async () => undefined;
   return renderToStaticMarkup(React.createElement(Inspector, {
     selected,
-    catalog,
+    style: { ...catalog.policy },
+    context: catalog.context,
+    hasOverride: false,
+    renderPending: false,
     runtime,
     actionState: "idle",
+    onAppearanceChange: () => undefined,
+    onAppearanceReset: () => undefined,
     onCopySvg: noop,
     onDownload: noop,
     onCopyForAgent: noop,
@@ -71,18 +76,31 @@ test("UI source exposes Agent capabilities without account-style connection stat
   assert.match(inspector, /Copy for Agent/);
 });
 
-test("embedded inspector keeps supported Agent actions ahead of secondary policy detail", () => {
+test("embedded inspector keeps supported Agent actions ahead of secondary style detail", () => {
   const markup = renderInspector(embeddedRuntime(true, true));
   const humanActions = markup.indexOf('aria-label="Human export actions"');
   const agentActions = markup.indexOf('aria-label="Agent actions"');
-  const policyDetail = markup.indexOf('class="policy-summary"');
+  const styleDetail = markup.indexOf('aria-label="Appearance"');
   assert.ok(humanActions >= 0);
   assert.ok(agentActions > humanActions);
-  assert.ok(policyDetail > agentActions);
+  assert.ok(styleDetail > agentActions);
   assert.match(markup, /Attach to conversation/);
   assert.match(markup, /Select &amp; continue/);
 
   const fallback = renderInspector(embeddedRuntime(false, false));
   assert.match(fallback, /Copy for Agent/);
   assert.doesNotMatch(fallback, /aria-label="Agent actions"/);
+});
+
+test("inspector exposes the editable appearance surface shared with the Agent render parameter", () => {
+  const markup = renderInspector(embeddedRuntime(false, false));
+  for (const label of ["Theme", "Size", "Stroke", "Linecap", "Linejoin", "Primary", "Secondary", "Inner stroke", "Inner fill", "Reset"]) {
+    assert.ok(markup.includes(`>${label}<`), label);
+  }
+  assert.match(markup, /id="appearance-theme"/);
+  assert.match(markup, /id="appearance-size"/);
+  assert.match(markup, /id="appearance-stroke"/);
+  assert.match(markup, /id="appearance-color-primary"/);
+  assert.match(markup, /type="range"/);
+  assert.match(markup, /type="color"/);
 });

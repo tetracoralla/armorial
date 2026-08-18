@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { App } from "@modelcontextprotocol/ext-apps";
-import type { IconSelectionDecision } from "../src/core/contracts.js";
+import { DEFAULT_POLICY, type IconSelectionDecision } from "../src/core/contracts.js";
 import { EmbeddedRuntime } from "../src/ui/runtime.js";
 
 type HostCall = { method: "updateModelContext" | "sendMessage"; input: unknown };
@@ -34,18 +34,19 @@ function embeddedRuntimeWithHost(options: { rejectMessage?: boolean } = {}): {
 
 const decision: IconSelectionDecision = {
   kind: "icon_selection",
-  version: 1,
+  version: 2,
   decisionId: "a".repeat(64),
   iconId: "icon-park:remind",
   intent: "notification",
   context: null,
+  render: structuredClone(DEFAULT_POLICY.defaults),
   assetSha256: "b".repeat(64),
   scope: "current_task",
 };
 
 test("select-and-continue commits exactly one user-role decision message", async () => {
   const { runtime, calls } = embeddedRuntimeWithHost();
-  const message = "[icon-selection:v1] …decision text…";
+  const message = "[icon-selection:v2] …decision text…";
   await runtime.continueTask(message);
   assert.deepEqual(calls.map((call) => call.method), ["sendMessage"]);
   const sent = calls[0]?.input as { role?: string; content?: Array<{ type?: string; text?: string }> };
@@ -55,13 +56,13 @@ test("select-and-continue commits exactly one user-role decision message", async
 
 test("a rejected continue message leaves no committed host context behind", async () => {
   const { runtime, calls } = embeddedRuntimeWithHost({ rejectMessage: true });
-  await assert.rejects(() => runtime.continueTask("[icon-selection:v1] …"), /rejected/);
+  await assert.rejects(() => runtime.continueTask("[icon-selection:v2] …"), /rejected/);
   assert.deepEqual(calls.map((call) => call.method), ["sendMessage"]);
 });
 
 test("attach updates model context with the typed decision and sends no message", async () => {
   const { runtime, calls } = embeddedRuntimeWithHost();
-  await runtime.attach(decision, "[icon-selection:v1] …");
+  await runtime.attach(decision, "[icon-selection:v2] …");
   assert.deepEqual(calls.map((call) => call.method), ["updateModelContext"]);
   const attached = calls[0]?.input as { structuredContent?: { iconSelection?: IconSelectionDecision } };
   assert.deepEqual(attached.structuredContent?.iconSelection, decision);

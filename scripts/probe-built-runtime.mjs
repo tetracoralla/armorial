@@ -5,7 +5,12 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { DEFAULT_POLICY, KERNEL_VERSION, MAX_MCP_TOOL_CATALOG_BYTES } from "../dist/core/contracts.js";
+import {
+  DEFAULT_POLICY,
+  ICON_PICKER_SESSION_META_KEY,
+  KERNEL_VERSION,
+  MAX_MCP_TOOL_CATALOG_BYTES,
+} from "../dist/core/contracts.js";
 import { IconKernel } from "../dist/core/kernel.js";
 
 const workspace = process.cwd();
@@ -223,7 +228,7 @@ try {
   pickerSessionKind = pickerSummary.kind;
   assert.equal(pickerSessionKind, "icon_picker_session");
   assert.equal("items" in pickerSummary, false);
-  assert.equal(pickerResult.structuredContent?.session?.requestId, "runtime-probe");
+  assert.equal(pickerResult._meta?.[ICON_PICKER_SESSION_META_KEY]?.requestId, "runtime-probe");
 
   const browseResult = await client.callTool({
     name: "browse_icons",

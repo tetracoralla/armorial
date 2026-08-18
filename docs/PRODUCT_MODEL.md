@@ -9,7 +9,7 @@ GitHub repository is maintained under `tetracoralla/armorial`.
 Brand identity is not the protocol contract. The descriptive Skill name,
 `resolve_icon` and sibling MCP tool names, the `icon_svg_select` server key,
 `ICON_SVG_SELECT_POLICY`, `ui://icon-svg-select/picker.html`, the
-`[icon-selection:v1]` carrier, and deterministic SVG id prefixes remain stable.
+`[icon-selection:vN]` carrier family and deterministic SVG id prefixes remain stable; v2 is current and the Skill retains the v1 reproduction path.
 The package exposes `armorial`, `armorial-mcp`, and `armorial-ui` as the primary
 commands while retaining the earlier descriptive commands as compatibility
 aliases.
@@ -24,23 +24,23 @@ The optional connected flow exists for one reason: when an Agent's prior icon ch
 
 ## Related flows
 
-- Standalone human: search or browse -> select -> inspect the policy-rendered preview -> copy SVG, download SVG, or drag SVG outward.
-- Copy-to-chat fallback: select -> copy a bounded `icon_selection` message -> paste it into any Agent conversation.
-- Agent-hosted handoff: an Agent opens the picker with an intent -> human selects -> explicitly attach the decision or send `Select & continue` -> the Agent verifies the exact icon and continues the already-authorized task.
-- Agent dominant path: `resolve_icon(intent, context?)` once.
-- Agent inspection path: `search_icons(query)` -> `get_icon(id)`.
-- Agent human-decision path: `choose_icon(intent, context?, requestId?)` once, then wait for the UI's explicit decision message.
-- Agent batch path: `get_icons(ids)` once, preserving input order and per-item failures.
+- Standalone human: search or browse -> select -> adjust appearance overrides (theme, colors, size, stroke, cap, join) with live preview -> copy SVG, download SVG, or drag SVG outward.
+- Copy-to-chat fallback: select -> copy a bounded `icon_selection` message carrying the final render style -> paste it into any Agent conversation.
+- Agent-hosted handoff: an Agent opens the picker with an intent and an optional starting render style -> human selects and may adjust appearance -> explicitly attach the decision or send `Select & continue` -> the Agent verifies the exact icon and continues the already-authorized task.
+- Agent dominant path: `resolve_icon(intent, context?, render?)` once.
+- Agent inspection path: `search_icons(query)` -> `get_icon(id, render?)`.
+- Agent human-decision path: `choose_icon(intent, context?, requestId?, render?)` once, then wait for the UI's explicit decision message.
+- Agent batch path: `get_icons(ids, render?)` once, preserving input order and per-item failures.
 - Project setup: validate one policy, then load it into CLI or the MCP process.
 
 ## Operation objects and states
 
 ### Selection session
 
-- Value: a temporary local comparison of policy-compliant IconPark candidates.
-- Attributes: query, optional category, optional context, candidates, selected icon, and optional originating request id.
-- Actions: search, filter category, select, copy SVG, download SVG, drag SVG, copy for Agent, attach to the current conversation, and select and continue.
-- Unsupported actions: editing project policy, redrawing paths, publishing a global selection, choosing a destination task, or executing unrelated Agent work.
+- Value: a temporary local comparison of project-resolved IconPark candidates, with explicit validated appearance overrides when requested.
+- Attributes: query, optional category, optional context, candidates, selected icon, optional originating request id, and an appearance override layered over the effective policy.
+- Actions: search, filter category, select, adjust appearance (theme, four colors, size, stroke width, linecap, linejoin; reset to policy), copy SVG, download SVG, drag SVG, copy for Agent, attach to the current conversation, and select and continue.
+- Unsupported actions: editing the project policy file, redrawing paths, publishing a global selection, choosing a destination task, or executing unrelated Agent work.
 - Lifecycle: `empty -> loading -> ready | error`; selection is `none | selected`; Agent handoff is `idle -> sending -> sent | failed`.
 - Recovery: failed search retains the prior selected icon; failed Agent delivery retains the selection and keeps `Copy for Agent` available.
 
@@ -51,27 +51,40 @@ The UI returns a typed decision, not raw SVG, when communicating with an Agent:
 ```json
 {
   "kind": "icon_selection",
-  "version": 1,
+  "version": 2,
   "decisionId": "sha256-of-the-stable-decision",
   "requestId": "optional-originating-request",
   "iconId": "icon-park:remind",
   "intent": "notification",
   "context": null,
-  "assetSha256": "sha256-of-the-policy-rendered-svg",
+  "render": {
+    "theme": "outline",
+    "size": 32,
+    "strokeWidth": 2,
+    "strokeLinecap": "round",
+    "strokeLinejoin": "round",
+    "colors": {
+      "primary": "currentColor",
+      "secondary": "#2f88ff",
+      "innerStroke": "#ffffff",
+      "innerFill": "#43ccf8"
+    }
+  },
+  "assetSha256": "sha256-of-the-final-rendered-svg",
   "scope": "current_task"
 }
 ```
 
-`decisionId` is deterministic so retrying the same explicit decision is idempotent. There is no process-global `lastSelection`, implicit polling, or automatic delivery on grid click. `scope` only resumes the current task's existing authority; it grants no new operation.
+`decisionId` is deterministic so retrying the same explicit decision is idempotent. `render` is the final effective style behind the selected asset, including any appearance adjustments, so `get_icon` with that render reproduces the exact SVG and hash without depending on the context layer. There is no process-global `lastSelection`, implicit polling, or automatic delivery on grid click. `scope` only resumes the current task's existing authority; it grants no new operation.
 
 ### Visible design objects
 
 - Category navigation filters the candidate collection and carries a selected state.
 - Search changes the candidate collection and has loading, error, and recovery feedback.
 - Icon cells select one exact icon; selection changes the preview but sends nothing.
-- Preview and policy summary represent the selected icon and its effective render contract.
+- Preview and the Appearance panel represent the selected icon and its effective render contract; the panel's controls are the same typed override the Agent sends as `render`, with live preview, reset, and the read-only context line.
 - Copy, download, and drag deliver the SVG for direct human use.
-- Copy for Agent delivers the typed decision as text and is always available after selection.
+- Copy for Agent delivers the typed decision with the final render style as text and is always available after selection.
 - Attach and Select & continue appear only when the host bridge is available. Both require an explicit click and report sending, success, or failure.
 
 ## Reuse inventory
@@ -85,7 +98,7 @@ No existing application, component library, CLI, MCP server, or local policy exi
 
 ## Shared deterministic core
 
-`IconKernel` is the only business entry point. It calls a validated IconPark provider, a deterministic lexical ranker, policy resolution, ambiguity rules, and a sanitizing deterministic SVG renderer. CLI and MCP only translate transport inputs and presentations.
+`IconKernel` is the only business entry point. It calls a validated IconPark provider, a deterministic lexical ranker, policy resolution (defaults, then context, then the per-call render override), ambiguity rules, and a sanitizing deterministic SVG renderer. CLI and MCP only translate transport inputs and presentations.
 
 The local web server and MCP App are also adapters over `IconKernel`. They may paginate and present the catalog, but they do not implement a second search ranker, policy resolver, renderer, or selection format.
 
@@ -107,6 +120,6 @@ The weakest intended client is a general MCP Agent that can select a tool from i
 - The same built UI supports a standalone local browser and an MCP App host.
 - Standalone mode owns direct human export. An Agent host may add decision-delivery actions according to its declared capabilities; the picker exposes no account-connection or authorization state.
 - HTML drag exposes SVG and text transfer types, but actual drop acceptance remains the destination application's behavior. Copy and download are the guaranteed carriers.
-- The UI shows the effective project-policy values. It does not present editable controls that could produce an SVG the Agent cannot reproduce through `get_icon`.
+- The UI exposes appearance controls over the same typed render override that Agents pass as `render`; the decision message carries the final effective style, so any adjusted asset remains exactly reproducible through `get_icon`. The UI still does not edit the project policy file, present MCP names, schemas, or protocol state.
 - No cloud account, collaboration backend, shared selection state, Figma-only component conversion, fallback collection, vector search, or path editing is part of this delivery.
 - A Figma-specific adapter may later consume the same SVG or decision contract without becoming the product's primary surface.

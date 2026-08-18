@@ -19,14 +19,19 @@ import {
   GetIconOutputSchema,
   GetIconsInputSchema,
   GetIconsOutputSchema,
+  ICON_PICKER_SESSION_META_KEY,
   KERNEL_VERSION,
   MAX_MCP_APP_RESOURCE_BYTES,
   MAX_MCP_TOOL_CATALOG_BYTES,
   MAX_UI_CATALOG_RESPONSE_BYTES,
   ResolveInputSchema,
   ResolveOutputSchema,
+  SafeColorSchema,
   SearchInputSchema,
   SearchOutputSchema,
+  StrokeLinecapSchema,
+  StrokeLinejoinSchema,
+  ThemeSchema,
 } from "../core/contracts.js";
 import { IconKernelError, toKernelError } from "../core/errors.js";
 import { IconKernel } from "../core/kernel.js";
@@ -57,7 +62,37 @@ const ResolveMcpOutputSchema = z.strictObject({ result: ResolveOutputSchema });
 const SearchMcpOutputSchema = z.strictObject({ result: SearchOutputSchema });
 const GetIconMcpOutputSchema = z.strictObject({ result: GetIconOutputSchema });
 const GetIconsMcpOutputSchema = z.strictObject({ result: GetIconsOutputSchema });
-const ChooseIconMcpOutputSchema = z.strictObject({ result: ChooseIconSummarySchema, session: ChooseIconInputSchema });
+
+const McpSafeColorSchema = z.string()
+  .max(64)
+  .superRefine((value, context) => {
+    if (!SafeColorSchema.safeParse(value).success) {
+      context.addIssue({ code: "custom", message: "Use a supported SVG color." });
+    }
+  })
+  .meta({ id: "RenderColor" });
+
+// The advertised transport schema keeps colors bounded without expanding the
+// full CSS named-color set into every tool listing. The runtime refinement and
+// kernel both validate the exact accepted grammar before rendering.
+const RenderStyleOverrideMcpSchema = z.strictObject({
+  theme: ThemeSchema.optional(),
+  size: z.number().int().min(8).max(512).optional(),
+  strokeWidth: z.number().min(0.5).max(16).optional(),
+  strokeLinecap: StrokeLinecapSchema.optional(),
+  strokeLinejoin: StrokeLinejoinSchema.optional(),
+  colors: z.partialRecord(
+    z.enum(["primary", "secondary", "innerStroke", "innerFill"]),
+    McpSafeColorSchema,
+  ).optional(),
+});
+
+const ResolveInputMcpSchema = ResolveInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
+const GetIconInputMcpSchema = GetIconInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
+const GetIconsInputMcpSchema = GetIconsInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
+const BrowseIconsInputMcpSchema = BrowseIconsInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
+const ChooseIconInputMcpSchema = ChooseIconInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
+const ChooseIconMcpOutputSchema = z.strictObject({ result: ChooseIconSummarySchema });
 
 const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
@@ -98,8 +133,8 @@ export function createMcpServer(
     "resolve_icon",
     {
       title: "Resolve approved icon",
-      description: "Select and render one policy-compliant IconPark SVG for a semantic intent. Default one-call route; the result includes the asset, so do not follow with get_icon. Never draw SVG. Context is a known configured ASCII policy key, never prose; omit when unknown.",
-      inputSchema: ResolveInputSchema,
+      description: "Select and render one project-aware IconPark SVG for a semantic intent. Default one-call route; the result includes the asset, so do not follow with get_icon. Context is a known configured ASCII policy key, never prose; omit when unknown.",
+      inputSchema: ResolveInputMcpSchema,
       outputSchema: ResolveMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -113,7 +148,7 @@ export function createMcpServer(
     "search_icons",
     {
       title: "Search approved icons",
-      description: "Find compact IconPark candidates by English/Chinese name, title, tag, alias, or category. Use only when alternatives are needed.",
+      description: "Find compact IconPark candidates by name, title, tag, alias, or category. Use only when alternatives are needed.",
       inputSchema: SearchInputSchema,
       outputSchema: SearchMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -128,8 +163,8 @@ export function createMcpServer(
     "get_icon",
     {
       title: "Render exact approved icon",
-      description: "Render a known IconPark id under project policy. Returns deterministic SVG, effective policy, capabilities, compliance, license, and hash.",
-      inputSchema: GetIconInputSchema,
+      description: "Render a known IconPark id under project policy. Returns deterministic SVG, effective policy, capabilities, and hash.",
+      inputSchema: GetIconInputMcpSchema,
       outputSchema: GetIconMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -144,7 +179,7 @@ export function createMcpServer(
     {
       title: "Render approved icon batch",
       description: "Render up to 20 known IconPark ids under one policy/context, preserving order and per-id failures.",
-      inputSchema: GetIconsInputSchema,
+      inputSchema: GetIconsInputMcpSchema,
       outputSchema: GetIconsMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -160,7 +195,7 @@ export function createMcpServer(
     {
       title: "Open visual icon picker",
       description: "Open the human picker only for visual choice, rejection, or unresolved taste. Wait for the user's icon_selection message.",
-      inputSchema: ChooseIconInputSchema,
+      inputSchema: ChooseIconInputMcpSchema,
       outputSchema: ChooseIconMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: ICON_PICKER_RESOURCE_URI, visibility: ["model"] } },
@@ -182,7 +217,11 @@ export function createMcpServer(
           type: "text" as const,
           text: "The visual icon picker is open for the human to choose. Wait for the user's icon_selection message before continuing.",
         }],
-        structuredContent: { result, session: input },
+        structuredContent: { result },
+        // The app needs the exact starting style, while the model only needs
+        // the compact session summary. MCP result metadata is forwarded to the
+        // app without inflating model-visible structured content or schemas.
+        _meta: { [ICON_PICKER_SESSION_META_KEY]: input },
       };
       assertToolResultEnvelope("choose_icon", envelope, MAX_MCP_TOOL_CATALOG_BYTES);
       return envelope;
@@ -195,7 +234,7 @@ export function createMcpServer(
     {
       title: "Browse icons for picker",
       description: "Load one bounded page of rendered icons for the picker.",
-      inputSchema: BrowseIconsInputSchema,
+      inputSchema: BrowseIconsInputMcpSchema,
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: ICON_PICKER_RESOURCE_URI, visibility: ["app"] } },
     },

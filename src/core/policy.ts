@@ -1,5 +1,11 @@
 import { expandAliases, isGenericTaskTerm } from "./aliases.js";
-import { COLLECTION_ID, IconPolicySchema, type IconPolicy, type RenderStyle } from "./contracts.js";
+import {
+  COLLECTION_ID,
+  IconPolicySchema,
+  type IconPolicy,
+  type RenderStyle,
+  type RenderStyleOverride,
+} from "./contracts.js";
 import { IconKernelError, zodIssuesToKernelError } from "./errors.js";
 import { normalizeText, queryTerms } from "./normalize.js";
 
@@ -106,9 +112,13 @@ export function parseIconPolicy(input: unknown): IconPolicy {
   return parsed.data;
 }
 
+// Layering order: defaults <- context override <- per-call render override.
+// The per-call layer is the same typed object for humans (picker appearance)
+// and Agents (render parameter), so both reproduce identical assets.
 export function resolveEffectivePolicy(
   policy: IconPolicy,
   context?: string,
+  render?: RenderStyleOverride,
 ): { policy: EffectivePolicy; warnings: PolicyWarning[] } {
   const override = context !== undefined && Object.hasOwn(policy.contexts, context)
     ? policy.contexts[context]
@@ -123,24 +133,36 @@ export function resolveEffectivePolicy(
   }
 
   const colors = {
-    primary: override?.colors?.primary ?? policy.defaults.colors.primary,
-    secondary: override?.colors?.secondary ?? policy.defaults.colors.secondary,
-    innerStroke: override?.colors?.innerStroke ?? policy.defaults.colors.innerStroke,
-    innerFill: override?.colors?.innerFill ?? policy.defaults.colors.innerFill,
+    primary: render?.colors?.primary ?? override?.colors?.primary ?? policy.defaults.colors.primary,
+    secondary: render?.colors?.secondary ?? override?.colors?.secondary ?? policy.defaults.colors.secondary,
+    innerStroke: render?.colors?.innerStroke ?? override?.colors?.innerStroke ?? policy.defaults.colors.innerStroke,
+    innerFill: render?.colors?.innerFill ?? override?.colors?.innerFill ?? policy.defaults.colors.innerFill,
   };
 
   return {
     policy: {
-      theme: override?.theme ?? policy.defaults.theme,
-      size: override?.size ?? policy.defaults.size,
-      strokeWidth: override?.strokeWidth ?? policy.defaults.strokeWidth,
-      strokeLinecap: override?.strokeLinecap ?? policy.defaults.strokeLinecap,
-      strokeLinejoin: override?.strokeLinejoin ?? policy.defaults.strokeLinejoin,
+      theme: render?.theme ?? override?.theme ?? policy.defaults.theme,
+      size: render?.size ?? override?.size ?? policy.defaults.size,
+      strokeWidth: render?.strokeWidth ?? override?.strokeWidth ?? policy.defaults.strokeWidth,
+      strokeLinecap: render?.strokeLinecap ?? override?.strokeLinecap ?? policy.defaults.strokeLinecap,
+      strokeLinejoin: render?.strokeLinejoin ?? override?.strokeLinejoin ?? policy.defaults.strokeLinejoin,
       colors,
       context: context ?? null,
     },
     warnings,
   };
+}
+
+export function renderStyleEquals(left: RenderStyle, right: RenderStyle): boolean {
+  return left.theme === right.theme
+    && left.size === right.size
+    && left.strokeWidth === right.strokeWidth
+    && left.strokeLinecap === right.strokeLinecap
+    && left.strokeLinejoin === right.strokeLinejoin
+    && left.colors.primary === right.colors.primary
+    && left.colors.secondary === right.colors.secondary
+    && left.colors.innerStroke === right.colors.innerStroke
+    && left.colors.innerFill === right.colors.innerFill;
 }
 
 export function findSemanticSelection(policy: IconPolicy, intent: string): string | undefined {

@@ -11,15 +11,16 @@ It does not ask a model to draw SVG. It also does not pretend arbitrary filled i
 - Validated local index over all 2,658 icons in `@icon-park/svg@1.4.2`.
 - English and Simplified Chinese search across names, titles, categories, tags, plurals, and compact UI aliases.
 - Project policy for theme, size, stroke width, cap, join, colors, per-surface overrides, and semantic icon selections.
+- Per-call render overrides on the same typed settings, layered as defaults <- context <- explicit override, available identically to humans and Agents.
 - Explicit ambiguity when equal semantic candidates are not pinned by policy.
-- Deterministic SVG, including stable internal clip-path ids, exact per-icon viewBox, byte count, hash, license, capability, and executable-policy compliance fields.
-- Standalone visual workbench with browse/search, preview, Copy SVG, download, and standards-based outward drag.
+- Deterministic SVG, including stable internal clip-path ids, exact per-icon viewBox, byte count, hash, license, capability, and an honest `compliant` or `overridden` policy status.
+- Standalone visual workbench with browse/search, live appearance adjustment, preview, Copy SVG, download, and standards-based outward drag.
 - Optional MCP App picker with explicit Attach and Select & continue actions; ordinary human use never requires an Agent.
 - Five model-facing MCP tools: `resolve_icon`, `search_icons`, `get_icon`, `get_icons`, and the explicit visual-decision route `choose_icon`.
 - One app-only `browse_icons` helper, excluded from model use by MCP App visibility metadata; enforcement is host-side.
 - CLI equivalents for human inspection and shell composition.
 - Strict input/output schemas, bounded queries and batches, safe color grammar, bounded SVG/response sizes, and per-item batch failures.
-- A deterministic, bounded `icon_selection` decision format for copy-to-chat and connected continuation. It contains no raw SVG or arbitrary instructions.
+- A deterministic, bounded `icon_selection` decision format (v2) for copy-to-chat and connected continuation. It carries the final effective render style and contains no raw SVG or arbitrary instructions.
 
 The [product model](./docs/PRODUCT_MODEL.md) records the user flows and one-call Agent route budget. The [review contract](./docs/REVIEW_CONTRACT.md) records the current adversarial sequences.
 
@@ -52,12 +53,11 @@ npm run start:ui
 
 Open `http://127.0.0.1:4178`. Search or browse, select one icon, then:
 
+- adjust **Appearance** in the right inspector: theme, four colors, size, stroke width, linecap, linejoin, and Reset. Adjustments re-render the grid and preview as a bounded per-session override; export waits for that redraw and never edits the project policy file.
 - **Copy SVG** copies raw SVG for direct use in any editor that accepts it.
 - **Download** saves an `.svg` file.
 - drag an icon cell outward; the app supplies `image/svg+xml`, plain SVG text, and a download transfer. Whether a destination accepts a browser drag is controlled by that destination, so copy and download are the guaranteed carriers.
-- **Copy for Agent** copies a compact `[icon-selection:v1]` decision, not the SVG. Paste it into an Agent conversation to preserve the exact id and policy-rendered asset hash.
-
-The right inspector reports the effective project policy. It is intentionally not a second policy editor: a human and Agent must be able to reproduce the same selected asset.
+- **Copy for Agent** copies a compact `[icon-selection:v2]` decision, not the SVG. It carries the icon id, the final effective render style, and the rendered asset hash, so an Agent reproduces the exact adjusted asset through `get_icon`.
 
 ## CLI
 
@@ -99,10 +99,12 @@ MCP tools do not accept paths, URLs, raw SVG, or source code.
 The dominant Agent request should take one call:
 
 ```text
-resolve_icon({ intent: "settings", context: "toolbar" })
+resolve_icon({ intent: "settings", context: "toolbar", render: { size: 32 } })
 ```
 
 If policy has pinned that semantic intent, the result includes the chosen id and rendered SVG. If several candidates have the same basis, the result is `ambiguous` and lists candidates without producing geometry.
+
+`render` is an optional per-call override with the same typed settings as the picker's Appearance controls (theme, size, strokeWidth, strokeLinecap, strokeLinejoin, and the four colors). It layers over the resolved context policy, and every result reports the final effective settings in `icon.policy`; `policyCompliance` becomes `overridden` when the request materially changes project values. The same parameter exists on `get_icon`, `get_icons`, `browse_icons`, and `choose_icon`, so a human's adjusted workbench style and an Agent's explicit request produce identical, reproducible assets.
 
 When the human explicitly asks to compare visually or rejects an earlier choice, use:
 
@@ -120,7 +122,7 @@ For local host testing, run `npm run plugin:check`. It assembles the ignored `pl
 "source": {
   "source": "npm",
   "package": "armorial",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "registry": "https://registry.npmjs.org"
 }
 ```

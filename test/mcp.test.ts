@@ -5,6 +5,7 @@ import { test } from "node:test";
 import {
   BrowseIconsOutputSchema,
   DEFAULT_POLICY,
+  ICON_PICKER_SESSION_META_KEY,
   MAX_MCP_TOOL_CATALOG_BYTES,
 } from "../src/core/contracts.js";
 import { IconKernel } from "../src/core/kernel.js";
@@ -50,6 +51,7 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
     const chooseTool = listed.tools.find((tool) => tool.name === "choose_icon");
     assert.deepEqual((chooseTool?._meta?.ui as { visibility?: string[] } | undefined)?.visibility, ["model"]);
     assert.equal((chooseTool?._meta?.ui as { resourceUri?: string } | undefined)?.resourceUri, ICON_PICKER_RESOURCE_URI);
+    assert.equal(JSON.stringify(chooseTool?.outputSchema).includes('"session"'), false);
     const resolveTool = listed.tools.find((tool) => tool.name === "resolve_icon");
     assert.match(resolveTool?.description ?? "", /never prose; omit when unknown/);
     assert.match(resolveTool?.description ?? "", /do not follow with get_icon/);
@@ -57,6 +59,13 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
       | Record<string, { description?: string }>
       | undefined;
     assert.match(resolveProperties?.context?.description ?? "", /omit prose or unknown/);
+    const renderSchema = JSON.stringify(resolveProperties?.render);
+    assert.match(renderSchema, /RenderColor/);
+    const renderColorDefinition = JSON.stringify(
+      (resolveTool?.inputSchema.definitions as Record<string, unknown> | undefined)?.RenderColor,
+    );
+    assert.match(renderColorDefinition, /maxLength/);
+    assert.match(renderColorDefinition, /64/);
     const browseTool = listed.tools.find((tool) => tool.name === APP_ONLY_TOOL_NAMES[0]);
     assert.deepEqual((browseTool?._meta?.ui as { visibility?: string[] } | undefined)?.visibility, ["app"]);
     assert.equal(browseTool?.outputSchema, undefined, "app-only catalog output must not inflate model listings");
@@ -150,7 +159,11 @@ test("MCP resolve, ambiguity, validation, and batch partial failure use structur
     assert.equal(pickerSummary.intent, "notification");
     assert.equal("items" in pickerSummary, false);
     assert.equal("svg" in pickerSummary, false);
-    assert.equal(structured(pickerEnvelope.session).requestId, "req-42");
+    assert.equal("session" in pickerEnvelope, false);
+    assert.equal(
+      structured(picker._meta?.[ICON_PICKER_SESSION_META_KEY]).requestId,
+      "req-42",
+    );
 
     const browsePage = await client.callTool({
       name: "browse_icons",
@@ -177,6 +190,60 @@ test("MCP resolve, ambiguity, validation, and batch partial failure use structur
 test("public tool registry distinguishes model entry points from app-only helpers", () => {
   assert.deepEqual(PUBLIC_TOOL_NAMES, ["resolve_icon", "search_icons", "get_icon", "get_icons", "choose_icon"]);
   assert.deepEqual(APP_ONLY_TOOL_NAMES, ["browse_icons"]);
+});
+
+test("MCP tools accept the per-call render override and report the effective style", async () => {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const server = createMcpServer(new IconKernel(), async () => "<!doctype html>");
+  const client = new Client({ name: "armorial-test", version: "1.0.0" });
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+  try {
+    const rendered = await client.callTool({
+      name: "get_icon",
+      arguments: { id: "search", render: { size: 40, colors: { primary: "#0F172A" } } },
+    });
+    assert.equal(rendered.isError, undefined);
+    const result = structured(structured(rendered.structuredContent).result);
+    assert.equal(result.status, "ok");
+    const icon = structured(result.icon);
+    const iconPolicy = structured(icon.policy);
+    assert.equal(iconPolicy.size, 40);
+    assert.equal(structured(iconPolicy.colors).primary, "#0f172a");
+    assert.match(String(structured(icon.asset).svg), /width="40"/);
+
+    const chosen = await client.callTool({
+      name: "choose_icon",
+      arguments: { intent: "notification", requestId: "req-render", render: { theme: "filled" } },
+    });
+    assert.equal(chosen.isError, undefined);
+    const chosenSession = structured(chosen._meta?.[ICON_PICKER_SESSION_META_KEY]);
+    assert.equal(structured(chosenSession.render).theme, "filled");
+
+    const invalidColor = await client.callTool({
+      name: "get_icon",
+      arguments: { id: "search", render: { colors: { primary: "notacolor" } } },
+    });
+    assert.equal(invalidColor.isError, true);
+
+    const browsed = await client.callTool({
+      name: "browse_icons",
+      arguments: { query: "notification", offset: 0, limit: 2, render: { size: 40 } },
+    });
+    assert.equal(browsed.isError, undefined);
+    const browseResult = structured(structured(browsed.structuredContent).result);
+    const browseItems = browseResult.items as Array<{ asset?: { svg?: string } }>;
+    assert.ok(browseItems.every((item) => item.asset?.svg?.includes('width="40"')));
+
+    const invalidRender = await client.callTool({
+      name: "get_icon",
+      arguments: { id: "search", render: { strokeWidth: 99 } },
+    });
+    assert.equal(invalidRender.isError, true);
+  } finally {
+    await client.close();
+    await server.close();
+  }
 });
 
 test("MCP App HTML is bounded as a complete resource envelope", () => {

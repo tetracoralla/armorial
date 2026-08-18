@@ -1,7 +1,7 @@
 {
   "name": "armorial",
-  "version": "0.1.0",
-  "description": "Select and render policy-compliant IconPark SVGs through tools or a visual picker.",
+  "version": "0.2.0",
+  "description": "Select and render project-aware IconPark SVGs through tools or a visual picker.",
   "author": {
     "name": "openAdam"
   },
@@ -17,7 +17,7 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Armorial",
-    "shortDescription": "Choose policy-compliant icons without redrawing.",
+    "shortDescription": "Choose project-aware icons without redrawing.",
     "longDescription": "Search and render the pinned IconPark collection through one design-system-aware kernel. Use the visual picker when a human wants to compare and choose, or use the direct tools for deterministic Agent workflows.",
     "developerName": "openAdam",
     "category": "Productivity",
@@ -26,7 +26,7 @@
       "Read"
     ],
     "defaultPrompt": [
-      "Choose a policy-compliant icon for this UI action.",
+      "Choose an IconPark icon for this UI action using the project defaults.",
       "Open the visual icon picker for this intent.",
       "Replace this hand-drawn SVG with an approved icon."
     ]
