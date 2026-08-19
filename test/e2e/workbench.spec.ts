@@ -180,13 +180,19 @@ test("load more during a pending appearance change keeps pages consistent", asyn
   // Advance inside the 150 ms debounce window: the restyle is pending but not sent.
   await page.clock.fastForward(100);
   await page.getByRole("button", { name: "Load more", exact: true }).click();
-  const appended = browseBodies.at(-1);
+  await expect.poll(() => browseBodies.some((body) => body.offset === 60)).toBe(true);
+  const appended = [...browseBodies].reverse().find((body) => body.offset === 60);
   expect(appended?.offset).toBe(60);
   expect(appended?.render).toBeUndefined();
 
   // The pending restyle still reloads the whole list with the override applied.
   await page.clock.fastForward(300);
-  const reloaded = browseBodies.at(-1);
+  await expect.poll(() => browseBodies.some((body) => (
+    body.offset === 0 && (body.render as { size?: number } | undefined)?.size === 48
+  ))).toBe(true);
+  const reloaded = [...browseBodies].reverse().find((body) => (
+    body.offset === 0 && (body.render as { size?: number } | undefined)?.size === 48
+  ));
   expect((reloaded?.render as { size?: number } | undefined)?.size).toBe(48);
   await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2248%22/);
 });
