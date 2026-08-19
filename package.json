@@ -58,7 +58,7 @@
     "runtime:probe": "node scripts/probe-built-runtime.mjs",
     "figma:probe": "node scripts/probe-figma-build.mjs",
     "check": "npm run typecheck && npm test && npm run schema:check && npm run build && npm run runtime:probe && npm run figma:probe && npm run pages:check",
-    "pages:check": "npm run build:pages && node scripts/probe-pages-build.mjs",
+    "pages:check": "npm run build:pages && node --import tsx scripts/check-pages-catalog.ts && node scripts/probe-pages-build.mjs",
     "pages:deployment:check": "node scripts/check-pages-deployment.mjs",
     "prepack": "npm run build",
     "plugin:stage": "node --import tsx scripts/stage-plugin.ts",
