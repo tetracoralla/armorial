@@ -19,7 +19,12 @@ test("GitHub Pages is the official static human workbench", async () => {
   assert.match(readme, /https:\/\/tetracoralla\.github\.io\/armorial\//);
   assert.equal(packageJson.scripts?.["build:pages"], "ARMORIAL_PAGES=1 vite build");
   assert.match(packageJson.scripts?.["check"] ?? "", /npm run pages:check/);
-  assert.match(workflow, /npm run check/);
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /workflows: \[CI\]/);
+  assert.match(workflow, /types: \[completed\]/);
+  assert.match(workflow, /github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(workflow, /npm run build:pages/);
+  assert.doesNotMatch(workflow, /playwright install|npm run check/);
   assert.match(workflow, /path: \.pages-dist/);
   assert.match(workflow, /npm run pages:deployment:check/);
   assert.match(viteConfig, /browserStandaloneRuntimeAlias/);
