@@ -19,5 +19,6 @@
     "skipLibCheck": true,
     "types": ["vite/client"]
   },
-  "include": ["src/ui/**/*.ts", "src/ui/**/*.tsx", "src/core/contracts.ts", "src/core/css-color.ts", "src/core/selection.ts"]
+  "include": ["src/ui/**/*.ts", "src/ui/**/*.tsx", "src/core/contracts.ts", "src/core/css-color.ts", "src/core/selection.ts"],
+  "exclude": ["src/ui/standalone-browse-browser.ts"]
 }

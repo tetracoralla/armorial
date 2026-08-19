@@ -11,7 +11,7 @@
   "bugs": {
     "url": "https://github.com/tetracoralla/armorial/issues"
   },
-  "homepage": "https://github.com/tetracoralla/armorial#readme",
+  "homepage": "https://tetracoralla.github.io/armorial/",
   "engines": {
     "node": ">=22.0.0"
   },
@@ -46,6 +46,7 @@
     "build": "npm run build:web && npm run build:mcp-app && npm run build:node && npm run build:figma",
     "build:node": "tsc -p tsconfig.build.json",
     "build:web": "vite build",
+    "build:pages": "ARMORIAL_PAGES=1 vite build",
     "build:mcp-app": "ICON_MCP_APP=1 vite build",
     "build:figma": "npm run build:figma:ui && npm run build:figma:main",
     "build:figma:ui": "FIGMA_BUILD_TARGET=ui vite build --config vite.figma.config.ts",
@@ -56,7 +57,9 @@
     "schema:check": "node --import tsx scripts/check-policy-schema.ts",
     "runtime:probe": "node scripts/probe-built-runtime.mjs",
     "figma:probe": "node scripts/probe-figma-build.mjs",
-    "check": "npm run typecheck && npm test && npm run schema:check && npm run build && npm run runtime:probe && npm run figma:probe",
+    "check": "npm run typecheck && npm test && npm run schema:check && npm run build && npm run runtime:probe && npm run figma:probe && npm run pages:check",
+    "pages:check": "npm run build:pages && node scripts/probe-pages-build.mjs",
+    "pages:deployment:check": "node scripts/check-pages-deployment.mjs",
     "prepack": "npm run build",
     "plugin:stage": "node --import tsx scripts/stage-plugin.ts",
     "plugin:check": "npm run plugin:stage && node --import tsx scripts/probe-staged-plugin.ts",

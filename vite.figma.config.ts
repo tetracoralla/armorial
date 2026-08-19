@@ -1,25 +1,13 @@
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
+import { browserProviderAlias } from "./vite.browser-runtime.js";
 
 const projectRoot = import.meta.dirname;
 const figmaRoot = resolve(projectRoot, "figma-plugin");
 const figmaOutDir = resolve(figmaRoot, "dist");
 const buildTarget = process.env["FIGMA_BUILD_TARGET"] ?? "ui";
-
-function browserProviderAlias(): Plugin {
-  return {
-    name: "armorial-browser-provider",
-    enforce: "pre",
-    resolveId(source, importer) {
-      if (source === "./provider.js" && importer?.endsWith("/src/core/kernel.ts")) {
-        return resolve(projectRoot, "src/figma/browser-provider.ts");
-      }
-      return null;
-    },
-  };
-}
 
 export default defineConfig(buildTarget === "main"
   ? {
@@ -42,7 +30,7 @@ export default defineConfig(buildTarget === "main"
   : {
     root: figmaRoot,
     base: "./",
-    plugins: [browserProviderAlias(), react(), viteSingleFile()],
+    plugins: [browserProviderAlias(projectRoot), react(), viteSingleFile()],
     build: {
       outDir: figmaOutDir,
       emptyOutDir: true,
