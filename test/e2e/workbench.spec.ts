@@ -4,7 +4,7 @@ test("standalone human can search, select, copy for Agent, copy SVG, download, a
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:4178" });
   await page.goto("/");
   await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Primary color", { exact: true })).toHaveValue("#111827");
+  await expect(page.getByLabel("Primary", { exact: true })).toHaveValue("currentColor");
   await expect(page.getByRole("region", { name: "Agent" })).toHaveCount(0);
 
   await page.getByPlaceholder("Search icons", { exact: true }).fill("notification");
@@ -81,6 +81,62 @@ test("appearance overrides restyle exports and carry the final render into decis
   const resetSvg = await page.evaluate(() => navigator.clipboard.readText());
   expect(resetSvg).toContain('width="24"');
   expect(resetSvg).not.toContain("#0055ff");
+});
+
+test("inline color editing replaces the oversized system picker and returns focus", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+
+  const trigger = page.getByRole("button", { name: "Edit Primary color", exact: true });
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await trigger.click();
+
+  const editor = page.getByRole("region", { name: "Primary color editor", exact: true });
+  await expect(editor).toBeVisible();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await editor.getByRole("button", { name: "Use #2f88ff", exact: true }).click();
+  await editor.getByRole("button", { name: "Apply color", exact: true }).click();
+
+  await expect(editor).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /%232f88ff/);
+
+  await trigger.click();
+  await page.getByLabel("Primary hue", { exact: true }).press("Escape");
+  await expect(page.getByRole("region", { name: "Primary color editor", exact: true })).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test("range controls keep drag drafts local and render once on release", async ({ page }) => {
+  const browseBodies: Array<Record<string, unknown>> = [];
+  await page.route("**/api/browse", async (route) => {
+    browseBodies.push(route.request().postDataJSON() as Record<string, unknown>);
+    await route.continue();
+  });
+  await page.goto("/");
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+  browseBodies.length = 0;
+
+  const range = page.getByLabel("Size", { exact: true });
+  await range.evaluate((element) => {
+    const input = element as HTMLInputElement;
+    input.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    valueSetter?.call(input, "33");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await expect(page.getByLabel("Size value", { exact: true })).toHaveValue("33");
+  await page.waitForTimeout(250);
+  expect(browseBodies.some((body) => (body.render as { size?: number } | undefined)?.size === 33)).toBe(false);
+
+  await range.evaluate((element) => element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true })));
+  await expect.poll(() => browseBodies.filter((body) => (
+    (body.render as { size?: number } | undefined)?.size === 33
+  )).length).toBe(1);
+  await page.waitForTimeout(300);
+  expect(browseBodies.filter((body) => (
+    (body.render as { size?: number } | undefined)?.size === 33
+  )).length).toBe(1);
 });
 
 test("appearance redraw blocks stale export and rejects invalid drafts locally", async ({ page }) => {

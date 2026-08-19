@@ -31,8 +31,10 @@ export function Inspector(props: Props) {
   return (
     <aside className={`inspector${renderPending ? " is-rendering" : ""}`}>
       <div className="preview-panel">
-        <img src={svgDataUri(selected.asset.svg)} alt={`${selected.name} preview`} />
-        <div>
+        <div className="preview-art">
+          <img src={svgDataUri(selected.asset.svg)} alt={`${selected.name} preview`} />
+        </div>
+        <div className="preview-meta">
           <h2>{selected.name}</h2>
           <p>{selected.title}</p>
           <code>{selected.id}</code>
@@ -42,12 +44,14 @@ export function Inspector(props: Props) {
         <button className="primary-action" type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onCopySvg()}>
           {actionState === "copying-svg" ? "Copying…" : "Copy SVG"}
         </button>
-        <button type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onDownload()}>
-          {actionState === "downloading" ? "Downloading…" : "Download"}
-        </button>
-        <button type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onCopyForAgent()}>
-          {actionState === "copying-agent" ? "Copying…" : "Copy for Agent"}
-        </button>
+        <div className="action-secondary">
+          <button type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onDownload()}>
+            {actionState === "downloading" ? "Downloading…" : "Download"}
+          </button>
+          <button type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onCopyForAgent()}>
+            {actionState === "copying-agent" ? "Copying…" : "Copy for Agent"}
+          </button>
+        </div>
       </div>
       {runtime.mode === "embedded" && (runtime.canAttach || runtime.canContinue) && (
         <section className="agent-actions" aria-label="Agent actions">
