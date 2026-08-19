@@ -9,11 +9,13 @@ type Props = {
   tabIndex: number;
   onSelect: (item: CatalogItem) => void;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+  onDragEnd?: ((event: DragEvent, item: CatalogItem) => void) | undefined;
+  dragDisabled?: boolean;
 };
 
 // Memoized so selection, loading, and notice changes reconcile only the cells
 // whose own props changed instead of re-encoding every data URI.
-export const IconCell = memo(function IconCell({ item, selected, tabIndex, onSelect, onKeyDown }: Props) {
+export const IconCell = memo(function IconCell({ item, selected, tabIndex, onSelect, onKeyDown, onDragEnd, dragDisabled = false }: Props) {
   return (
     <button
       className={`icon-cell ${selected ? "is-selected" : ""}`}
@@ -21,11 +23,12 @@ export const IconCell = memo(function IconCell({ item, selected, tabIndex, onSel
       role="option"
       aria-selected={selected}
       tabIndex={tabIndex}
-      draggable
+      draggable={!dragDisabled}
       title={`${item.name} · ${item.title}`}
       onClick={() => onSelect(item)}
       onKeyDown={onKeyDown}
-      onDragStart={(event) => setSvgDragData(event.nativeEvent, item.name, item.asset.svg)}
+      onDragStart={dragDisabled ? undefined : (event) => setSvgDragData(event.nativeEvent, item.name, item.asset.svg)}
+      onDragEnd={dragDisabled ? undefined : (event) => onDragEnd?.(event.nativeEvent, item)}
     >
       <img src={svgDataUri(item.asset.svg)} alt="" draggable={false} />
       <span>{item.name}</span>

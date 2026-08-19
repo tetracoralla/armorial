@@ -7,7 +7,7 @@ import {
   HEX_COLOR_PATTERN,
 } from "./css-color.js";
 
-export const KERNEL_VERSION = "0.2.0";
+export const KERNEL_VERSION = "0.3.0";
 export const COLLECTION_ID = "icon-park" as const;
 export const MAX_QUERY_LENGTH = 120;
 export const MAX_SEARCH_RESULTS = 20;
@@ -15,10 +15,10 @@ export const MAX_BATCH_SIZE = 20;
 export const MAX_SVG_BYTES = 64 * 1024;
 export const MAX_BATCH_RESPONSE_BYTES = 512 * 1024;
 export const MAX_POLICY_BYTES = 64 * 1024;
-// v0.2 raised this from 20 KiB so the five render-parity input schemas fit
-// without deleting declared model-tool output schemas; the catalog stays
-// bounded for weak clients.
-export const MAX_MCP_TOOL_CATALOG_BYTES = 24 * 1024;
+// Keep at least 2 KiB below the former 24 KiB weak-client boundary. The five
+// model tools retain complete input/output schemas; app-only catalog details
+// live in the bundled picker contract instead of every model tools/list.
+export const MAX_MCP_TOOL_CATALOG_BYTES = 22 * 1024;
 export const MAX_MCP_APP_RESOURCE_BYTES = 900 * 1024;
 export const MAX_POLICY_CONTEXTS = 32;
 export const MAX_POLICY_SELECTIONS = 256;

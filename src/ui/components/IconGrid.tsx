@@ -10,6 +10,8 @@ type Props = {
   loading: boolean;
   onSelect: (item: CatalogItem) => void;
   onLoadMore: () => void;
+  onDragEnd?: ((event: DragEvent, item: CatalogItem) => void) | undefined;
+  dragDisabled?: boolean;
 };
 
 function optionButtons(listbox: HTMLElement): HTMLButtonElement[] {
@@ -37,7 +39,7 @@ function keyboardTargetIndex(key: string, current: number, count: number, column
   }
 }
 
-export function IconGrid({ items, selectedId, hasMore, loading, onSelect, onLoadMore }: Props) {
+export function IconGrid({ items, selectedId, hasMore, loading, onSelect, onLoadMore, onDragEnd, dragDisabled = false }: Props) {
   const handleCellKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
     const listbox = event.currentTarget.parentElement;
     if (listbox === null) return;
@@ -70,6 +72,8 @@ export function IconGrid({ items, selectedId, hasMore, loading, onSelect, onLoad
             tabIndex={selectedId === item.id || (selectedId === null && index === 0) ? 0 : -1}
             onSelect={onSelect}
             onKeyDown={handleCellKeyDown}
+            onDragEnd={onDragEnd}
+            dragDisabled={dragDisabled}
           />
         ))}
       </div>

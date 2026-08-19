@@ -12,8 +12,19 @@ npm run check
 ```
 
 `npm run check` runs type checks, tests, policy-schema drift detection, the
-production build, and a fresh-process probe of the built CLI and stdio MCP
-server.
+production builds, a fresh-process probe of the built CLI and stdio MCP
+server, and an offline Figma bundle/UI/drag probe.
+
+For a focused Figma loop:
+
+```sh
+npm run build:figma
+npm run figma:probe
+```
+
+Import `figma-plugin/manifest.json` with Figma Desktop's development-plugin
+flow. Keep generated `figma-plugin/dist/` files out of Git; `prepack` rebuilds
+and includes them in the npm package.
 
 The browser regression lane runs separately:
 
@@ -25,7 +36,7 @@ npm run ui:e2e
 ## Change expectations
 
 - Search, policy, rendering, and selection-decision rules belong in
-  `src/core`; CLI, web UI, and MCP are adapters over `IconKernel`.
+  `src/core`; CLI, web UI, MCP, and Figma are adapters over `IconKernel`.
 - Every parser, guard, or failure-path fix ships with the smallest negative
   regression test that fails if the fix is reverted.
 - `icon-policy.schema.json` is generated; run `npm run schema:generate` after

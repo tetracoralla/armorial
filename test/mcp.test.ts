@@ -43,8 +43,8 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
       assert.equal(tool.annotations?.destructiveHint, false);
       assert.equal(tool.annotations?.idempotentHint, true);
       assert.equal(tool.annotations?.openWorldHint, false);
-      assert.equal(tool.inputSchema.additionalProperties, false);
       if ((PUBLIC_TOOL_NAMES as readonly string[]).includes(tool.name)) {
+        assert.equal(tool.inputSchema.additionalProperties, false);
         assert.ok(tool.outputSchema, `${tool.name} must declare an output schema`);
       }
     }
@@ -68,6 +68,8 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
     assert.match(renderColorDefinition, /64/);
     const browseTool = listed.tools.find((tool) => tool.name === APP_ONLY_TOOL_NAMES[0]);
     assert.deepEqual((browseTool?._meta?.ui as { visibility?: string[] } | undefined)?.visibility, ["app"]);
+    assert.deepEqual(browseTool?.inputSchema.additionalProperties, {});
+    assert.deepEqual(browseTool?.inputSchema.properties, {});
     assert.equal(browseTool?.outputSchema, undefined, "app-only catalog output must not inflate model listings");
 
     const resources = await client.listResources();

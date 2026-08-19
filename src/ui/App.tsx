@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MAX_UI_CATALOG_ITEMS,
   type BrowseIconsInput,
@@ -11,9 +11,10 @@ import { createIconSelectionDecision, formatIconSelectionMessage } from "../core
 import { AppHeader } from "./components/AppHeader.js";
 import { CategoryNav } from "./components/CategoryNav.js";
 import { IconGrid } from "./components/IconGrid.js";
+import { FigmaInspector } from "./components/FigmaInspector.js";
 import { Inspector, type ActionState } from "./components/Inspector.js";
 import { SearchToolbar } from "./components/SearchToolbar.js";
-import { copyText, type CatalogData, type PickerRuntime } from "./runtime.js";
+import { copyText, isFigmaPickerRuntime, type CatalogData, type PickerRuntime } from "./runtime.js";
 
 const PAGE_SIZE = MAX_UI_CATALOG_ITEMS;
 
@@ -43,11 +44,16 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionState, setActionState] = useState<ActionState>("idle");
+  const [figmaCompact, setFigmaCompact] = useState(false);
   const [hostSession, setHostSession] = useState<ChooseIconInput | null>(runtime.session);
   const requestSequence = useRef(0);
   const hasInitialCatalog = useRef(initial !== null);
   const appliedHostInitialState = useRef(initial !== null);
   const appliedSession = useRef<ChooseIconInput | null>(runtime.session);
+  const appliedFigmaInitialState = useRef(false);
+  const lastFigmaReceiptId = useRef<string | null>(null);
+  const lastFigmaError = useRef<string | null>(null);
+  const [figmaHydrated, setFigmaHydrated] = useState(!isFigmaPickerRuntime(runtime));
   const lastLoadBasis = useRef<LoadBasis | null>(null);
 
   // Optimistic display style: the loaded catalog reports the context-resolved
@@ -136,6 +142,35 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   }, [runtime]);
 
   useEffect(() => {
+    if (!isFigmaPickerRuntime(runtime)) return;
+    return runtime.onFigmaState((state) => {
+      if (!state.hydrated) return;
+      if (!appliedFigmaInitialState.current) {
+        appliedFigmaInitialState.current = true;
+        setStyleOverride(state.render);
+        setFigmaHydrated(true);
+      }
+      if (state.lastReceipt !== null && state.lastReceipt.requestId !== lastFigmaReceiptId.current) {
+        lastFigmaReceiptId.current = state.lastReceipt.requestId;
+        lastFigmaError.current = null;
+        setError(null);
+        setNotice(`Placed ${state.lastReceipt.nodeName} in ${state.lastReceipt.parentName}`);
+      }
+      if (state.error !== null && state.error !== lastFigmaError.current) {
+        lastFigmaError.current = state.error;
+        setError(state.error);
+      } else if (state.error === null) {
+        lastFigmaError.current = null;
+      }
+    });
+  }, [runtime]);
+
+  useEffect(() => {
+    if (!figmaHydrated || !isFigmaPickerRuntime(runtime)) return;
+    runtime.saveFigmaRender(styleOverride);
+  }, [figmaHydrated, runtime, styleOverride]);
+
+  useEffect(() => {
     if (hasInitialCatalog.current) {
       hasInitialCatalog.current = false;
       return;
@@ -156,9 +191,12 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
 
   useEffect(() => {
     if (notice === null) return;
-    const timer = window.setTimeout(() => setNotice(null), 2400);
+    const timer = window.setTimeout(
+      () => setNotice(null),
+      isFigmaPickerRuntime(runtime) ? 4_000 : 2_400,
+    );
     return () => window.clearTimeout(timer);
-  }, [notice]);
+  }, [notice, runtime]);
 
   async function withAction(state: ActionState, action: () => Promise<void>, success: string): Promise<void> {
     setActionState(state);
@@ -212,6 +250,19 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
     setItems([]);
   };
 
+  const toggleFigmaCompact = () => {
+    if (!isFigmaPickerRuntime(runtime)) return;
+    const next = !figmaCompact;
+    setFigmaCompact(next);
+    runtime.resizeFigmaUi(next);
+  };
+
+  // Stable identity keeps the memoized icon cells from re-encoding their SVG
+  // data URIs on every state change in the Figma build.
+  const handleFigmaDragEnd = useCallback((event: DragEvent, item: CatalogItem) => {
+    if (isFigmaPickerRuntime(runtime)) runtime.dragIcon(event, item);
+  }, [runtime]);
+
   const loadMore = async () => {
     const basis = lastLoadBasis.current ?? { query: query.trim(), category };
     await loadCatalog({
@@ -227,8 +278,13 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   };
 
   return (
-    <div className="app-shell">
-      <AppHeader runtime={runtime} />
+    <div className={`app-shell${figmaCompact ? " is-figma-compact" : ""}`}>
+      <AppHeader
+        runtime={runtime}
+        {...(isFigmaPickerRuntime(runtime)
+          ? { figmaCompact, onFigmaCompactToggle: toggleFigmaCompact }
+          : {})}
+      />
       <div className="workspace">
         <CategoryNav
           categories={catalog?.categories ?? []}
@@ -246,8 +302,26 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
             loading={loading}
             onSelect={setSelected}
             onLoadMore={() => void loadMore()}
+            onDragEnd={isFigmaPickerRuntime(runtime) ? handleFigmaDragEnd : undefined}
+            dragDisabled={isFigmaPickerRuntime(runtime) && renderPending}
           />
         </main>
+        {isFigmaPickerRuntime(runtime) ? (
+          <FigmaInspector
+            selected={selected}
+            style={displayStyle}
+            hasOverride={styleOverride !== null}
+            renderPending={renderPending}
+            runtime={runtime}
+            actionState={actionState}
+            onAppearanceChange={applyOverride}
+            onAppearanceReset={resetOverride}
+            onInsert={() => withAction("inserting", async () => {
+              if (selected === null) throw new Error("Select an icon first.");
+              await runtime.insertIcon(selected);
+            }, runtime.figmaState.settings.createComponent ? "Component inserted" : "Icon inserted")}
+          />
+        ) : (
         <Inspector
           selected={selected}
           style={displayStyle}
@@ -279,6 +353,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
             await runtime.continueTask(message);
           }, "Selection sent")}
         />
+        )}
       </div>
       <div className="toast" aria-live="polite">{notice}</div>
     </div>

@@ -9,5 +9,5 @@
     "noEmit": false
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["test", "scripts", "src/ui"]
+  "exclude": ["test", "scripts", "src/ui", "src/figma"]
 }

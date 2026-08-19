@@ -15,7 +15,6 @@ import {
   ResolveOutputSchema,
   SearchInputSchema,
   SearchOutputSchema,
-  type BrowseIconsInput,
   type BrowseIconsOutput,
   type Candidate,
   type GetIconInput,
@@ -40,6 +39,7 @@ import {
 } from "./policy.js";
 import { IconParkProvider, type IconRecord } from "./provider.js";
 import { IconSearchIndex } from "./search.js";
+import { utf8ByteLength } from "./svg.js";
 
 function invalidInput(error: z.ZodError): KernelError {
   return zodIssuesToKernelError("INVALID_INPUT", error, "The icon request is invalid.");
@@ -136,7 +136,7 @@ export class IconKernel {
     }
   }
 
-  browse(input: BrowseIconsInput): BrowseIconsOutput {
+  browse(input: unknown): BrowseIconsOutput {
     const parsed = BrowseIconsInputSchema.safeParse(input);
     if (!parsed.success) return BrowseIconsOutputSchema.parse(failure(invalidInput(parsed.error)));
 
@@ -170,7 +170,7 @@ export class IconKernel {
         })),
       };
 
-      if (Buffer.byteLength(JSON.stringify(output), "utf8") > MAX_UI_CATALOG_RESPONSE_BYTES) {
+      if (utf8ByteLength(JSON.stringify(output)) > MAX_UI_CATALOG_RESPONSE_BYTES) {
         return BrowseIconsOutputSchema.parse(failure({
           code: "RESPONSE_TOO_LARGE",
           message: `Catalog response exceeds the ${MAX_UI_CATALOG_RESPONSE_BYTES}-byte limit. Request fewer icons.`,
@@ -229,7 +229,7 @@ export class IconKernel {
         },
       };
 
-      if (Buffer.byteLength(JSON.stringify(output), "utf8") > MAX_BATCH_RESPONSE_BYTES) {
+      if (utf8ByteLength(JSON.stringify(output)) > MAX_BATCH_RESPONSE_BYTES) {
         return GetIconsOutputSchema.parse(
           failure({
             code: "RESPONSE_TOO_LARGE",

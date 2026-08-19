@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_POLICY } from "../src/core/contracts.js";
 import { IconKernelError } from "../src/core/errors.js";
-import { finalizeSvg } from "../src/core/svg.js";
+import { finalizeSvg, sha256Hex, utf8ByteLength } from "../src/core/svg.js";
 
 const style = DEFAULT_POLICY.defaults;
 
@@ -39,4 +39,13 @@ test("sanitizer keeps internal-reference SVG renderable, stable, and renames int
   assert.equal(first.viewBox, "0 0 48 48");
   assert.match(first.svg, /url\(#icon-svg-select-test-[a-f0-9]{12}\)/);
   assert.equal(first.sha256, second.sha256);
+});
+
+test("browser-safe UTF-8 and SHA-256 helpers preserve Node carrier semantics", () => {
+  const value = "Armorial / 图标 / 🛡️";
+  assert.equal(utf8ByteLength(value), Buffer.byteLength(value, "utf8"));
+  assert.equal(
+    sha256Hex(value),
+    "185fa771305a4976e8c5958c21e109dfcc1aa5999c6cd3a40ffc8fbf8dfa602c",
+  );
 });

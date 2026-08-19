@@ -16,7 +16,7 @@ aliases.
 
 ## Users and tasks
 
-The human user is a designer or product engineer selecting an existing icon and applying one project's visual rules. Their primary flow is search or browse, compare, select, preview, and then copy, download, or drag the SVG into another tool. This flow is complete without an Agent, account, cloud service, or Figma-specific integration.
+The human user is a designer or product engineer selecting an existing icon and applying one project's visual rules. Their primary flow is search or browse, compare, select, preview, and then copy, download, drag, or insert the asset directly in Figma. This flow is complete without an Agent, account, or cloud service.
 
 The Agent task is narrower: stop spending model reasoning on SVG geometry. Given an explicit semantic intent and optional surface context, retrieve an existing icon, apply the project's executable icon policy, and return a bounded structured result. If multiple icons have the same semantic basis and policy does not choose one, report the ambiguity instead of drawing or guessing.
 
@@ -25,6 +25,7 @@ The optional connected flow exists for one reason: when an Agent's prior icon ch
 ## Related flows
 
 - Standalone human: search or browse -> select -> adjust appearance overrides (theme, colors, size, stroke, cap, join) with live preview -> copy SVG, download SVG, or drag SVG outward.
+- Figma human: search or browse -> select -> adjust the same appearance override -> choose component, outlining, layer structure, and naming -> click to insert at the viewport center or drag to an exact canvas/container location.
 - Copy-to-chat fallback: select -> copy a bounded `icon_selection` message carrying the final render style -> paste it into any Agent conversation.
 - Agent-hosted handoff: an Agent opens the picker with an intent and an optional starting render style -> human selects and may adjust appearance -> explicitly attach the decision or send `Select & continue` -> the Agent verifies the exact icon and continues the already-authorized task.
 - Agent dominant path: `resolve_icon(intent, context?, render?)` once.
@@ -43,6 +44,15 @@ The optional connected flow exists for one reason: when an Agent's prior icon ch
 - Unsupported actions: editing the project policy file, redrawing paths, publishing a global selection, choosing a destination task, or executing unrelated Agent work.
 - Lifecycle: `empty -> loading -> ready | error`; selection is `none | selected`; Agent handoff is `idle -> sending -> sent | failed`.
 - Recovery: failed search retains the prior selected icon; failed Agent delivery retains the selection and keeps `Copy for Agent` available.
+
+### Figma insertion
+
+- Value: one selected, policy-rendered IconPark asset materialized as editable Figma content.
+- Attributes: canonical icon id, rendered SVG hash, appearance override, create-component flag, outline-stroke flag, layer structure (`preserve`, `flatten`, or `union`), layer name, placement mode, and destination parent.
+- Actions: insert at viewport center, enter a compact drag mode to expose the canvas, drag to place, return to settings, create a real Component master, outline supported strokes, preserve/flatten/union layers, rename, and reset appearance.
+- Unsupported actions: rewriting SVG paths, publishing a Figma library, mutating an instance or component set as a drop target, editing project policy, or creating a second Figma-only search/render implementation.
+- Lifecycle: `selected -> inserting -> inserted | failed`; settings are `loading -> restored -> editable -> persisted` in Figma client storage.
+- Recovery: validation and hash checks happen before the Figma write; a failed transform removes the partially created node and leaves the selection/settings available for retry. Compact drag mode surfaces the destination receipt or operation error without requiring the hidden settings inspector.
 
 ### Icon selection decision
 
@@ -84,6 +94,7 @@ The UI returns a typed decision, not raw SVG, when communicating with an Agent:
 - Icon cells select one exact icon; selection changes the preview but sends nothing.
 - Preview and the Appearance panel represent the selected icon and its effective render contract; the panel's controls are the same typed override the Agent sends as `render`, with live preview, reset, and the read-only context line.
 - Copy, download, and drag deliver the SVG for direct human use.
+- In Figma, click insertion produces a selected node at the viewport center and canvas drag produces the same validated output at the drop target. `Create component` uses Figma's native component conversion, so the result is a Component master rather than a named frame.
 - Copy for Agent delivers the typed decision with the final render style as text and is always available after selection.
 - Attach and Select & continue appear only when the host bridge is available. Both require an explicit click and report sending, success, or failure.
 
@@ -98,7 +109,7 @@ No existing application, component library, CLI, MCP server, or local policy exi
 
 ## Shared deterministic core
 
-`IconKernel` is the only business entry point. It calls a validated IconPark provider, a deterministic lexical ranker, policy resolution (defaults, then context, then the per-call render override), ambiguity rules, and a sanitizing deterministic SVG renderer. CLI and MCP only translate transport inputs and presentations.
+`IconKernel` is the only business entry point. It calls a validated IconPark provider, a deterministic lexical ranker, policy resolution (defaults, then context, then the per-call render override), ambiguity rules, and a sanitizing deterministic SVG renderer. CLI, MCP, web, and Figma only translate transport or host operations.
 
 The local web server and MCP App are also adapters over `IconKernel`. They may paginate and present the catalog, but they do not implement a second search ranker, policy resolver, renderer, or selection format.
 
@@ -118,8 +129,9 @@ The weakest intended client is a general MCP Agent that can select a tool from i
 ## Surface and integration boundary
 
 - The same built UI supports a standalone local browser and an MCP App host.
+- The Figma build reuses the same React workbench and browser-safe kernel behind an offline manifest. Its main sandbox validates the strict UI message, SVG envelope, and asset hash before invoking Figma-native insertion or geometry APIs.
 - Standalone mode owns direct human export. An Agent host may add decision-delivery actions according to its declared capabilities; the picker exposes no account-connection or authorization state.
 - HTML drag exposes SVG and text transfer types, but actual drop acceptance remains the destination application's behavior. Copy and download are the guaranteed carriers.
 - The UI exposes appearance controls over the same typed render override that Agents pass as `render`; the decision message carries the final effective style, so any adjusted asset remains exactly reproducible through `get_icon`. The UI still does not edit the project policy file, present MCP names, schemas, or protocol state.
-- No cloud account, collaboration backend, shared selection state, Figma-only component conversion, fallback collection, vector search, or path editing is part of this delivery.
-- A Figma-specific adapter may later consume the same SVG or decision contract without becoming the product's primary surface.
+- No cloud account, collaboration backend, shared selection state, automatic library publishing, fallback collection, vector search, or path editing is part of this delivery.
+- Figma component conversion is an adapter-owned output option over the same asset contract, not a second product kernel.

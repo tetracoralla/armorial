@@ -6,13 +6,19 @@ import {
   KERNEL_VERSION,
   type BrowseIconsInput,
   type BrowseIconsOutput,
+  type CatalogItem,
   type ChooseIconInput,
   type IconSelectionDecision,
+  type RenderStyleOverride,
 } from "../core/contracts.js";
+import type {
+  FigmaInsertSettings,
+  FigmaInsertionReceipt,
+} from "../figma/protocol.js";
 
 export type CatalogData = Extract<BrowseIconsOutput, { status: "ok" }>;
 
-export type RuntimeMode = "standalone" | "embedded";
+export type RuntimeMode = "standalone" | "embedded" | "figma";
 
 export interface PickerRuntime {
   readonly mode: RuntimeMode;
@@ -27,6 +33,30 @@ export interface PickerRuntime {
   continueTask(message: string): Promise<void>;
   download(filename: string, svg: string): Promise<void>;
   requestFullscreen(): Promise<void>;
+}
+
+export type FigmaRuntimeState = {
+  settings: FigmaInsertSettings;
+  render: RenderStyleOverride | null;
+  pageName: string;
+  lastReceipt: FigmaInsertionReceipt | null;
+  error: string | null;
+  hydrated: boolean;
+};
+
+export interface FigmaPickerRuntime extends PickerRuntime {
+  readonly mode: "figma";
+  readonly figmaState: FigmaRuntimeState;
+  onFigmaState(listener: (state: FigmaRuntimeState) => void): () => void;
+  saveFigmaSettings(settings: FigmaInsertSettings): void;
+  saveFigmaRender(render: RenderStyleOverride | null): void;
+  resizeFigmaUi(compact: boolean): void;
+  insertIcon(item: CatalogItem): Promise<FigmaInsertionReceipt>;
+  dragIcon(event: DragEvent, item: CatalogItem): void;
+}
+
+export function isFigmaPickerRuntime(runtime: PickerRuntime): runtime is FigmaPickerRuntime {
+  return runtime.mode === "figma";
 }
 
 type ToolResultEnvelope = {
@@ -45,7 +75,7 @@ function safeFilename(value: string): string {
   return `${normalized || "icon"}.svg`;
 }
 
-function browserDownload(filename: string, svg: string): void {
+export function browserDownload(filename: string, svg: string): void {
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   const anchor = document.createElement("a");
   anchor.href = url;

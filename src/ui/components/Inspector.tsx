@@ -3,7 +3,7 @@ import type { PickerRuntime } from "../runtime.js";
 import { svgDataUri } from "../svg-data-uri.js";
 import { AppearancePanel } from "./AppearancePanel.js";
 
-type ActionState = "idle" | "copying-svg" | "copying-agent" | "downloading" | "attaching" | "continuing";
+type ActionState = "idle" | "copying-svg" | "copying-agent" | "downloading" | "attaching" | "continuing" | "inserting";
 
 type Props = {
   selected: CatalogItem | null;

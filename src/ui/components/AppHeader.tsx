@@ -1,6 +1,12 @@
 import type { PickerRuntime } from "../runtime.js";
 
-export function AppHeader({ runtime }: { runtime: PickerRuntime }) {
+type Props = {
+  runtime: PickerRuntime;
+  figmaCompact?: boolean;
+  onFigmaCompactToggle?: () => void;
+};
+
+export function AppHeader({ runtime, figmaCompact, onFigmaCompactToggle }: Props) {
   return (
     <header className="app-header">
       <div className="brand">
@@ -8,6 +14,11 @@ export function AppHeader({ runtime }: { runtime: PickerRuntime }) {
         <span>Armorial</span>
       </div>
       <div className="header-actions">
+        {onFigmaCompactToggle !== undefined && (
+          <button className="quiet-button" type="button" onClick={onFigmaCompactToggle}>
+            {figmaCompact ? "Settings" : "Drag mode"}
+          </button>
+        )}
         {runtime.canFullscreen && (
           <button
             className="quiet-button"

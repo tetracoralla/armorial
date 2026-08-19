@@ -15,6 +15,7 @@ It does not ask a model to draw SVG. It also does not pretend arbitrary filled i
 - Explicit ambiguity when equal semantic candidates are not pinned by policy.
 - Deterministic SVG, including stable internal clip-path ids, exact per-icon viewBox, byte count, hash, license, capability, and an honest `compliant` or `overridden` policy status.
 - Standalone visual workbench with browse/search, live appearance adjustment, preview, Copy SVG, download, and standards-based outward drag.
+- Offline Figma development plugin over the same kernel: click insertion, canvas drop, real Component masters, optional stroke outlining, preserved/flattened/unioned layers, and explicit layer naming.
 - Optional MCP App picker with explicit Attach and Select & continue actions; ordinary human use never requires an Agent.
 - Five model-facing MCP tools: `resolve_icon`, `search_icons`, `get_icon`, `get_icons`, and the explicit visual-decision route `choose_icon`.
 - One app-only `browse_icons` helper, excluded from model use by MCP App visibility metadata; enforcement is host-side.
@@ -58,6 +59,24 @@ Open `http://127.0.0.1:4178`. Search or browse, select one icon, then:
 - **Download** saves an `.svg` file.
 - drag an icon cell outward; the app supplies `image/svg+xml`, plain SVG text, and a download transfer. Whether a destination accepts a browser drag is controlled by that destination, so copy and download are the guaranteed carriers.
 - **Copy for Agent** copies a compact `[icon-selection:v2]` decision, not the SVG. It carries the icon id, the final effective render style, and the rendered asset hash, so an Agent reproduces the exact adjusted asset through `get_icon`.
+
+## Figma plugin
+
+Build the self-contained development plugin:
+
+```sh
+npm run build:figma
+```
+
+In the Figma desktop app, choose **Plugins -> Development -> Import plugin from manifest...** and open `figma-plugin/manifest.json`. The plugin makes no network requests; its pinned IconPark catalog, deterministic search, rendering, and validation run locally.
+
+- Search or browse the same 2,658 icons and adjust theme, four colors, size, stroke width, linecap, and linejoin.
+- **Insert component** creates a genuine Figma Component master named `Icon/<icon-name>` at the current viewport center. Disable **Create component** to insert an ordinary editable icon frame instead.
+- Use **Drag mode** to collapse the plugin to a canvas-friendly icon browser, then drag an icon cell onto the visible canvas to place the same output at the drop location; **Settings** restores the full workbench. A short receipt names the destination. A safe container target receives the new node; instances and component sets are never mutated.
+- **Outline strokes** converts supported Figma strokes to editable filled vector outlines after import. **Layer structure** can preserve the imported hierarchy, flatten it to one vector, or make a Boolean union. **Layer name** controls the non-component root or merged layer name.
+- Appearance and Figma-output settings are stored in Figma client storage and restored when the plugin is reopened. Reset clears the appearance override back to Armorial's effective default policy.
+
+The checked-in manifest points at generated files under `figma-plugin/dist/`; those files are intentionally Git-ignored. Run the build before importing from a fresh clone. `npm run figma:probe` validates the manifest, offline declaration, bundle budgets, local catalog UI, and drag envelope without touching a Figma document.
 
 ## CLI
 
@@ -122,7 +141,7 @@ For local host testing, run `npm run plugin:check`. It assembles the ignored `pl
 "source": {
   "source": "npm",
   "package": "armorial",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "registry": "https://registry.npmjs.org"
 }
 ```
@@ -148,6 +167,7 @@ The structural schema is [icon-policy.schema.json](./icon-policy.schema.json) an
 
 ```text
 Standalone UI ─┐
+Figma plugin ──┤
 CLI ───────────┼── adapters ── IconKernel ── validated search index ── @icon-park/svg
 MCP tools ─────┤                    │
 MCP App UI ────┘                    ├── policy + semantic selections
@@ -155,8 +175,8 @@ MCP App UI ────┘                    ├── policy + semantic select
                                     └── deterministic, sanitized SVG result
 ```
 
-There is deliberately no cloud account, shared `lastSelection`, policy editor, fallback collection, or Figma-only product fork. A future Figma adapter should consume the same SVG and selection contracts rather than recreate their rules.
+There is deliberately no cloud account, shared `lastSelection`, policy editor, fallback collection, or Figma-only product fork. The Figma adapter consumes the same search, policy, rendering, and SVG safety contracts; it only owns canvas placement and Figma-native geometry operations.
 
 ## Licenses
 
-This project is licensed under the Apache License 2.0; see [LICENSE](./LICENSE) and [NOTICE](./NOTICE). IconPark code and assets remain under Apache-2.0; rendered results identify that license.
+This project is licensed under the Apache License 2.0; see [LICENSE](./LICENSE) and [NOTICE](./NOTICE). IconPark code and assets remain under Apache-2.0; rendered results identify that license. The Figma bundle's third-party attributions are recorded in [figma-plugin/THIRD_PARTY_NOTICES.txt](./figma-plugin/THIRD_PARTY_NOTICES.txt).

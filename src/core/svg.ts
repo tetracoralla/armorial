@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { MAX_SVG_BYTES, type RenderStyle } from "./contracts.js";
 import { IconKernelError } from "./errors.js";
 
@@ -18,6 +19,34 @@ const FORBIDDEN_SVG_PATTERNS = [
 
 const SVG_VIEWBOX_PATTERN = /\bviewBox="([^"]+)"/;
 
+function utf8Bytes(value: string): Uint8Array {
+  const bytes: number[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const codePoint = value.codePointAt(index);
+    if (codePoint === undefined) continue;
+    if (codePoint > 0xffff) index += 1;
+    if (codePoint <= 0x7f) {
+      bytes.push(codePoint);
+    } else if (codePoint <= 0x7ff) {
+      bytes.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
+    } else if (codePoint <= 0xffff) {
+      bytes.push(
+        0xe0 | (codePoint >> 12),
+        0x80 | ((codePoint >> 6) & 0x3f),
+        0x80 | (codePoint & 0x3f),
+      );
+    } else {
+      bytes.push(
+        0xf0 | (codePoint >> 18),
+        0x80 | ((codePoint >> 12) & 0x3f),
+        0x80 | ((codePoint >> 6) & 0x3f),
+        0x80 | (codePoint & 0x3f),
+      );
+    }
+  }
+  return Uint8Array.from(bytes);
+}
+
 export type ParsedSvgViewBox = {
   value: string;
   width: number;
@@ -31,6 +60,14 @@ export type RenderedAsset = {
   bytes: number;
   sha256: string;
 };
+
+export function utf8ByteLength(value: string): number {
+  return utf8Bytes(value).byteLength;
+}
+
+export function sha256Hex(value: string): string {
+  return bytesToHex(sha256(utf8Bytes(value)));
+}
 
 export function parseSvgViewBox(svg: string): ParsedSvgViewBox | undefined {
   const value = svg.match(SVG_VIEWBOX_PATTERN)?.[1];
@@ -61,11 +98,7 @@ export function fillForStyle(style: RenderStyle): string | string[] {
   }
 }
 
-export function finalizeSvg(slug: string, rawSvg: string, style: RenderStyle): RenderedAsset {
-  const renderKey = JSON.stringify({ slug, style });
-  const stableId = `icon-svg-select-${slug}-${createHash("sha256").update(renderKey).digest("hex").slice(0, 12)}`;
-  const svg = rawSvg.replace(RANDOM_ICON_ID_PATTERN, stableId);
-
+export function assertSafeSvgEnvelope(slug: string, svg: string): ParsedSvgViewBox {
   for (const pattern of FORBIDDEN_SVG_PATTERNS) {
     if (pattern.test(svg)) {
       throw new IconKernelError({
@@ -83,19 +116,29 @@ export function finalizeSvg(slug: string, rawSvg: string, style: RenderStyle): R
     });
   }
 
-  const bytes = Buffer.byteLength(svg, "utf8");
+  const bytes = utf8ByteLength(svg);
   if (bytes > MAX_SVG_BYTES) {
     throw new IconKernelError({
       code: "RESPONSE_TOO_LARGE",
       message: `Rendered SVG exceeds the ${MAX_SVG_BYTES}-byte response limit.`,
     });
   }
+  return viewBox;
+}
+
+export function finalizeSvg(slug: string, rawSvg: string, style: RenderStyle): RenderedAsset {
+  const renderKey = JSON.stringify({ slug, style });
+  const stableId = `icon-svg-select-${slug}-${sha256Hex(renderKey).slice(0, 12)}`;
+  const svg = rawSvg.replace(RANDOM_ICON_ID_PATTERN, stableId);
+
+  const viewBox = assertSafeSvgEnvelope(slug, svg);
+  const bytes = utf8ByteLength(svg);
 
   return {
     mediaType: "image/svg+xml",
     viewBox: viewBox.value,
     svg,
     bytes,
-    sha256: createHash("sha256").update(svg).digest("hex"),
+    sha256: sha256Hex(svg),
   };
 }

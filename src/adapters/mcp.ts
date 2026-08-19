@@ -11,7 +11,6 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import {
-  BrowseIconsInputSchema,
   BrowseIconsOutputSchema,
   ChooseIconInputSchema,
   ChooseIconSummarySchema,
@@ -90,9 +89,14 @@ const RenderStyleOverrideMcpSchema = z.strictObject({
 const ResolveInputMcpSchema = ResolveInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
 const GetIconInputMcpSchema = GetIconInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
 const GetIconsInputMcpSchema = GetIconsInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
-const BrowseIconsInputMcpSchema = BrowseIconsInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
 const ChooseIconInputMcpSchema = ChooseIconInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
 const ChooseIconMcpOutputSchema = z.strictObject({ result: ChooseIconSummarySchema });
+
+// browse_icons is never a model entry point. Its only caller is the bundled
+// picker, which shares the BrowseIconsInput contract; the kernel validates the
+// full request again before rendering. Keeping the advertised app-only
+// shape open avoids repeating that large contract in every model tools/list.
+const AppBrowseInputMcpSchema = z.looseObject({});
 
 const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
@@ -234,15 +238,15 @@ export function createMcpServer(
     {
       title: "Browse icons for picker",
       description: "Load one bounded page of rendered icons for the picker.",
-      inputSchema: BrowseIconsInputMcpSchema,
+      inputSchema: AppBrowseInputMcpSchema,
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: ICON_PICKER_RESOURCE_URI, visibility: ["app"] } },
     },
     (input) => {
       // This helper is visible only to the bundled app, which already owns the
-      // typed catalog contract. Omitting its large advertised output schema
-      // keeps that app-only contract out of every model tool listing; the
-      // executable Zod validation remains at the adapter boundary.
+      // typed catalog contract. Omitting its large advertised input/output
+      // schemas keeps that app-only contract out of every model tool listing;
+      // the kernel and this adapter still validate both directions.
       const output = BrowseIconsOutputSchema.parse(kernel.browse(input));
       const envelope = mcpResult(
         output as Record<string, unknown>,

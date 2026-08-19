@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "types": ["@figma/plugin-typings"]
+  },
+  "include": [
+    "src/figma/main.ts",
+    "src/figma/insert.ts",
+    "src/figma/protocol.ts",
+    "src/core/contracts.ts",
+    "src/core/css-color.ts",
+    "src/core/errors.ts",
+    "src/core/svg.ts"
+  ]
+}
