@@ -3,10 +3,11 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 test("GitHub Pages is the official static human workbench", async () => {
-  const [packageSource, readme, workflow, viteConfig, gitignore] = await Promise.all([
+  const [packageSource, readme, workflow, ciWorkflow, viteConfig, gitignore] = await Promise.all([
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../README.md", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/deploy-pages.yml", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"),
     readFile(new URL("../vite.config.ts", import.meta.url), "utf8"),
     readFile(new URL("../.gitignore", import.meta.url), "utf8"),
   ]);
@@ -25,6 +26,8 @@ test("GitHub Pages is the official static human workbench", async () => {
   assert.match(workflow, /github\.event\.workflow_run\.conclusion == 'success'/);
   assert.match(workflow, /npm run build:pages/);
   assert.doesNotMatch(workflow, /playwright install|npm run check/);
+  assert.match(ciWorkflow, /npx playwright install chromium/);
+  assert.doesNotMatch(ciWorkflow, /playwright install --with-deps/);
   assert.match(workflow, /path: \.pages-dist/);
   assert.match(workflow, /npm run pages:deployment:check/);
   assert.match(viteConfig, /browserStandaloneRuntimeAlias/);
