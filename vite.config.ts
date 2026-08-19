@@ -4,6 +4,8 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 import {
   browserProviderAlias,
   browserStandaloneRuntimeAlias,
+  pagesIconCatalogAsset,
+  pagesProviderAlias,
 } from "./vite.browser-runtime.js";
 
 const isMcpApp = process.env["ICON_MCP_APP"] === "1";
@@ -13,7 +15,11 @@ const projectRoot = import.meta.dirname;
 export default defineConfig({
   base: "./",
   plugins: [
-    ...(isPages ? [browserProviderAlias(projectRoot), browserStandaloneRuntimeAlias(projectRoot)] : []),
+    ...(isPages ? [
+      pagesIconCatalogAsset(),
+      pagesProviderAlias(projectRoot),
+      browserStandaloneRuntimeAlias(projectRoot),
+    ] : []),
     react(),
     ...(isMcpApp ? [viteSingleFile()] : []),
   ],

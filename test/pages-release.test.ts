@@ -19,6 +19,7 @@ test("GitHub Pages is the official static human workbench", async () => {
   assert.equal(packageJson.homepage, "https://tetracoralla.github.io/armorial/");
   assert.match(readme, /https:\/\/tetracoralla\.github\.io\/armorial\//);
   assert.equal(packageJson.scripts?.["build:pages"], "ARMORIAL_PAGES=1 vite build");
+  assert.match(packageJson.scripts?.["pages:check"] ?? "", /check-pages-catalog\.ts/);
   assert.match(packageJson.scripts?.["check"] ?? "", /npm run pages:check/);
   assert.match(workflow, /workflow_run:/);
   assert.match(workflow, /workflows: \[CI\]/);
@@ -30,6 +31,8 @@ test("GitHub Pages is the official static human workbench", async () => {
   assert.doesNotMatch(ciWorkflow, /playwright install --with-deps/);
   assert.match(workflow, /path: \.pages-dist/);
   assert.match(workflow, /npm run pages:deployment:check/);
+  assert.match(viteConfig, /pagesIconCatalogAsset/);
+  assert.match(viteConfig, /pagesProviderAlias/);
   assert.match(viteConfig, /browserStandaloneRuntimeAlias/);
   assert.match(viteConfig, /\.pages-dist/);
   assert.match(gitignore, /^\.pages-dist\/$/m);
