@@ -2,6 +2,8 @@
 
 Armorial is a local-first, design-system-aware icon workbench and deterministic service for humans and AI Agents. It retrieves existing IconPark geometry, applies one executable project policy, and returns the same approved asset through a web UI, library, CLI, or MCP server.
 
+[Open the Armorial workbench](https://tetracoralla.github.io/armorial/) — the hosted version runs the same pinned icon kernel entirely in the browser and sends no icon query to a server.
+
 ![Armorial workbench selecting a policy-rendered notification icon](./docs/assets/armorial-workbench.png)
 
 It does not ask a model to draw SVG. It also does not pretend arbitrary filled icon libraries can be normalized by changing `stroke-width`.
@@ -137,7 +139,7 @@ The repository root is also a Codex plugin bundle: [plugin.json](./.codex-plugin
 
 For local host testing, run `npm run plugin:check`. It assembles the ignored `plugins/armorial/` directory from the exact `npm pack` contents, installs production dependencies from `package-lock.json` without lifecycle scripts, gives the staged manifest a fresh local Codex cachebuster, and probes the isolated MCP entry with a project policy. [`.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json) points at that generated directory, so a fresh clone must run this command before adding the local marketplace. The staging swap rejects symlink ancestors and does not expose a half-written plugin. The result contains no sources, tests, dev dependencies, package lock, or Git data. After changing the plugin, re-run the command, reinstall, and start a new Codex session so the cached copy updates.
 
-Armorial's current public distribution is the GitHub repository and its tagged source releases. The npm-shaped archive is an internal reproducibility boundary for staging and verification; this release does not require an npm account or publish a registry package.
+Armorial's current public distribution is the GitHub repository, the static GitHub Pages workbench, and tagged source releases. The npm-shaped archive is an internal reproducibility boundary for staging and verification; this release does not require an npm account or publish a registry package.
 
 ## Policy
 
