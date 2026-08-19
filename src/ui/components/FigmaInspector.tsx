@@ -41,8 +41,10 @@ export function FigmaInspector(props: Props) {
   return (
     <aside className={`inspector${props.renderPending ? " is-rendering" : ""}`}>
       <div className="preview-panel figma-preview-panel">
-        <img src={svgDataUri(props.selected.asset.svg)} alt={`${props.selected.name} preview`} />
-        <div>
+        <div className="preview-art">
+          <img src={svgDataUri(props.selected.asset.svg)} alt={`${props.selected.name} preview`} />
+        </div>
+        <div className="preview-meta">
           <h2>{props.selected.name}</h2>
           <p>{props.selected.title}</p>
           <code>{props.selected.id}</code>

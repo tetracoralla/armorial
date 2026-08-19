@@ -211,7 +211,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
     }
   }
 
-  const applyOverride = (patch: RenderStyleOverride) => {
+  const applyOverride = useCallback((patch: RenderStyleOverride) => {
     setStyleOverride((current) => {
       const base = current ?? {};
       return {
@@ -220,9 +220,9 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
         ...(patch.colors === undefined ? {} : { colors: { ...base.colors, ...patch.colors } }),
       };
     });
-  };
+  }, []);
 
-  const resetOverride = () => setStyleOverride(null);
+  const resetOverride = useCallback(() => setStyleOverride(null), []);
 
   async function selectionMessage() {
     if (selected === null || catalog === null) throw new Error("Select an icon first.");

@@ -102,5 +102,7 @@ test("inspector exposes the editable appearance surface shared with the Agent re
   assert.match(markup, /id="appearance-stroke"/);
   assert.match(markup, /id="appearance-color-primary"/);
   assert.match(markup, /type="range"/);
-  assert.match(markup, /type="color"/);
+  assert.match(markup, /aria-label="Edit Primary color"/);
+  assert.match(markup, /aria-controls="appearance-color-editor-primary"/);
+  assert.doesNotMatch(markup, /type="color"/);
 });
