@@ -8,6 +8,10 @@
     "type": "git",
     "url": "git+https://github.com/tetracoralla/armorial.git"
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "bugs": {
     "url": "https://github.com/tetracoralla/armorial/issues"
   },
