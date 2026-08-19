@@ -135,16 +135,9 @@ An MCP Apps-capable host opens the same picker. Grid clicks only change the loca
 
 The repository root is also a Codex plugin bundle: [plugin.json](./.codex-plugin/plugin.json), [.mcp.json](./.mcp.json), and the thin descriptive [product Skill](./skills/icon-svg-select/SKILL.md) all route to the same built server. Published tarballs are self-contained: `npm pack` runs `prepack` and ships the built `dist/` (source maps excluded), so hosts that install npm packages without running lifecycle scripts start the entry points directly.
 
-For local host testing, run `npm run plugin:check`. It assembles the ignored `plugins/armorial/` directory from the exact `npm pack` contents, installs production dependencies from `package-lock.json` without lifecycle scripts, gives the staged manifest a fresh local Codex cachebuster, and probes the isolated MCP entry with a project policy. [`.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json) points at that generated directory, so a fresh clone must run this command before adding the local marketplace. The staging swap rejects symlink ancestors and does not expose a half-written plugin. The result contains no sources, tests, dev dependencies, package lock, or Git data. After changing the plugin, re-run the command, reinstall, and start a new Codex session so the cached copy updates. For public distribution after `npm publish`, switch the marketplace entry to an npm source:
+For local host testing, run `npm run plugin:check`. It assembles the ignored `plugins/armorial/` directory from the exact `npm pack` contents, installs production dependencies from `package-lock.json` without lifecycle scripts, gives the staged manifest a fresh local Codex cachebuster, and probes the isolated MCP entry with a project policy. [`.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json) points at that generated directory, so a fresh clone must run this command before adding the local marketplace. The staging swap rejects symlink ancestors and does not expose a half-written plugin. The result contains no sources, tests, dev dependencies, package lock, or Git data. After changing the plugin, re-run the command, reinstall, and start a new Codex session so the cached copy updates.
 
-```json
-"source": {
-  "source": "npm",
-  "package": "armorial",
-  "version": "0.3.0",
-  "registry": "https://registry.npmjs.org"
-}
-```
+Armorial's current public distribution is the GitHub repository and its tagged source releases. The npm-shaped archive is an internal reproducibility boundary for staging and verification; this release does not require an npm account or publish a registry package.
 
 ## Policy
 
