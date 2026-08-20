@@ -23,7 +23,7 @@ It does not ask a model to draw SVG. It also does not pretend arbitrary filled i
 - One app-only `browse_icons` helper, excluded from model use by MCP App visibility metadata; enforcement is host-side.
 - CLI equivalents for human inspection and shell composition.
 - Strict input/output schemas, bounded queries and batches, safe color grammar, bounded SVG/response sizes, and per-item batch failures.
-- A deterministic, bounded `icon_selection` decision format (v2) for copy-to-chat and connected continuation. It carries the final effective render style and contains no raw SVG or arbitrary instructions.
+- A deterministic, bounded `icon_selection` decision format (v3) for copy-to-chat and connected continuation. It carries the final effective render style and contains no raw SVG or arbitrary instructions.
 
 The [product model](./docs/PRODUCT_MODEL.md) records the user flows and one-call Agent route budget. The [review contract](./docs/REVIEW_CONTRACT.md) records the current adversarial sequences.
 
@@ -56,11 +56,11 @@ npm run start:ui
 
 Open `http://127.0.0.1:4178`. Search or browse, select one icon, then:
 
-- adjust **Appearance** in the right inspector: theme, four colors, size, stroke width, linecap, linejoin, and Reset. Adjustments re-render the grid and preview as a bounded per-session override; export waits for that redraw and never edits the project policy file.
+- adjust **Appearance** in the right inspector: theme, four colors, size, stroke weight, linecap, linejoin, and Reset. Adjustments re-render the grid and preview as a bounded per-session override; export waits for that redraw and never edits the project policy file.
 - **Copy SVG** copies raw SVG for direct use in any editor that accepts it.
 - **Download** saves an `.svg` file.
 - drag an icon cell outward; the app supplies `image/svg+xml`, plain SVG text, and a download transfer. Whether a destination accepts a browser drag is controlled by that destination, so copy and download are the guaranteed carriers.
-- **Copy for Agent** copies a compact `[icon-selection:v2]` decision, not the SVG. It carries the icon id, the final effective render style, and the rendered asset hash, so an Agent reproduces the exact adjusted asset through `get_icon`.
+- **Copy for Agent** copies a compact `[icon-selection:v3]` decision, not the SVG. It carries the icon id, the final effective render style, and the rendered asset hash, so an Agent reproduces the exact adjusted asset through `get_icon`.
 
 ## Figma plugin
 
@@ -156,7 +156,9 @@ Start from [icon-policy.example.json](./icon-policy.example.json). `selections` 
 
 The structural schema is [icon-policy.schema.json](./icon-policy.schema.json) and is generated from the runtime Zod model. Unknown fields are rejected. `policy validate` additionally checks semantic-key normalization collisions and whether selected icon ids exist in the pinned provider.
 
-`size` and `strokeWidth` are final rendered CSS-pixel values. The provider converts that visible stroke width into the source viewBox units before asking IconPark to render, so a `2` remains a 2px stroke at either 20px or 24px output size.
+`size` is the final SVG width and height. `strokeWidth` uses IconPark's native integer weight scale from `1` (light) to `4` (bold), with the upstream default of `4`. The weight scales proportionally with the icon, so previews, copied SVGs, and Figma insertion retain the same geometry instead of changing apparent thickness when the asset is resized.
+
+Policy version `2` makes that unit change explicit. To migrate a version `1` policy whose rendered-pixel widths were in the useful `0.5–2` range, multiply each default/context `strokeWidth` by `2`; larger legacy values have no direct equivalent and should be visually re-chosen within `1–4` rather than silently clamped.
 
 ## Architecture
 

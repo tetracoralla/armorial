@@ -29,10 +29,8 @@ const version = execFileSync(
 ).trim();
 assert.equal(version, KERNEL_VERSION);
 
-function visibleStrokeWidth(icon) {
-  const nativeStrokeWidth = Number(icon.asset.svg.match(/stroke-width="([^"]+)"/)?.[1]);
-  const [, , viewBoxWidth, viewBoxHeight] = icon.asset.viewBox.split(/\s+/).map(Number);
-  return nativeStrokeWidth * icon.policy.size / Math.max(viewBoxWidth, viewBoxHeight);
+function iconParkStrokeWeight(icon) {
+  return Number(icon.asset.svg.match(/stroke-width="([^"]+)"/)?.[1]);
 }
 
 const hotKernel = new IconKernel();
@@ -79,7 +77,7 @@ const pinnedPhrase = JSON.parse(execFileSync(
 assert.equal(pinnedPhrase.status, "ok");
 assert.equal(pinnedPhrase.selectionMethod, "policy");
 assert.equal(pinnedPhrase.icon?.id, "icon-park:setting-two");
-assert.equal(visibleStrokeWidth(pinnedPhrase.icon), 2);
+assert.equal(iconParkStrokeWeight(pinnedPhrase.icon), 4);
 
 const compoundPhrase = spawnSync(
   process.execPath,
@@ -206,8 +204,8 @@ try {
   assert.equal(getResult.isError, undefined);
   renderedId = getResult.structuredContent?.result?.icon?.id;
   assert.equal(renderedId, "icon-park:search");
-  renderedStrokeWidth = visibleStrokeWidth(getResult.structuredContent.result.icon);
-  assert.equal(renderedStrokeWidth, 2);
+  renderedStrokeWidth = iconParkStrokeWeight(getResult.structuredContent.result.icon);
+  assert.equal(renderedStrokeWidth, 4);
 
   const batchResult = await client.callTool({
     name: "get_icons",

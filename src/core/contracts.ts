@@ -7,7 +7,7 @@ import {
   HEX_COLOR_PATTERN,
 } from "./css-color.js";
 
-export const KERNEL_VERSION = "0.3.0";
+export const KERNEL_VERSION = "0.4.0";
 export const COLLECTION_ID = "icon-park" as const;
 export const MAX_QUERY_LENGTH = 120;
 export const MAX_SEARCH_RESULTS = 20;
@@ -26,6 +26,8 @@ export const MAX_UI_CATALOG_ITEMS = 60;
 export const MAX_UI_CATALOG_RESPONSE_BYTES = 2 * 1024 * 1024;
 export const MAX_SELECTION_REQUEST_ID_LENGTH = 120;
 export const ICON_PICKER_SESSION_META_KEY = "armorial/session";
+export const MIN_STROKE_WIDTH = 1;
+export const MAX_STROKE_WIDTH = 4;
 
 const ICON_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ICON_ID_PATTERN = /^(?:icon-park:)?[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -66,8 +68,8 @@ export const ColorPaletteSchema = z
 export const RenderStyleSchema = z.strictObject({
   theme: ThemeSchema,
   size: z.number().int().min(8).max(512),
-  strokeWidth: z.number().min(0.5).max(16)
-    .describe("Final visible stroke width in rendered px."),
+  strokeWidth: z.number().int().min(MIN_STROKE_WIDTH).max(MAX_STROKE_WIDTH)
+    .describe("IconPark stroke weight from 1 (light) to 4 (bold)."),
   strokeLinecap: StrokeLinecapSchema,
   strokeLinejoin: StrokeLinejoinSchema,
   colors: ColorPaletteSchema,
@@ -76,8 +78,8 @@ export const RenderStyleSchema = z.strictObject({
 export const RenderStyleOverrideSchema = z.strictObject({
   theme: ThemeSchema.optional(),
   size: z.number().int().min(8).max(512).optional(),
-  strokeWidth: z.number().min(0.5).max(16)
-    .describe("Final visible stroke width in rendered px.")
+  strokeWidth: z.number().int().min(MIN_STROKE_WIDTH).max(MAX_STROKE_WIDTH)
+    .describe("IconPark stroke weight from 1 (light) to 4 (bold).")
     .optional(),
   strokeLinecap: StrokeLinecapSchema.optional(),
   strokeLinejoin: StrokeLinejoinSchema.optional(),
@@ -99,7 +101,7 @@ export const SelectionsSchema = z
   );
 
 export const IconPolicySchema = z.strictObject({
-  version: z.literal(1),
+  version: z.literal(2),
   collections: z.array(CollectionIdSchema).length(1),
   defaults: RenderStyleSchema,
   contexts: ContextsSchema,
@@ -107,12 +109,12 @@ export const IconPolicySchema = z.strictObject({
 });
 
 export const DEFAULT_POLICY = IconPolicySchema.parse({
-  version: 1,
+  version: 2,
   collections: [COLLECTION_ID],
   defaults: {
     theme: "outline",
     size: 24,
-    strokeWidth: 2,
+    strokeWidth: 4,
     strokeLinecap: "round",
     strokeLinejoin: "round",
     colors: {
@@ -223,7 +225,7 @@ export const CollectionCapabilitiesSchema = z.strictObject({
   geometry: z.literal("mixed"),
   viewBoxPolicy: z.literal("preserve-source"),
   adjustableStrokeWidth: z.literal(true),
-  strokeWidthUnit: z.literal("rendered-px"),
+  strokeWidthUnit: z.literal("icon-park-grid"),
   adjustableLinecap: z.literal(true),
   adjustableLinejoin: z.literal(true),
   supportsThemeTransform: z.literal(true),
@@ -391,11 +393,12 @@ export const BrowseIconsSuccessSchema = z.strictObject({
 
 export const BrowseIconsOutputSchema = z.union([BrowseIconsSuccessSchema, FailureSchema]);
 
-// v2 carries the effective render style so an Agent can reproduce the exact
-// adjusted asset via get_icon({ id, render }) without knowing the context layer.
+// v3 carries the IconPark-native stroke-weight scale in the effective render
+// style so an Agent can reproduce the exact adjusted asset without inheriting
+// the former rendered-pixel interpretation or knowing the context layer.
 export const IconSelectionDecisionSchema = z.strictObject({
   kind: z.literal("icon_selection"),
-  version: z.literal(2),
+  version: z.literal(3),
   decisionId: z.string().length(64),
   requestId: z.string().regex(REQUEST_ID_PATTERN, "Use a bounded opaque request id.").optional(),
   iconId: IconIdSchema,

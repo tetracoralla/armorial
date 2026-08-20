@@ -1,10 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
   "collections": ["icon-park"],
   "defaults": {
     "theme": "outline",
     "size": 24,
-    "strokeWidth": 2,
+    "strokeWidth": 4,
     "strokeLinecap": "round",
     "strokeLinejoin": "round",
     "colors": {
@@ -17,7 +17,7 @@
   "contexts": {
     "toolbar": {
       "size": 20,
-      "strokeWidth": 2
+      "strokeWidth": 4
     }
   },
   "selections": {

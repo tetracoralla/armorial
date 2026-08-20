@@ -34,7 +34,7 @@ function embeddedRuntimeWithHost(options: { rejectMessage?: boolean } = {}): {
 
 const decision: IconSelectionDecision = {
   kind: "icon_selection",
-  version: 2,
+  version: 3,
   decisionId: "a".repeat(64),
   iconId: "icon-park:remind",
   intent: "notification",
@@ -46,7 +46,7 @@ const decision: IconSelectionDecision = {
 
 test("select-and-continue commits exactly one user-role decision message", async () => {
   const { runtime, calls } = embeddedRuntimeWithHost();
-  const message = "[icon-selection:v2] …decision text…";
+  const message = "[icon-selection:v3] …decision text…";
   await runtime.continueTask(message);
   assert.deepEqual(calls.map((call) => call.method), ["sendMessage"]);
   const sent = calls[0]?.input as { role?: string; content?: Array<{ type?: string; text?: string }> };
@@ -56,13 +56,13 @@ test("select-and-continue commits exactly one user-role decision message", async
 
 test("a rejected continue message leaves no committed host context behind", async () => {
   const { runtime, calls } = embeddedRuntimeWithHost({ rejectMessage: true });
-  await assert.rejects(() => runtime.continueTask("[icon-selection:v2] …"), /rejected/);
+  await assert.rejects(() => runtime.continueTask("[icon-selection:v3] …"), /rejected/);
   assert.deepEqual(calls.map((call) => call.method), ["sendMessage"]);
 });
 
 test("attach updates model context with the typed decision and sends no message", async () => {
   const { runtime, calls } = embeddedRuntimeWithHost();
-  await runtime.attach(decision, "[icon-selection:v2] …");
+  await runtime.attach(decision, "[icon-selection:v3] …");
   assert.deepEqual(calls.map((call) => call.method), ["updateModelContext"]);
   const attached = calls[0]?.input as { structuredContent?: { iconSelection?: IconSelectionDecision } };
   assert.deepEqual(attached.structuredContent?.iconSelection, decision);

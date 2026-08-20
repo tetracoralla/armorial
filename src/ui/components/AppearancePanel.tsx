@@ -1,5 +1,7 @@
 import { memo } from "react";
 import {
+  MAX_STROKE_WIDTH,
+  MIN_STROKE_WIDTH,
   type RenderStyle,
   type RenderStyleOverride,
   type Theme,
@@ -89,11 +91,12 @@ export const AppearancePanel = memo(function AppearancePanel({ style, context, h
             label="Stroke"
             ariaLabel="Stroke value"
             value={style.strokeWidth}
-            sliderMin={0.5}
-            sliderMax={8}
-            min={0.5}
-            max={16}
-            step={0.5}
+            sliderMin={MIN_STROKE_WIDTH}
+            sliderMax={MAX_STROKE_WIDTH}
+            min={MIN_STROKE_WIDTH}
+            max={MAX_STROKE_WIDTH}
+            step={1}
+            integer
             onCommit={(strokeWidth) => onChange({ strokeWidth })}
           />
         </div>

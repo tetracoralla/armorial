@@ -186,9 +186,8 @@ test("policy selection resolves one call and applies context style", () => {
   assert.equal(output.icon.policy.strokeWidth, 3);
   assert.match(output.icon.asset.svg, /width="20"/);
   const renderedStrokeWidth = Number(output.icon.asset.svg.match(/stroke-width="([^"]+)"/)?.[1]);
-  const [, , viewBoxWidth, viewBoxHeight] = output.icon.asset.viewBox.split(/\s+/).map(Number);
-  assert.equal(renderedStrokeWidth * output.icon.policy.size / Math.max(Number(viewBoxWidth), Number(viewBoxHeight)), 3);
-  assert.equal(output.icon.capabilities.strokeWidthUnit, "rendered-px");
+  assert.equal(renderedStrokeWidth, 3);
+  assert.equal(output.icon.capabilities.strokeWidthUnit, "icon-park-grid");
 });
 
 test("per-call render override layers over context policy and reports the effective style", () => {
@@ -231,6 +230,9 @@ test("render override is deterministic and rejected when it carries invalid valu
   assert.equal(first.icon.policy.theme, "filled");
 
   for (const invalidRender of [
+    { strokeWidth: 0.5 },
+    { strokeWidth: 2.5 },
+    { strokeWidth: 5 },
     { strokeWidth: 99 },
     { size: 4 },
     { colors: { primary: 'red" onload="alert(1)' } },
@@ -265,17 +267,15 @@ test("resolve, batch, and browse honor the same per-call render override", () =>
   assert.ok(browsed.items.every((item) => item.asset.svg.includes('width="40"')));
 });
 
-test("policy stroke width is the final visible width at different rendered sizes", () => {
-  for (const [size, strokeWidth] of [[24, 2], [20, 2], [20, 3]] as const) {
+test("policy stroke weight stays on the IconPark 1-4 grid at different rendered sizes", () => {
+  for (const [size, strokeWidth] of [[24, 4], [20, 4], [20, 3]] as const) {
     const output = new IconKernel(policyWith({
       defaults: { ...DEFAULT_POLICY.defaults, size, strokeWidth },
     })).getIcon({ id: "search" });
     assert.equal(output.status, "ok");
     if (output.status !== "ok") continue;
     const nativeStrokeWidth = Number(output.icon.asset.svg.match(/stroke-width="([^"]+)"/)?.[1]);
-    const [, , viewBoxWidth, viewBoxHeight] = output.icon.asset.viewBox.split(/\s+/).map(Number);
-    const visibleStrokeWidth = nativeStrokeWidth * size / Math.max(Number(viewBoxWidth), Number(viewBoxHeight));
-    assert.equal(visibleStrokeWidth, strokeWidth, `${size}px icon at ${strokeWidth}px stroke`);
+    assert.equal(nativeStrokeWidth, strokeWidth, `${size}px icon at IconPark weight ${strokeWidth}`);
     assert.equal(output.icon.policy.strokeWidth, strokeWidth);
   }
 });

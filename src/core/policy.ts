@@ -81,6 +81,17 @@ function rejectReservedRecordKeys(input: unknown): void {
 
 export function parseIconPolicy(input: unknown): IconPolicy {
   rejectReservedRecordKeys(input);
+  if (
+    typeof input === "object"
+    && input !== null
+    && (input as Record<string, unknown>)["version"] === 1
+  ) {
+    throw new IconKernelError({
+      code: "INVALID_POLICY",
+      message: "Policy version 1 uses the retired rendered-pixel stroke scale. Migrate to version 2 and use integer strokeWidth values from 1 to 4.",
+      field: "version",
+    });
+  }
   const parsed = IconPolicySchema.safeParse(input);
   if (!parsed.success) {
     throw new IconKernelError(

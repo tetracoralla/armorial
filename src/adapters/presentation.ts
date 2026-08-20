@@ -16,7 +16,7 @@ export function presentSearch(output: SearchOutput): string {
 export function presentGet(output: GetIconOutput): string {
   if (output.status === "error") return `${output.error.code}: ${output.error.message}`;
   const { icon } = output;
-  return `${icon.id} rendered as ${icon.policy.theme}, ${icon.policy.size}px, stroke ${icon.policy.strokeWidth}px.`;
+  return `${icon.id} rendered as ${icon.policy.theme}, ${icon.policy.size}px, stroke weight ${icon.policy.strokeWidth}.`;
 }
 
 export function presentResolve(output: ResolveOutput): string {

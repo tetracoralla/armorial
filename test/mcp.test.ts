@@ -61,6 +61,8 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
     assert.match(resolveProperties?.context?.description ?? "", /omit prose or unknown/);
     const renderSchema = JSON.stringify(resolveProperties?.render);
     assert.match(renderSchema, /RenderColor/);
+    assert.match(renderSchema, /"minimum":1/);
+    assert.match(renderSchema, /"maximum":4/);
     const renderColorDefinition = JSON.stringify(
       (resolveTool?.inputSchema.definitions as Record<string, unknown> | undefined)?.RenderColor,
     );
@@ -239,7 +241,7 @@ test("MCP tools accept the per-call render override and report the effective sty
 
     const invalidRender = await client.callTool({
       name: "get_icon",
-      arguments: { id: "search", render: { strokeWidth: 99 } },
+      arguments: { id: "search", render: { strokeWidth: 2.5 } },
     });
     assert.equal(invalidRender.isError, true);
   } finally {

@@ -37,7 +37,7 @@ function renderProps(index: number): IconTemplateRenderProps {
   return {
     theme,
     size: 16 + index % 4 * 8,
-    strokeWidth: 1 + index % 5 * 0.5,
+    strokeWidth: 1 + index % 4,
     strokeLinecap: (["butt", "round", "square"] as const)[index % 3] ?? "round",
     strokeLinejoin: (["miter", "round", "bevel"] as const)[index % 3] ?? "round",
     fill: theme === "outline" || theme === "filled"

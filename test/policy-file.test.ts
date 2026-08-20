@@ -95,6 +95,19 @@ test("a broken discovered project policy fails startup instead of being ignored"
   });
 });
 
+test("a version 1 policy fails with an explicit stroke-scale migration message", async () => {
+  await withProjectDirectory(async (directory) => {
+    const legacy = { ...structuredClone(DEFAULT_POLICY), version: 1 };
+    await writeFile(join(directory, PROJECT_POLICY_FILENAME), JSON.stringify(legacy), "utf8");
+    await assert.rejects(
+      resolvePolicyInput(undefined, { env: {}, cwd: directory }),
+      (error: unknown) => error instanceof IconKernelError
+        && error.error.code === "INVALID_POLICY"
+        && /Migrate to version 2/.test(error.error.message),
+    );
+  });
+});
+
 test("a non-file discovered project policy fails startup instead of using defaults", async () => {
   await withProjectDirectory(async (directory) => {
     await mkdir(join(directory, PROJECT_POLICY_FILENAME));
@@ -109,12 +122,12 @@ test("policy loader rejects reserved record keys instead of dropping them", asyn
   const directory = await mkdtemp(join(tmpdir(), "icon-svg-select-policy-"));
   const path = join(directory, "reserved-key.json");
   const policyJson = JSON.stringify({
-    version: 1,
+    version: 2,
     collections: ["icon-park"],
     defaults: {
       theme: "outline",
       size: 24,
-      strokeWidth: 2,
+      strokeWidth: 4,
       strokeLinecap: "round",
       strokeLinejoin: "round",
       colors: { primary: "currentColor", secondary: "#2F88FF", innerStroke: "#FFFFFF", innerFill: "#43CCF8" },

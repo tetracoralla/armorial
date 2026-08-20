@@ -14,7 +14,7 @@ test("standalone human can search, select, copy for Agent, copy SVG, download, a
 
   await page.getByRole("button", { name: "Copy for Agent", exact: true }).click();
   const decision = await page.evaluate(() => navigator.clipboard.readText());
-  expect(decision).toContain("[icon-selection:v2]");
+  expect(decision).toContain("[icon-selection:v3]");
   expect(decision).toContain('"iconId": "icon-park:remind"');
   expect(decision).toContain('"intent": "notification"');
   expect(decision).toContain('"render"');
@@ -57,6 +57,12 @@ test("appearance overrides restyle exports and carry the final render into decis
   await page.getByLabel("Size value", { exact: true }).press("Enter");
   await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2232%22/);
 
+  const stroke = page.getByLabel("Stroke value", { exact: true });
+  await expect(stroke).toHaveValue("4");
+  await stroke.fill("3");
+  await stroke.press("Enter");
+  await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /stroke-width%3D%223%22/);
+
   await page.getByLabel("Primary", { exact: true }).fill("#0055ff");
   await page.getByLabel("Primary", { exact: true }).press("Enter");
   await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /%230055ff/);
@@ -64,22 +70,26 @@ test("appearance overrides restyle exports and carry the final render into decis
   await page.getByRole("button", { name: "Copy SVG", exact: true }).click();
   const svg = await page.evaluate(() => navigator.clipboard.readText());
   expect(svg).toContain('width="32"');
+  expect(svg).toContain('stroke-width="3"');
   expect(svg).toContain("#0055ff");
 
   await page.getByRole("button", { name: "Copy for Agent", exact: true }).click();
   const decision = await page.evaluate(() => navigator.clipboard.readText());
-  expect(decision).toContain("[icon-selection:v2]");
+  expect(decision).toContain("[icon-selection:v3]");
   expect(decision).toContain('"iconId": "icon-park:remind"');
   expect(decision).toContain('"size": 32');
+  expect(decision).toContain('"strokeWidth": 3');
   expect(decision).toContain('"primary": "#0055ff"');
   expect(decision).not.toContain("<svg");
 
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2224%22/);
+  await expect(stroke).toHaveValue("4");
 
   await page.getByRole("button", { name: "Copy SVG", exact: true }).click();
   const resetSvg = await page.evaluate(() => navigator.clipboard.readText());
   expect(resetSvg).toContain('width="24"');
+  expect(resetSvg).toContain('stroke-width="4"');
   expect(resetSvg).not.toContain("#0055ff");
 });
 
@@ -165,6 +175,12 @@ test("appearance redraw blocks stale export and rejects invalid drafts locally",
   await expect(page.getByText("Use hex, currentColor, var(--token), or a CSS color.", { exact: true })).toBeVisible();
   await expect(page.locator(".error-banner")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeEnabled();
+
+  const stroke = page.getByLabel("Stroke value", { exact: true });
+  await stroke.fill("2.5");
+  await stroke.press("Enter");
+  await expect(stroke).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("Use a whole number from 1 to 4.", { exact: true })).toBeVisible();
 });
 
 test("a failed appearance redraw returns to the last usable render and can be retried", async ({ page }) => {
