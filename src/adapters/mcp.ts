@@ -20,9 +20,11 @@ import {
   GetIconsOutputSchema,
   ICON_PICKER_SESSION_META_KEY,
   KERNEL_VERSION,
+  MAX_STROKE_WIDTH,
   MAX_MCP_APP_RESOURCE_BYTES,
   MAX_MCP_TOOL_CATALOG_BYTES,
   MAX_UI_CATALOG_RESPONSE_BYTES,
+  MIN_STROKE_WIDTH,
   ResolveInputSchema,
   ResolveOutputSchema,
   SafeColorSchema,
@@ -77,7 +79,7 @@ const McpSafeColorSchema = z.string()
 const RenderStyleOverrideMcpSchema = z.strictObject({
   theme: ThemeSchema.optional(),
   size: z.number().int().min(8).max(512).optional(),
-  strokeWidth: z.number().min(0.5).max(16).optional(),
+  strokeWidth: z.number().int().min(MIN_STROKE_WIDTH).max(MAX_STROKE_WIDTH).optional(),
   strokeLinecap: StrokeLinecapSchema.optional(),
   strokeLinejoin: StrokeLinejoinSchema.optional(),
   colors: z.partialRecord(

@@ -9,7 +9,7 @@ GitHub repository is maintained under `tetracoralla/armorial`.
 Brand identity is not the protocol contract. The descriptive Skill name,
 `resolve_icon` and sibling MCP tool names, the `icon_svg_select` server key,
 `ICON_SVG_SELECT_POLICY`, `ui://icon-svg-select/picker.html`, the
-`[icon-selection:vN]` carrier family and deterministic SVG id prefixes remain stable; v2 is current and the Skill retains the v1 reproduction path.
+`[icon-selection:vN]` carrier family and deterministic SVG id prefixes remain stable; v3 is current and the Skill retains guarded v1/v2 reproduction paths.
 The package exposes `armorial`, `armorial-mcp`, and `armorial-ui` as the primary
 commands while retaining the earlier descriptive commands as compatibility
 aliases.
@@ -61,7 +61,7 @@ The UI returns a typed decision, not raw SVG, when communicating with an Agent:
 ```json
 {
   "kind": "icon_selection",
-  "version": 2,
+  "version": 3,
   "decisionId": "sha256-of-the-stable-decision",
   "requestId": "optional-originating-request",
   "iconId": "icon-park:remind",
@@ -70,7 +70,7 @@ The UI returns a typed decision, not raw SVG, when communicating with an Agent:
   "render": {
     "theme": "outline",
     "size": 32,
-    "strokeWidth": 2,
+    "strokeWidth": 4,
     "strokeLinecap": "round",
     "strokeLinejoin": "round",
     "colors": {
@@ -113,7 +113,7 @@ No existing application, component library, CLI, MCP server, or local policy exi
 
 The local web server and MCP App are also adapters over `IconKernel`. They may paginate and present the catalog, but they do not implement a second search ranker, policy resolver, renderer, or selection format.
 
-The collection capability declaration is explicit: IconPark uses mixed stroke/fill geometry, supports theme transformation, and safely accepts stroke width, line cap, and line join parameters. Policy `strokeWidth` is the final visible CSS-pixel width at the configured size; the provider converts it to the actual source viewBox units before rendering. The renderer preserves and returns each icon's upstream viewBox rather than assuming every asset is exactly 48 by 48. The kernel makes no claim about other collections.
+The collection capability declaration is explicit: IconPark uses mixed stroke/fill geometry, supports theme transformation, and safely accepts stroke width, line cap, and line join parameters. Policy `strokeWidth` is IconPark's integer 1-4 weight on its source grid, matching the upstream parameter and scaling proportionally with icon size. The renderer preserves and returns each icon's upstream viewBox rather than assuming every asset is exactly 48 by 48. The kernel makes no claim about other collections.
 
 ## Agent route budget
 

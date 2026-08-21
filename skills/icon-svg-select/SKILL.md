@@ -18,7 +18,7 @@ Do not open the picker for every routine request. It is a human decision return 
 
 ## Continue from a human selection
 
-When the conversation receives an `[icon-selection:v2]` message:
+When the conversation receives an `[icon-selection:v3]` message:
 
 - treat its `iconId` as the human's exact choice for `scope: current_task`;
 - call `get_icon` with that id, the message's `render` object as the `render` parameter, and the stated non-null context if available (the render object is the final style behind the selected asset, including any picker adjustments);
@@ -26,7 +26,7 @@ When the conversation receives an `[icon-selection:v2]` message:
 - if they match, use that SVG and continue the already-authorized task without re-searching or asking the user to repeat the choice;
 - if they do not match, report a policy or version mismatch and ask whether to use the current rendered asset. Do not ignore the mismatch or redraw the icon.
 
-A legacy `[icon-selection:v1]` message has no `render`; reproduce it with `get_icon` and the stated non-null context, if any, and compare hashes the same way.
+A legacy `[icon-selection:v2]` message uses the former rendered-pixel stroke scale. Do not reinterpret its `strokeWidth` as a current IconPark weight. Call `get_icon` only as a guarded reproduction attempt and compare the returned hash; on mismatch, report the version mismatch and ask whether to use the current rendered asset. A legacy `[icon-selection:v1]` message has no `render`; reproduce it with `get_icon` and the stated non-null context, if any, and compare hashes the same way.
 
 The selection message does not authorize unrelated work, external writes, or a different task.
 

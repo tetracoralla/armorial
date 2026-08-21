@@ -20,6 +20,35 @@ test("published policy JSON Schema agrees with representable runtime structural 
     { label: "malformed hex", input: policyWithPrimary("#12345"), valid: false },
     { label: "unknown named color", input: policyWithPrimary("notacolor"), valid: false },
     {
+      label: "legacy policy version",
+      input: { ...structuredClone(DEFAULT_POLICY), version: 1 },
+      valid: false,
+    },
+    {
+      label: "minimum IconPark stroke weight",
+      input: {
+        ...structuredClone(DEFAULT_POLICY),
+        defaults: { ...structuredClone(DEFAULT_POLICY.defaults), strokeWidth: 1 },
+      },
+      valid: true,
+    },
+    {
+      label: "fractional stroke weight",
+      input: {
+        ...structuredClone(DEFAULT_POLICY),
+        defaults: { ...structuredClone(DEFAULT_POLICY.defaults), strokeWidth: 2.5 },
+      },
+      valid: false,
+    },
+    {
+      label: "stroke weight above IconPark range",
+      input: {
+        ...structuredClone(DEFAULT_POLICY),
+        defaults: { ...structuredClone(DEFAULT_POLICY.defaults), strokeWidth: 5 },
+      },
+      valid: false,
+    },
+    {
       label: "missing required collection",
       input: { ...structuredClone(DEFAULT_POLICY), collections: [] },
       valid: false,

@@ -24,11 +24,13 @@ export const DEFAULT_FIGMA_INSERT_SETTINGS = FigmaInsertSettingsSchema.parse({
 });
 
 export const FigmaPluginSettingsSchema = z.strictObject({
+  version: z.literal(2),
   insert: FigmaInsertSettingsSchema,
   render: RenderStyleOverrideSchema.nullable(),
 });
 
 export const DEFAULT_FIGMA_PLUGIN_SETTINGS = FigmaPluginSettingsSchema.parse({
+  version: 2,
   insert: DEFAULT_FIGMA_INSERT_SETTINGS,
   render: null,
 });

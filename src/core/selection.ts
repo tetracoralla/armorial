@@ -8,7 +8,7 @@ import {
 function stableDecisionPayload(input: IconSelectionDecisionInput): string {
   return JSON.stringify({
     kind: "icon_selection",
-    version: 2,
+    version: 3,
     requestId: input.requestId ?? null,
     iconId: input.iconId,
     intent: input.intent,
@@ -32,7 +32,7 @@ export async function createIconSelectionDecision(
   const decisionId = await sha256(stableDecisionPayload(parsed));
   return IconSelectionDecisionSchema.parse({
     kind: "icon_selection",
-    version: 2,
+    version: 3,
     decisionId,
     ...(parsed.requestId === undefined ? {} : { requestId: parsed.requestId }),
     iconId: parsed.iconId,
@@ -47,7 +47,7 @@ export async function createIconSelectionDecision(
 export function formatIconSelectionMessage(decision: IconSelectionDecision): string {
   const value = IconSelectionDecisionSchema.parse(decision);
   return [
-    "[icon-selection:v2]",
+    "[icon-selection:v3]",
     JSON.stringify(value, null, 2),
     "Use this exact human-selected icon via get_icon with this id and render style, then continue the current task. Do not re-search or redraw it.",
   ].join("\n");

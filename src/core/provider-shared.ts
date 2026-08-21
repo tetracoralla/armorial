@@ -5,7 +5,7 @@ import {
   type RenderStyle,
 } from "./contracts.js";
 import { IconKernelError } from "./errors.js";
-import { fillForStyle, finalizeSvg, parseSvgViewBox, type RenderedAsset } from "./svg.js";
+import { fillForStyle, finalizeSvg, type RenderedAsset } from "./svg.js";
 
 const IconMetadataSchema = z.strictObject({
   id: z.number().int().nonnegative(),
@@ -38,7 +38,7 @@ export const ICON_PARK_CAPABILITIES = CollectionCapabilitiesSchema.parse({
   geometry: "mixed",
   viewBoxPolicy: "preserve-source",
   adjustableStrokeWidth: true,
-  strokeWidthUnit: "rendered-px",
+  strokeWidthUnit: "icon-park-grid",
   adjustableLinecap: true,
   adjustableLinejoin: true,
   supportsThemeTransform: true,
@@ -65,7 +65,6 @@ export class IconParkProviderCore {
   readonly #recordsBySlug: ReadonlyMap<string, IconRecord>;
   readonly #rendererSource: RendererSource;
   readonly #renderersBySlug = new Map<string, IconRenderer>();
-  readonly #viewBoxExtentBySlug = new Map<string, number>();
 
   constructor(rawMetadata: unknown, rendererSource: RendererSource) {
     const metadata = IconMetadataListSchema.safeParse(rawMetadata);
@@ -135,34 +134,14 @@ export class IconParkProviderCore {
 
     let rawSvg: string;
     try {
-      const renderWithStrokeWidth = (strokeWidth: number) => renderer({
+      rawSvg = renderer({
         theme: style.theme,
         size: style.size,
-        strokeWidth,
+        strokeWidth: style.strokeWidth,
         strokeLinecap: style.strokeLinecap,
         strokeLinejoin: style.strokeLinejoin,
         fill: fillForStyle(style),
       });
-
-      let viewBoxExtent = this.#viewBoxExtentBySlug.get(record.name);
-      let provisionalSvg: string | undefined;
-      if (viewBoxExtent === undefined) {
-        provisionalSvg = renderWithStrokeWidth(style.strokeWidth);
-        const viewBox = parseSvgViewBox(provisionalSvg);
-        if (viewBox === undefined) {
-          throw new IconKernelError({
-            code: "ICON_RENDER_FAILED",
-            message: `Icon "${record.canonicalId}" produced an invalid IconPark SVG viewBox.`,
-          });
-        }
-        viewBoxExtent = Math.max(viewBox.width, viewBox.height);
-        this.#viewBoxExtentBySlug.set(record.name, viewBoxExtent);
-      }
-
-      const nativeStrokeWidth = style.strokeWidth * viewBoxExtent / style.size;
-      rawSvg = nativeStrokeWidth === style.strokeWidth && provisionalSvg !== undefined
-        ? provisionalSvg
-        : renderWithStrokeWidth(nativeStrokeWidth);
     } catch (error) {
       throw new IconKernelError({
         code: "ICON_RENDER_FAILED",

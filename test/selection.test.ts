@@ -24,7 +24,7 @@ test("icon selection decision is deterministic and retry-idempotent", async () =
   const second = await createIconSelectionDecision(input);
   assert.deepEqual(first, second);
   assert.equal(first.decisionId.length, 64);
-  assert.equal(first.version, 2);
+  assert.equal(first.version, 3);
   assert.deepEqual(first.render, input.render);
 
   const changed = await createIconSelectionDecision({ ...input, iconId: "icon-park:remind-disable" });
@@ -80,8 +80,8 @@ test("a decision's render style reproduces the exact policy-rendered asset", asy
 test("copy-for-Agent payload is bounded, exact, and contains no SVG", async () => {
   const decision = await createIconSelectionDecision(input);
   const message = formatIconSelectionMessage(decision);
-  assert.match(message, /^\[icon-selection:v2\]/);
-  assert.match(message, /"version": 2/);
+  assert.match(message, /^\[icon-selection:v3\]/);
+  assert.match(message, /"version": 3/);
   assert.match(message, /"iconId": "icon-park:remind"/);
   assert.match(message, /"render": \{/);
   assert.match(message, /"size": 24/);
@@ -93,7 +93,7 @@ test("copy-for-Agent payload is bounded, exact, and contains no SVG", async () =
 test("selection schema rejects hidden instructions and oversized correlation ids", async () => {
   assert.equal(IconSelectionDecisionSchema.safeParse({
     kind: "icon_selection",
-    version: 2,
+    version: 3,
     decisionId: "b".repeat(64),
     iconId: "icon-park:remind",
     intent: "notification",

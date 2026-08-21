@@ -30,6 +30,7 @@ test("concurrent Figma setting updates preserve both appearance and insertion fi
 
   assert.equal(writes.length, 2);
   assert.deepEqual(await store.load(), {
+    version: 2,
     insert: {
       ...DEFAULT_FIGMA_PLUGIN_SETTINGS.insert,
       layerStructure: "flatten",
@@ -55,4 +56,40 @@ test("Figma settings remain usable in memory when client storage is unavailable"
     render: { theme: "filled" },
   }));
   assert.deepEqual((await store.load()).render, { theme: "filled" });
+});
+
+test("legacy Figma stroke pixels migrate once to the bounded IconPark 1-4 scale", async () => {
+  const legacyInsert = {
+    ...DEFAULT_FIGMA_PLUGIN_SETTINGS.insert,
+    createComponent: false,
+  };
+  for (const [legacyStroke, expectedWeight] of [[0.5, 1], [1.5, 3], [2, 4], [3.5, 4]] as const) {
+    let stored: unknown = {
+      insert: legacyInsert,
+      render: { size: 32, strokeWidth: legacyStroke, strokeLinecap: "square" },
+    };
+    const writes: unknown[] = [];
+    const storage = {
+      async getAsync() {
+        return stored;
+      },
+      async setAsync(_key: string, value: unknown) {
+        stored = value;
+        writes.push(value);
+      },
+    };
+    const store = new FigmaSettingsStore(storage, "settings");
+
+    const expected = {
+      version: 2,
+      insert: legacyInsert,
+      render: { size: 32, strokeWidth: expectedWeight, strokeLinecap: "square" },
+    };
+    assert.deepEqual(await store.load(), expected);
+    assert.deepEqual(writes, [expected]);
+
+    const reopened = new FigmaSettingsStore(storage, "settings");
+    assert.deepEqual(await reopened.load(), expected);
+    assert.equal(writes.length, 1, "current settings must not be migrated again");
+  }
 });
