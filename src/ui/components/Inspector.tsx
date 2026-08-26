@@ -1,7 +1,9 @@
 import type { CatalogItem, RenderStyle, RenderStyleOverride } from "../../core/contracts.js";
-import type { PickerRuntime } from "../runtime.js";
+import type { PickerRuntime } from "../runtime-shared.js";
 import { svgDataUri } from "../svg-data-uri.js";
+import { useMessages } from "../messages.js";
 import { AppearancePanel } from "./AppearancePanel.js";
+import { LanguageSelect } from "./LanguageSelect.js";
 
 type ActionState = "idle" | "copying-svg" | "copying-agent" | "downloading" | "attaching" | "continuing" | "inserting";
 
@@ -24,8 +26,9 @@ type Props = {
 
 export function Inspector(props: Props) {
   const { selected, style, context, hasOverride, renderPending, runtime, actionState } = props;
+  const { t, locale } = useMessages();
   if (selected === null || style === null) {
-    return <aside className="inspector inspector-empty">Select an icon to preview it</aside>;
+    return <aside className="inspector inspector-empty">{t("selectToPreview")}</aside>;
   }
 
   return (
@@ -35,35 +38,36 @@ export function Inspector(props: Props) {
           <img src={svgDataUri(selected.asset.svg)} alt={`${selected.name} preview`} />
         </div>
         <div className="preview-meta">
-          <h2>{selected.name}</h2>
-          <p>{selected.title}</p>
+          {locale === "zh-CN"
+            ? <><h2>{selected.title}</h2><p>{selected.name}</p></>
+            : <><h2>{selected.name}</h2><p>{selected.title}</p></>}
           <code>{selected.id}</code>
         </div>
       </div>
-      <div className="action-stack" aria-label="Human export actions">
+      <div className="action-stack" aria-label={t("humanExportActions")}>
         <button className="primary-action" type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onCopySvg()}>
-          {actionState === "copying-svg" ? "Copying…" : "Copy SVG"}
+          {actionState === "copying-svg" ? t("copying") : t("copySvg")}
         </button>
         <div className="action-secondary">
           <button type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onDownload()}>
-            {actionState === "downloading" ? "Downloading…" : "Download"}
+            {actionState === "downloading" ? t("downloading") : t("download")}
           </button>
           <button type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onCopyForAgent()}>
-            {actionState === "copying-agent" ? "Copying…" : "Copy for Agent"}
+            {actionState === "copying-agent" ? t("copying") : t("copyForAgent")}
           </button>
         </div>
       </div>
       {runtime.mode === "embedded" && (runtime.canAttach || runtime.canContinue) && (
-        <section className="agent-actions" aria-label="Agent actions">
-          <h3>Agent</h3>
+        <section className="agent-actions" aria-label={t("agentActions")}>
+          <h3>{t("agentHeading")}</h3>
           {runtime.canAttach && (
             <button type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onAttach()}>
-              {actionState === "attaching" ? "Attaching…" : "Attach to conversation"}
+              {actionState === "attaching" ? t("attaching") : t("attachToConversation")}
             </button>
           )}
           {runtime.canContinue && (
             <button className="continue-action" type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onContinue()}>
-              {actionState === "continuing" ? "Sending…" : "Select & continue"}
+              {actionState === "continuing" ? t("sending") : t("selectAndContinue")}
             </button>
           )}
         </section>
@@ -76,6 +80,7 @@ export function Inspector(props: Props) {
         onChange={props.onAppearanceChange}
         onReset={props.onAppearanceReset}
       />
+      <LanguageSelect />
     </aside>
   );
 }

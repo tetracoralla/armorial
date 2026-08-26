@@ -24,7 +24,7 @@ assert.ok(mainStat.size <= 256 * 1024, `Figma main bundle is ${mainStat.size} by
 
 const browser = await chromium.launch({ headless: true });
 try {
-  const page = await browser.newPage({ viewport: { width: 980, height: 720 } });
+  const page = await browser.newPage({ viewport: { width: 1160, height: 760 }, locale: "en-US" });
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.goto(pathToFileURL(uiPath).href);
@@ -32,6 +32,40 @@ try {
   await page.getByRole("heading", { name: "Figma output" }).waitFor();
   await page.getByRole("heading", { name: "Appearance" }).waitFor();
   await page.getByRole("button", { name: "Insert component" }).waitFor();
+
+  // The Figma window already carries the "Armorial" title; the page itself
+  // must not render a second, homemade title bar.
+  assert.equal(await page.locator(".app-header").count(), 0);
+  assert.equal(await page.getByText("Armorial", { exact: true }).count(), 0);
+  assert.equal(await page.locator(".inspector code").count(), 0, "the Figma preview must not show the provider id");
+  assert.equal(await page.getByText(/^Page:/).count(), 0, "the page label line is gone");
+
+  // Mode controls are icon buttons in the search row, to the right of the input.
+  const searchBox = page.getByRole("searchbox", { name: "Search icons" });
+  const searchBoxBounds = await searchBox.boundingBox();
+  const modeButtonBounds = await page.getByRole("button", { name: "Drag mode" }).boundingBox();
+  assert.ok(searchBoxBounds && modeButtonBounds, "search box and mode button must be laid out");
+  assert.ok(
+    modeButtonBounds.x >= searchBoxBounds.x + searchBoxBounds.width,
+    "the mode button must sit to the right of the search input",
+  );
+
+  // The catalog reflows fluidly: intermediate widths stay overflow-free and
+  // keep changing the effective column count instead of snapping breakpoints.
+  const columnCount = () => page.evaluate(() =>
+    getComputedStyle(document.querySelector(".icon-grid")).gridTemplateColumns.split(" ").length);
+  const overflowFree = () => page.evaluate(() =>
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+  const wideColumns = await columnCount();
+  assert.ok(overflowFree(), "no horizontal overflow at the default 1160px width");
+  for (const size of [{ width: 1024, height: 700 }, { width: 906, height: 640 }, { width: 660, height: 600 }]) {
+    await page.setViewportSize(size);
+    const columns = await columnCount();
+    assert.ok(overflowFree(), `no horizontal overflow at ${size.width}px width`);
+    assert.ok(columns >= 3, `grid keeps at least 3 columns at ${size.width}px width`);
+  }
+  await page.setViewportSize({ width: 1160, height: 760 });
+  assert.equal(await columnCount(), wideColumns, "returning to the default width restores the same column count");
   const compactResize = page.evaluate(() => new Promise((resolveMessage) => {
     const listener = (event) => {
       if (event.data?.pluginMessage?.type === "resize-ui"
@@ -70,13 +104,14 @@ try {
           layerName: "icon-name",
         },
         render: { size: 40, strokeLinecap: "square" },
+        locale: "system",
         pageName: "Armorial Plugin Acceptance",
       },
     }, "*");
   });
   await page.getByLabel("Size value").waitFor();
+  await page.waitForFunction(() => document.querySelector('[aria-label="Size value"]')?.value === "40");
   assert.equal(await page.getByLabel("Size value").inputValue(), "40");
-  await page.getByText("Page: Armorial Plugin Acceptance").waitFor();
   const firstIcon = page.getByRole("option").first();
   assert.equal(await firstIcon.getAttribute("draggable"), "false");
   await page.waitForFunction(() => document.querySelector('[role="option"]')?.getAttribute("draggable") === "true");

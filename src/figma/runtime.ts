@@ -18,8 +18,8 @@ import {
 import type {
   FigmaPickerRuntime,
   FigmaRuntimeState,
-} from "../ui/runtime.js";
-import { browserDownload } from "../ui/runtime.js";
+} from "../ui/runtime-shared.js";
+import { browserDownload } from "../ui/runtime-shared.js";
 
 type PendingInsertion = {
   resolve: (receipt: FigmaInsertionReceipt) => void;
@@ -48,6 +48,7 @@ export class FigmaRuntime implements FigmaPickerRuntime {
   #state: FigmaRuntimeState = {
     settings: DEFAULT_FIGMA_INSERT_SETTINGS,
     render: null,
+    locale: "system",
     pageName: "Current page",
     lastReceipt: null,
     error: null,
@@ -94,6 +95,11 @@ export class FigmaRuntime implements FigmaPickerRuntime {
 
   saveFigmaRender(render: RenderStyleOverride | null): void {
     postPluginMessage({ type: "save-render", render });
+  }
+
+  saveFigmaLocale(locale: FigmaRuntimeState["locale"]): void {
+    this.#setState({ ...this.#state, locale });
+    postPluginMessage({ type: "save-locale", locale });
   }
 
   resizeFigmaUi(compact: boolean): void {
@@ -159,6 +165,7 @@ export class FigmaRuntime implements FigmaPickerRuntime {
         ...this.#state,
         settings: message.settings,
         render: message.render,
+        locale: message.locale,
         pageName: message.pageName,
         hydrated: true,
       });

@@ -4,7 +4,7 @@ A current reviewer should re-run the source and runtime checks rather than accep
 
 Product-specific adversarial sequences:
 
-1. Search an exact English name and a Chinese title/tag; verify deterministic order and bounded results.
+1. Search an exact English name, a Chinese title/tag, a multi-word query where one candidate covers more effective terms, and an English string that merely contains an icon name internally (for example `clockwise` / `lock`); verify relevant deterministic order, bounded results, and word/hyphen/camel boundaries without weakening controlled Chinese substring matching.
 2. Resolve a tied Chinese intent without a semantic policy choice; verify no SVG is invented or arbitrarily selected.
 3. Add a policy semantic selection; verify exact and ordinary English/Chinese phrasing resolve to it in one core/MCP call with the context style applied, while a multi-semantic intent does not get swallowed by the pin.
 4. Render the same icon twice; verify byte-for-byte identical SVG even for icons that use internal ids.

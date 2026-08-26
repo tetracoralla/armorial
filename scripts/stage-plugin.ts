@@ -139,6 +139,14 @@ export function removeOwnedTree(
   rmdirSync(target);
 }
 
+/** Omit npm command shims that the Codex plugin cache does not preserve. */
+export function removeProductionBinDirectory(nodeModulesDirectory: string): void {
+  const nodeModulesIdentity = captureDirectoryIdentity(nodeModulesDirectory);
+  const binDirectory = join(nodeModulesDirectory, ".bin");
+  if (!entryExists(binDirectory)) return;
+  removeOwnedTree(binDirectory, nodeModulesDirectory, [".bin"], nodeModulesIdentity);
+}
+
 function removeTreeContents(directory: string, rootGuard: () => void): void {
   const directoryIdentity = captureDirectoryIdentity(directory);
   const guard = (): void => {
@@ -282,6 +290,7 @@ export function stagePlugin(): { directory: string; version: string } {
     );
     assertCandidateSafe();
     unlinkSync(candidateLock);
+    removeProductionBinDirectory(join(candidateDirectory, "node_modules"));
 
     assertCandidateSafe();
     const version = writeLocalCachebuster(candidateDirectory);

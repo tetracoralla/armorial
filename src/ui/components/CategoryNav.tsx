@@ -1,4 +1,5 @@
-import type { CatalogData } from "../runtime.js";
+import type { CatalogData } from "../runtime-shared.js";
+import { useMessages } from "../messages.js";
 
 type Props = {
   categories: CatalogData["categories"];
@@ -8,10 +9,11 @@ type Props = {
 };
 
 export function CategoryNav({ categories, total, selected, onSelect }: Props) {
+  const { t, locale } = useMessages();
   return (
-    <nav className="category-nav" aria-label="Icon categories">
+    <nav className="category-nav" aria-label={t("iconCategories")}>
       <button className={selected === null ? "is-selected" : ""} type="button" onClick={() => onSelect(null)}>
-        <span>All</span><span>{total}</span>
+        <span>{t("all")}</span><span>{total}</span>
       </button>
       {categories.map((category) => (
         <button
@@ -20,7 +22,7 @@ export function CategoryNav({ categories, total, selected, onSelect }: Props) {
           type="button"
           onClick={() => onSelect(category.id)}
         >
-          <span>{category.label}</span><span>{category.count}</span>
+          <span>{locale === "zh-CN" ? category.labelCN : category.label}</span><span>{category.count}</span>
         </button>
       ))}
     </nav>

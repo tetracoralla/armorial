@@ -191,6 +191,24 @@ test("drop insertion reparents to the actual target and preserves relative coord
   assert.equal(inserted.y, 42);
 });
 
+test("drop insertion honors the component output setting like click insertion", () => {
+  const fake = new FakeFigma();
+  const target = new FakeNode("FRAME");
+  target.name = "Target";
+  fake.currentPage.appendChild(target);
+
+  const receipt = insertIconIntoFigma(
+    fake as unknown as PluginAPI,
+    request({ createComponent: true }),
+    { kind: "drop", target: target as unknown as BaseNode, x: 12, y: 20, absoluteX: 300, absoluteY: 400 },
+  );
+  const inserted = target.children[0]!;
+  assert.equal(inserted.type, "COMPONENT");
+  assert.equal(inserted.name, "Icon/search");
+  assert.equal(receipt.nodeType, "COMPONENT");
+  assert.equal(receipt.component, true);
+});
+
 test("drop insertion keeps an exact absolute position inside auto-layout targets", () => {
   const fake = new FakeFigma();
   const target = new FakeNode("FRAME");

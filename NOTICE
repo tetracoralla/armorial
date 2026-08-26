@@ -8,6 +8,6 @@ This product includes and renders geometry from @icon-park/svg
 (https://github.com/bytedance/IconPark), which is Copyright ByteDance Inc.
 and licensed under the Apache License, Version 2.0.
 
-The Figma bundle includes @noble/hashes by Paul Miller, licensed under the MIT
-License. Complete bundled dependency notices are in
-figma-plugin/THIRD_PARTY_NOTICES.txt.
+Complete license and attribution text for the installable package and every
+bundled surface is included in THIRD_PARTY_NOTICES.md; the Figma distribution
+carries the exact subset it embeds in figma-plugin/THIRD_PARTY_NOTICES.txt.

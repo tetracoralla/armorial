@@ -7,7 +7,7 @@ import {
   HEX_COLOR_PATTERN,
 } from "./css-color.js";
 
-export const KERNEL_VERSION = "0.4.0";
+export const KERNEL_VERSION = "0.5.0";
 export const COLLECTION_ID = "icon-park" as const;
 export const MAX_QUERY_LENGTH = 120;
 export const MAX_SEARCH_RESULTS = 20;

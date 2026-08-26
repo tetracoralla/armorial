@@ -1,6 +1,6 @@
 import { memo, type KeyboardEvent } from "react";
 import type { CatalogItem } from "../../core/contracts.js";
-import { setSvgDragData } from "../runtime.js";
+import { setSvgDragData } from "../runtime-shared.js";
 import { svgDataUri } from "../svg-data-uri.js";
 
 type Props = {

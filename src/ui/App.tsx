@@ -14,7 +14,9 @@ import { IconGrid } from "./components/IconGrid.js";
 import { FigmaInspector } from "./components/FigmaInspector.js";
 import { Inspector, type ActionState } from "./components/Inspector.js";
 import { SearchToolbar } from "./components/SearchToolbar.js";
-import { copyText, isFigmaPickerRuntime, type CatalogData, type PickerRuntime } from "./runtime.js";
+import { ToolbarIconButton } from "./components/ToolbarIconButton.js";
+import { copyText, isFigmaPickerRuntime, type CatalogData, type PickerRuntime } from "./runtime-shared.js";
+import { useMessages } from "./messages.js";
 
 const PAGE_SIZE = MAX_UI_CATALOG_ITEMS;
 
@@ -28,6 +30,7 @@ function renderOverrideKey(value: RenderStyleOverride | null): string {
 }
 
 export function App({ runtime }: { runtime: PickerRuntime }) {
+  const { t } = useMessages();
   const initial = runtime.initialCatalog;
   const [catalog, setCatalog] = useState<CatalogData | null>(initial);
   const [items, setItems] = useState<CatalogItem[]>(initial?.items ?? []);
@@ -154,7 +157,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
         lastFigmaReceiptId.current = state.lastReceipt.requestId;
         lastFigmaError.current = null;
         setError(null);
-        setNotice(`Placed ${state.lastReceipt.nodeName} in ${state.lastReceipt.parentName}`);
+        setNotice(t("placedIn", { name: state.lastReceipt.nodeName, parent: state.lastReceipt.parentName }));
       }
       if (state.error !== null && state.error !== lastFigmaError.current) {
         lastFigmaError.current = state.error;
@@ -163,7 +166,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
         lastFigmaError.current = null;
       }
     });
-  }, [runtime]);
+  }, [runtime, t]);
 
   useEffect(() => {
     if (!figmaHydrated || !isFigmaPickerRuntime(runtime)) return;
@@ -225,7 +228,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   const resetOverride = useCallback(() => setStyleOverride(null), []);
 
   async function selectionMessage() {
-    if (selected === null || catalog === null) throw new Error("Select an icon first.");
+    if (selected === null || catalog === null) throw new Error(t("selectAnIconFirst"));
     const render: RenderStyle = {
       theme: catalog.policy.theme,
       size: catalog.policy.size,
@@ -278,13 +281,8 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   };
 
   return (
-    <div className={`app-shell${figmaCompact ? " is-figma-compact" : ""}`}>
-      <AppHeader
-        runtime={runtime}
-        {...(isFigmaPickerRuntime(runtime)
-          ? { figmaCompact, onFigmaCompactToggle: toggleFigmaCompact }
-          : {})}
-      />
+    <div className={`app-shell${runtime.mode === "standalone" ? " has-app-header" : ""}${figmaCompact ? " is-figma-compact" : ""}`}>
+      {runtime.mode === "standalone" && <AppHeader />}
       <div className="workspace">
         <CategoryNav
           categories={catalog?.categories ?? []}
@@ -293,7 +291,32 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
           onSelect={selectCategory}
         />
         <main className="catalog-pane">
-          <SearchToolbar query={query} total={catalog?.total ?? 0} loading={loading} onChange={setQuery} />
+          <SearchToolbar
+            query={query}
+            total={catalog?.total ?? 0}
+            loading={loading}
+            onChange={setQuery}
+            actions={(
+              <>
+                {isFigmaPickerRuntime(runtime) && (
+                  <ToolbarIconButton
+                    label={figmaCompact ? t("settings") : t("dragMode")}
+                    glyph={figmaCompact ? "settings" : "move"}
+                    onClick={toggleFigmaCompact}
+                  />
+                )}
+                {runtime.canFullscreen && (
+                  <ToolbarIconButton
+                    label={t("fullScreen")}
+                    glyph="expand"
+                    onClick={() => {
+                      void runtime.requestFullscreen().catch(() => undefined);
+                    }}
+                  />
+                )}
+              </>
+            )}
+          />
           {error !== null && <div className="error-banner" role="alert">{error}</div>}
           <IconGrid
             items={items}
@@ -317,9 +340,9 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
             onAppearanceChange={applyOverride}
             onAppearanceReset={resetOverride}
             onInsert={() => withAction("inserting", async () => {
-              if (selected === null) throw new Error("Select an icon first.");
+              if (selected === null) throw new Error(t("selectAnIconFirst"));
               await runtime.insertIcon(selected);
-            }, runtime.figmaState.settings.createComponent ? "Component inserted" : "Icon inserted")}
+            }, runtime.figmaState.settings.createComponent ? t("componentInserted") : t("iconInserted"))}
           />
         ) : (
         <Inspector
@@ -333,25 +356,25 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
           onAppearanceChange={applyOverride}
           onAppearanceReset={resetOverride}
           onCopySvg={() => withAction("copying-svg", async () => {
-            if (selected === null) throw new Error("Select an icon first.");
+            if (selected === null) throw new Error(t("selectAnIconFirst"));
             await copyText(selected.asset.svg);
-          }, "SVG copied")}
+          }, t("svgCopied"))}
           onDownload={() => withAction("downloading", async () => {
-            if (selected === null) throw new Error("Select an icon first.");
+            if (selected === null) throw new Error(t("selectAnIconFirst"));
             await runtime.download(selected.name, selected.asset.svg);
-          }, "Download started")}
+          }, t("downloadStarted"))}
           onCopyForAgent={() => withAction("copying-agent", async () => {
             const { message } = await selectionMessage();
             await copyText(message);
-          }, "Agent selection copied")}
+          }, t("agentSelectionCopied"))}
           onAttach={() => withAction("attaching", async () => {
             const { decision, message } = await selectionMessage();
             await runtime.attach(decision, message);
-          }, "Selection attached")}
+          }, t("selectionAttached"))}
           onContinue={() => withAction("continuing", async () => {
             const { message } = await selectionMessage();
             await runtime.continueTask(message);
-          }, "Selection sent")}
+          }, t("selectionSent"))}
         />
         )}
       </div>

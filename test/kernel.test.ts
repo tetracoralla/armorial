@@ -40,6 +40,46 @@ test("search handles Simplified Chinese wording inside an ordinary phrase", () =
   assert.equal(output.items[0]?.id, "icon-park:search");
 });
 
+test("search respects English boundaries and ranks covered query terms deterministically", () => {
+  const kernel = new IconKernel();
+  const phrase = kernel.search({ query: "right rotate object", limit: 10 });
+  assert.equal(phrase.status, "ok");
+  if (phrase.status !== "ok") return;
+  const rotate = phrase.items.find((item) => item.id === "icon-park:rotate");
+  assert.ok(rotate);
+  assert.ok(phrase.items.indexOf(rotate) < 2);
+  assert.deepEqual(rotate.matchedOn, ["name:rotate", "token:rotate"]);
+  assert.ok(
+    rotate.rankScore >
+      (phrase.items.find((item) => item.id === "icon-park:align-right")?.rankScore ?? 0),
+  );
+
+  const covered = kernel.search({ query: "align right object", limit: 10 });
+  assert.equal(covered.status, "ok");
+  if (covered.status === "ok") {
+    const alignRight = covered.items.find((item) => item.id === "icon-park:align-right");
+    assert.ok(alignRight);
+    assert.equal(covered.items[0]?.id, "icon-park:align-right");
+    assert.deepEqual(alignRight.matchedOn, ["token:align", "token:right"]);
+    assert.ok(
+      alignRight.rankScore >
+        (covered.items.find((item) => item.id === "icon-park:align-bottom")?.rankScore ?? 0),
+    );
+  }
+
+  const internalSubstring = kernel.search({ query: "clockwise", limit: 8 });
+  assert.equal(internalSubstring.status, "ok");
+  if (internalSubstring.status === "ok") {
+    assert.equal(internalSubstring.items.some((item) => item.id === "icon-park:lock"), false);
+  }
+  const resolution = kernel.resolve({ intent: "clockwise", alternatives: 3 });
+  assert.equal(resolution.status, "ok");
+  if (resolution.status === "ok") {
+    assert.equal(resolution.icon.id, "icon-park:rotating-forward");
+    assert.equal(resolution.alternatives.some((item) => item.id === "icon-park:lock"), false);
+  }
+});
+
 test("human catalog browsing reuses ranked search, policy rendering, and stable paging", () => {
   const kernel = new IconKernel();
   const firstPage = kernel.browse({ query: "notification", offset: 0, limit: 8 });

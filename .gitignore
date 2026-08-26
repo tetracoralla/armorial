@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .pages-dist/
+.license-build/
 figma-plugin/dist/
 /plugins/
 test-results/

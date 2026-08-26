@@ -3,6 +3,7 @@ import { COLLECTION_ID, type Candidate } from "./contracts.js";
 import { IconKernelError } from "./errors.js";
 import { compactText, normalizeText, queryTerms } from "./normalize.js";
 import type { IconRecord } from "./provider.js";
+import { buildSearchSemanticIndex } from "./search-semantics.js";
 
 type SearchDocument = {
   record: IconRecord;
@@ -16,6 +17,9 @@ type SearchDocument = {
   tagCompacts: readonly string[];
   tagSet: ReadonlySet<string>;
   searchableTags: readonly string[];
+  semanticTerms: readonly string[];
+  semanticTermCompacts: readonly string[];
+  semanticTermTokens: readonly ReadonlySet<string>[];
   category: string;
   categoryCN: string;
 };
@@ -24,6 +28,11 @@ type PreparedTerm = {
   value: string;
   compact: string;
   order: number;
+};
+
+type QueryToken = {
+  forms: readonly string[];
+  specificity: number;
 };
 
 type Ranked = {
@@ -37,6 +46,7 @@ type QueryContext = {
   compact: string;
   terms: readonly string[];
   termCompacts: ReadonlySet<string>;
+  tokens: readonly QueryToken[];
   aliasTargets: readonly PreparedTerm[];
   aliases: readonly PreparedTerm[];
   hasMultipleDirectSemanticTargets: boolean;
@@ -55,13 +65,14 @@ const KIND_PRIORITY: Readonly<Record<Candidate["matchKind"], number>> = {
   category: 1,
 };
 
-function buildDocument(record: IconRecord): SearchDocument {
+function buildDocument(record: IconRecord, rawSemanticTerms: readonly string[]): SearchDocument {
   // Compact forms derive from the already-normalized text so each field is
   // normalized exactly once per record.
   const name = normalizeText(record.name);
   const nameTokens = name.split(" ");
   const title = normalizeText(record.title);
   const tags = record.tag.map(normalizeText);
+  const semanticTerms = rawSemanticTerms.map(normalizeText);
   return {
     record,
     name,
@@ -74,6 +85,9 @@ function buildDocument(record: IconRecord): SearchDocument {
     tagCompacts: tags.map((tag) => tag.replace(/\s+/g, "")),
     tagSet: new Set(tags),
     searchableTags: tags.filter((tag) => !isGenericTaskTerm(tag) && tag.length >= 2),
+    semanticTerms,
+    semanticTermCompacts: semanticTerms.map((term) => term.replace(/\s+/g, "")),
+    semanticTermTokens: semanticTerms.map((term) => new Set(term.split(" ").filter(Boolean))),
     category: normalizeText(record.category),
     categoryCN: normalizeText(record.categoryCN),
   };
@@ -81,6 +95,49 @@ function buildDocument(record: IconRecord): SearchDocument {
 
 function prepareTerms(values: readonly string[]): PreparedTerm[] {
   return values.map((value, order) => ({ value, compact: compactText(value), order }));
+}
+
+function containsHan(value: string): boolean {
+  return /\p{Script=Han}/u.test(value);
+}
+
+function containsTokenSequence(haystack: string, needle: string): boolean {
+  if (containsHan(needle)) return haystack.includes(needle);
+  const haystackTokens = haystack.split(" ").filter(Boolean);
+  const needleTokens = needle.split(" ").filter(Boolean);
+  if (needleTokens.length === 0 || needleTokens.length > haystackTokens.length) return false;
+  for (let start = 0; start <= haystackTokens.length - needleTokens.length; start += 1) {
+    if (needleTokens.every((token, index) => haystackTokens[start + index] === token)) return true;
+  }
+  return false;
+}
+
+function fieldStartsWithTerm(field: string, term: string): boolean {
+  if (containsHan(term)) return field.includes(term);
+  const termTokens = term.split(" ").filter(Boolean);
+  if (termTokens.length === 0) return false;
+  if (termTokens.length > 1) return containsTokenSequence(field, term);
+  return field.split(" ").some((token) => token.startsWith(term));
+}
+
+function tokenSpecificity(forms: readonly string[], documentFrequency: ReadonlyMap<string, number>): number {
+  const frequency = Math.min(...forms.map((form) => documentFrequency.get(form) ?? Number.POSITIVE_INFINITY));
+  if (frequency <= 8) return 3;
+  if (frequency <= 24) return 2;
+  if (frequency <= 64) return 1;
+  return 0;
+}
+
+function prepareQueryTokens(
+  tokens: readonly string[],
+  documentFrequency: ReadonlyMap<string, number>,
+): QueryToken[] {
+  return tokens.map((token) => ({
+    forms: queryTerms(token).filter((term) => !isGenericTaskTerm(term)),
+  })).map((token) => ({
+    ...token,
+    specificity: tokenSpecificity(token.forms, documentFrequency),
+  }));
 }
 
 function makeCandidate(
@@ -103,7 +160,10 @@ function makeCandidate(
   };
 }
 
-function buildQueryContext(rawQuery: string): QueryContext {
+function buildQueryContext(
+  rawQuery: string,
+  documentFrequency: ReadonlyMap<string, number>,
+): QueryContext {
   const normalized = normalizeText(rawQuery);
   const meaningfulTokens = normalized
     .split(" ")
@@ -116,6 +176,7 @@ function buildQueryContext(rawQuery: string): QueryContext {
     compact: compactText(rawQuery),
     terms,
     termCompacts: new Set(terms.map(compactText)),
+    tokens: prepareQueryTokens(meaningfulTokens, documentFrequency),
     aliasTargets: prepareTerms(expansion.targets),
     aliases: prepareTerms(expansion.aliases),
     hasMultipleDirectSemanticTargets: expansion.independentDirectTargetCount > 1,
@@ -129,6 +190,11 @@ function rankDocument(document: SearchDocument, query: QueryContext): Candidate 
     ? []
     : document.tags.filter(
       (tag, index) => tag === query.normalized || document.tagCompacts[index] === query.compact,
+    );
+  const exactSemantics = query.generic
+    ? []
+    : document.semanticTerms.filter(
+      (term, index) => term === query.normalized || document.semanticTermCompacts[index] === query.compact,
     );
 
   if (query.rawLower === document.record.canonicalId) {
@@ -155,6 +221,15 @@ function rankDocument(document: SearchDocument, query: QueryContext): Candidate 
     );
   }
 
+  if (exactSemantics.length > 0) {
+    return makeCandidate(
+      document,
+      113,
+      "alias",
+      exactSemantics.map((term) => `semantic:${term}`),
+    );
+  }
+
   if (exactTags.length > 0) {
     return makeCandidate(document, 110, "exact_tag", exactTags.map((tag) => `tag:${tag}`));
   }
@@ -174,20 +249,73 @@ function rankDocument(document: SearchDocument, query: QueryContext): Candidate 
     return makeCandidate(document, 80, "alias", [`alias:${aliasTag.value}`]);
   }
 
-  const tokenMatches = query.terms.filter(
-    (term) =>
-      term.length >= 3 &&
-      (document.nameTokenSet.has(term) ||
-        document.tagSet.has(term) ||
-        term === document.title),
+  // Chinese queries do not reliably carry word separators, so a reviewed
+  // multi-character semantic may match inside an ordinary sentence. English
+  // phrases stay in the token-coverage path below; treating every contained
+  // phrase as exact would let an annotation outrank a real icon name.
+  const containedSemantics = document.semanticTerms.filter(
+    (term) => containsHan(term) && query.compact.includes(compactText(term)),
   );
-  if (tokenMatches.length > 0) {
-    const score = 80 + Math.min(10, tokenMatches.length * 2);
-    return makeCandidate(document, score, "token", tokenMatches.map((term) => `token:${term}`));
+  if (containedSemantics.length > 0) {
+    return makeCandidate(
+      document,
+      96,
+      "alias",
+      containedSemantics.map((term) => `semantic:${term}`),
+    );
+  }
+
+  const tokenMatches = query.tokens.flatMap((token) => {
+    const term = token.forms.find(
+      (form) =>
+        form.length >= 3 &&
+        (document.nameTokenSet.has(form) ||
+          document.tagSet.has(form) ||
+          form === document.title),
+    );
+    return term === undefined ? [] : [{ term, specificity: token.specificity }];
+  });
+  const semanticTokenMatches = document.semanticTerms.flatMap((term, index) => {
+    const semanticTokens = document.semanticTermTokens[index];
+    if (semanticTokens === undefined || semanticTokens.size === 0 || containsHan(term)) return [];
+    const matchedQueryTokens = query.tokens.flatMap((token) => {
+      const match = token.forms.find((form) => form.length >= 3 && semanticTokens.has(form));
+      return match === undefined ? [] : [{ term: match, specificity: token.specificity }];
+    });
+    const requiredCoverage = semanticTokens.size === 1 ? 1 : 2;
+    return new Set(matchedQueryTokens.map((match) => match.term)).size >= requiredCoverage
+      ? [{ term, matchedQueryTokens }]
+      : [];
+  });
+  const semanticQueryTokens = semanticTokenMatches.flatMap((match) => match.matchedQueryTokens);
+  const matchesByTerm = new Map<string, number>();
+  for (const match of [...tokenMatches, ...semanticQueryTokens]) {
+    matchesByTerm.set(match.term, Math.max(matchesByTerm.get(match.term) ?? 0, match.specificity));
+  }
+  const allTokenMatches = [...matchesByTerm];
+  if (allTokenMatches.length > 0) {
+    const wholeNameToken = tokenMatches.find(
+      (match) => match.term === document.name || compactText(match.term) === document.nameCompact,
+    );
+    const specificity = Math.max(...allTokenMatches.map(([, value]) => value));
+    const score = 80
+      + Math.min(8, allTokenMatches.length * 4)
+      + (wholeNameToken === undefined ? 0 : 2)
+      + specificity;
+    return makeCandidate(
+      document,
+      score,
+      "token",
+      [
+        ...(wholeNameToken === undefined ? [] : [`name:${document.record.name}`]),
+        ...tokenMatches.map((match) => `token:${match.term}`),
+        ...semanticTokenMatches.map((match) => `semantic:${match.term}`),
+      ],
+    );
   }
 
   const containedNameFields: string[] = [];
-  if (document.nameCompact.length >= 3 && query.compact.includes(document.nameCompact)) {
+  if (document.nameCompact.length >= 3 && containsTokenSequence(query.normalized, document.name)) {
     containedNameFields.push(`name:${document.record.name}`);
   }
   if (containedNameFields.length > 0) {
@@ -195,7 +323,7 @@ function rankDocument(document: SearchDocument, query: QueryContext): Candidate 
   }
 
   const containedTitleFields: string[] = [];
-  if (document.title.length >= 2 && query.normalized.includes(document.title)) {
+  if (document.title.length >= 2 && containsTokenSequence(query.normalized, document.title)) {
     containedTitleFields.push(`title:${document.record.title}`);
   }
   if (containedTitleFields.length > 0) {
@@ -204,7 +332,7 @@ function rankDocument(document: SearchDocument, query: QueryContext): Candidate 
 
   const containedTagFields: string[] = [];
   for (const tag of document.searchableTags) {
-    if (query.normalized.includes(tag)) {
+    if (containsTokenSequence(query.normalized, tag)) {
       containedTagFields.push(`tag:${tag}`);
     }
   }
@@ -212,13 +340,19 @@ function rankDocument(document: SearchDocument, query: QueryContext): Candidate 
     return makeCandidate(document, 70, "contains", containedTagFields);
   }
 
-  const containingTerms = query.terms.filter(
-    (term) =>
-      term.length >= 2 &&
-      (document.name.includes(term) || document.title.includes(term) || document.tags.some((tag) => tag.includes(term))),
-  );
+  const containingTerms = query.tokens.flatMap((token) => {
+    const term = token.forms.find(
+      (form) =>
+        form.length >= 2 &&
+        (fieldStartsWithTerm(document.name, form) ||
+          fieldStartsWithTerm(document.title, form) ||
+          document.tags.some((tag) => fieldStartsWithTerm(tag, form))),
+    );
+    return term === undefined ? [] : [term];
+  });
   if (containingTerms.length > 0) {
-    return makeCandidate(document, 60, "contains", containingTerms.map((term) => `contains:${term}`));
+    const score = 60 + Math.min(8, containingTerms.length * 2);
+    return makeCandidate(document, score, "contains", containingTerms.map((term) => `contains:${term}`));
   }
 
   const categoryMatches = query.terms.filter((term) => term === document.category || term === document.categoryCN);
@@ -231,8 +365,9 @@ function rankDocument(document: SearchDocument, query: QueryContext): Candidate 
 
 export class IconSearchIndex {
   readonly #documents: readonly SearchDocument[];
+  readonly #documentFrequency: ReadonlyMap<string, number>;
 
-  constructor(records: readonly IconRecord[]) {
+  constructor(records: readonly IconRecord[], rawSemantics?: unknown) {
     const recordSlugs = new Set(records.map((record) => record.name));
     const missingTargets = aliasTargetSlugs().filter((target) => !recordSlugs.has(target));
     if (missingTargets.length > 0) {
@@ -241,18 +376,29 @@ export class IconSearchIndex {
         message: `Built-in aliases reference missing IconPark targets: ${missingTargets.join(", ")}.`,
       });
     }
-    this.#documents = records.map(buildDocument);
+    const semanticIndex = buildSearchSemanticIndex(records, rawSemantics);
+    this.#documents = records.map((record) => buildDocument(record, semanticIndex.get(record.canonicalId) ?? []));
+    const documentFrequency = new Map<string, number>();
+    for (const document of this.#documents) {
+      const terms = new Set([
+        ...document.nameTokens,
+        ...document.tags.flatMap((tag) => tag.split(" ")),
+        ...document.semanticTerms.flatMap((term) => term.split(" ")),
+      ]);
+      for (const term of terms) documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
+    }
+    this.#documentFrequency = documentFrequency;
   }
 
   rank(query: string): Ranked[] {
-    return this.#rank(buildQueryContext(query));
+    return this.#rank(buildQueryContext(query, this.#documentFrequency));
   }
 
   rankForResolution(query: string): {
     ranked: Ranked[];
     hasMultipleDirectSemanticTargets: boolean;
   } {
-    const context = buildQueryContext(query);
+    const context = buildQueryContext(query, this.#documentFrequency);
     return {
       ranked: this.#rank(context),
       hasMultipleDirectSemanticTargets: context.hasMultipleDirectSemanticTargets,

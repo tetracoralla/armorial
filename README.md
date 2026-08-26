@@ -176,4 +176,4 @@ There is deliberately no cloud account, shared `lastSelection`, policy editor, f
 
 ## Licenses
 
-This project is licensed under the Apache License 2.0; see [LICENSE](./LICENSE) and [NOTICE](./NOTICE). IconPark code and assets remain under Apache-2.0; rendered results identify that license. The Figma bundle's third-party attributions are recorded in [figma-plugin/THIRD_PARTY_NOTICES.txt](./figma-plugin/THIRD_PARTY_NOTICES.txt).
+This project is licensed under the Apache License 2.0; see [LICENSE](./LICENSE) and [NOTICE](./NOTICE). IconPark code and assets remain under Apache-2.0; rendered results identify that license. Exact bundled license texts are recorded in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md); the Figma distribution ships the exact subset it embeds in [figma-plugin/THIRD_PARTY_NOTICES.txt](./figma-plugin/THIRD_PARTY_NOTICES.txt).

@@ -4,9 +4,11 @@ import {
   FigmaInsertSettingsSchema,
   type FigmaInsertSettings,
 } from "../../figma/protocol.js";
-import type { FigmaPickerRuntime } from "../runtime.js";
+import type { FigmaPickerRuntime } from "../runtime-shared.js";
 import { svgDataUri } from "../svg-data-uri.js";
+import { useMessages } from "../messages.js";
 import { AppearancePanel } from "./AppearancePanel.js";
+import { LanguageSelect } from "./LanguageSelect.js";
 import type { ActionState } from "./Inspector.js";
 
 type Props = {
@@ -23,12 +25,13 @@ type Props = {
 
 export function FigmaInspector(props: Props) {
   const { runtime } = props;
+  const { t, locale } = useMessages();
   const [figmaState, setFigmaState] = useState(runtime.figmaState);
 
   useEffect(() => runtime.onFigmaState(setFigmaState), [runtime]);
 
   if (props.selected === null || props.style === null) {
-    return <aside className="inspector inspector-empty">Select an icon to insert it</aside>;
+    return <aside className="inspector inspector-empty">{t("selectToInsert")}</aside>;
   }
 
   const updateSettings = (patch: Partial<FigmaInsertSettings>) => {
@@ -45,12 +48,14 @@ export function FigmaInspector(props: Props) {
           <img src={svgDataUri(props.selected.asset.svg)} alt={`${props.selected.name} preview`} />
         </div>
         <div className="preview-meta">
-          <h2>{props.selected.name}</h2>
-          <p>{props.selected.title}</p>
-          <code>{props.selected.id}</code>
+          {/* Chinese-first surface: the localized title leads, the catalog
+              name stays as the secondary identifier. */}
+          {locale === "zh-CN"
+            ? <><h2>{props.selected.title}</h2><p>{props.selected.name}</p></>
+            : <><h2>{props.selected.name}</h2><p>{props.selected.title}</p></>}
         </div>
       </div>
-      <div className="action-stack figma-insert-actions" aria-label="Figma insert actions">
+      <div className="action-stack figma-insert-actions" aria-label={t("figmaInsertActions")}>
         <button
           className="primary-action"
           type="button"
@@ -58,44 +63,43 @@ export function FigmaInspector(props: Props) {
           onClick={() => void props.onInsert()}
         >
           {props.actionState === "inserting"
-            ? "Inserting…"
+            ? t("inserting")
             : figmaState.settings.createComponent
-              ? "Insert component"
-              : "Insert icon"}
+              ? t("insertComponent")
+              : t("insertIcon")}
         </button>
-        <p>Drag any icon to place it precisely on the canvas.</p>
-        <p className="figma-target">Page: {figmaState.pageName}</p>
+        <p>{t("dragHint")}</p>
       </div>
-      <section className="figma-output" aria-label="Figma output">
-        <header><h3>Figma output</h3></header>
+      <section className="figma-output" aria-label={t("figmaOutput")}>
+        <header><h3>{t("figmaOutput")}</h3></header>
         <label className="figma-setting-row">
-          <span>Layer structure</span>
+          <span>{t("layerStructure")}</span>
           <select
             value={figmaState.settings.layerStructure}
             onChange={(event) => updateSettings({
               layerStructure: event.target.value as FigmaInsertSettings["layerStructure"],
             })}
           >
-            <option value="preserve">Preserve layers</option>
-            <option value="flatten">Flatten to vector</option>
-            <option value="union">Boolean union</option>
+            <option value="preserve">{t("preserveLayers")}</option>
+            <option value="flatten">{t("flattenToVector")}</option>
+            <option value="union">{t("booleanUnion")}</option>
           </select>
         </label>
         <label className="figma-setting-row">
-          <span>Layer name</span>
+          <span>{t("layerName")}</span>
           <select
             value={figmaState.settings.layerName}
             onChange={(event) => updateSettings({
               layerName: event.target.value as FigmaInsertSettings["layerName"],
             })}
           >
-            <option value="icon-name">Icon name</option>
+            <option value="icon-name">{t("iconNameOption")}</option>
             <option value="Vector">Vector</option>
             <option value="Union">Union</option>
           </select>
         </label>
         <label className="figma-toggle-row">
-          <span>Outline strokes</span>
+          <span>{t("outlineStrokes")}</span>
           <input
             type="checkbox"
             checked={figmaState.settings.outlineStroke}
@@ -103,7 +107,7 @@ export function FigmaInspector(props: Props) {
           />
         </label>
         <label className="figma-toggle-row">
-          <span>Create component</span>
+          <span>{t("createComponent")}</span>
           <input
             type="checkbox"
             checked={figmaState.settings.createComponent}
@@ -126,6 +130,7 @@ export function FigmaInspector(props: Props) {
         onChange={props.onAppearanceChange}
         onReset={props.onAppearanceReset}
       />
+      <LanguageSelect />
     </aside>
   );
 }

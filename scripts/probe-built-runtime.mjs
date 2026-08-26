@@ -189,6 +189,38 @@ try {
   searchedId = searchResult.structuredContent?.result?.items?.[0]?.id;
   assert.equal(searchedId, "icon-park:search");
 
+  const compositionalSearch = await client.callTool({
+    name: "search_icons",
+    arguments: { query: "right rotate object", limit: 10 },
+  });
+  assert.equal(compositionalSearch.isError, undefined);
+  const compositionalItems = compositionalSearch.structuredContent?.result?.items ?? [];
+  assert.ok(compositionalItems.slice(0, 2).some((item) => item.id === "icon-park:rotate"));
+  assert.ok(
+    compositionalItems.find((item) => item.id === "icon-park:rotate")?.rankScore >
+      compositionalItems.find((item) => item.id === "icon-park:align-right")?.rankScore,
+  );
+
+  const boundarySearch = await client.callTool({
+    name: "search_icons",
+    arguments: { query: "clockwise", limit: 8 },
+  });
+  assert.equal(boundarySearch.isError, undefined);
+  assert.equal(
+    boundarySearch.structuredContent?.result?.items?.some((item) => item.id === "icon-park:lock"),
+    false,
+  );
+
+  const boundaryResolution = await client.callTool({
+    name: "resolve_icon",
+    arguments: { intent: "clockwise", alternatives: 3 },
+  });
+  assert.equal(boundaryResolution.isError, undefined);
+  assert.equal(
+    boundaryResolution.structuredContent?.result?.icon?.id,
+    "icon-park:rotating-forward",
+  );
+
   const notificationResult = await client.callTool({
     name: "search_icons",
     arguments: { query: "通知", limit: 2 },

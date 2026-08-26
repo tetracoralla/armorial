@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
@@ -8,6 +8,7 @@ import {
   assertReplaceableStageDirectory,
   captureDirectoryIdentity,
   createLocalPluginVersion,
+  removeProductionBinDirectory,
   removeOwnedTree,
   renameOwnedDirectory,
 } from "../scripts/stage-plugin.js";
@@ -50,6 +51,25 @@ test("owned cleanup unlinks nested symlinks without touching their target", asyn
     removeOwnedTree(owned, resolve(directory), [".owned-stage-"]);
     assert.equal(await readFile(outside, "utf8"), "keep");
     assert.throws(() => removeOwnedTree(outside, resolve(directory), [".owned-stage-"]), /unexpected staging path/);
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+});
+
+test("plugin staging omits npm command shims without following their targets", async () => {
+  const directory = await makeTemporaryDirectory("icon-stage-bin-");
+  const nodeModules = join(directory, "node_modules");
+  const binDirectory = join(nodeModules, ".bin");
+  const outside = join(directory, "outside.txt");
+  try {
+    await mkdir(binDirectory, { recursive: true });
+    await writeFile(outside, "keep", "utf8");
+    await symlink(outside, join(binDirectory, "tool"));
+
+    removeProductionBinDirectory(nodeModules);
+
+    await assert.rejects(access(binDirectory));
+    assert.equal(await readFile(outside, "utf8"), "keep");
   } finally {
     await rm(directory, { recursive: true });
   }

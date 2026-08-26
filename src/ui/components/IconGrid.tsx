@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { CatalogItem } from "../../core/contracts.js";
 import type { KeyboardEvent } from "react";
 import { IconCell } from "./IconCell.js";
+import { useMessages } from "../messages.js";
 
 type Props = {
   items: CatalogItem[];
@@ -40,6 +41,7 @@ function keyboardTargetIndex(key: string, current: number, count: number, column
 }
 
 export function IconGrid({ items, selectedId, hasMore, loading, onSelect, onLoadMore, onDragEnd, dragDisabled = false }: Props) {
+  const { t } = useMessages();
   const handleCellKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
     const listbox = event.currentTarget.parentElement;
     if (listbox === null) return;
@@ -58,12 +60,12 @@ export function IconGrid({ items, selectedId, hasMore, loading, onSelect, onLoad
   }, [items, onSelect]);
 
   if (items.length === 0 && !loading) {
-    return <div className="empty-state">No matching icons</div>;
+    return <div className="empty-state">{t("noMatchingIcons")}</div>;
   }
 
   return (
     <div className="catalog-scroll">
-      <div className="icon-grid" role="listbox" aria-label="Icon results">
+      <div className="icon-grid" role="listbox" aria-label={t("iconResults")}>
         {items.map((item, index) => (
           <IconCell
             key={item.id}
@@ -79,7 +81,7 @@ export function IconGrid({ items, selectedId, hasMore, loading, onSelect, onLoad
       </div>
       {hasMore && (
         <button className="load-more" type="button" disabled={loading} onClick={onLoadMore}>
-          {loading ? "Loading…" : "Load more"}
+          {loading ? t("loading") : t("loadMore")}
         </button>
       )}
     </div>

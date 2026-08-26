@@ -1,0 +1,2754 @@
+{
+  "icon-park:a-cane": [
+    "walking stick"
+  ],
+  "icon-park:abdominal": [
+    "belly"
+  ],
+  "icon-park:acceleration": [
+    "airplane"
+  ],
+  "icon-park:accept-email": [
+    "incoming email",
+    "receive mail"
+  ],
+  "icon-park:acoustic": [
+    "audio waveform",
+    "sound wave"
+  ],
+  "icon-park:ad-product": [
+    "box",
+    "package"
+  ],
+  "icon-park:add-computer": [
+    "computer monitor"
+  ],
+  "icon-park:add-subtract": [
+    "arithmetic operators"
+  ],
+  "icon-park:add-text": [
+    "font size"
+  ],
+  "icon-park:add-user": [
+    "person plus"
+  ],
+  "icon-park:add-web": [
+    "browser"
+  ],
+  "icon-park:address-book": [
+    "contact directory",
+    "contacts",
+    "phonebook"
+  ],
+  "icon-park:afferent": [
+    "incoming"
+  ],
+  "icon-park:afferent-four": [
+    "incoming"
+  ],
+  "icon-park:afferent-three": [
+    "incoming"
+  ],
+  "icon-park:afferent-two": [
+    "incoming"
+  ],
+  "icon-park:afro-pick": [
+    "afro comb",
+    "hair pick"
+  ],
+  "icon-park:aiming": [
+    "crosshair",
+    "target"
+  ],
+  "icon-park:air-bike": [
+    "exercise bike",
+    "stationary bike"
+  ],
+  "icon-park:air-conditioning": [
+    "ac unit",
+    "air conditioner"
+  ],
+  "icon-park:airplane": [
+    "aircraft"
+  ],
+  "icon-park:airplane-window": [
+    "aircraft window",
+    "plane window"
+  ],
+  "icon-park:airpods": [
+    "earbuds",
+    "wireless earbuds"
+  ],
+  "icon-park:alarm": [
+    "warning beacon"
+  ],
+  "icon-park:alarm-clock": [
+    "wake up alarm"
+  ],
+  "icon-park:all-application": [
+    "grid menu"
+  ],
+  "icon-park:alphabetical-sorting": [
+    "a to z",
+    "alphabetical order"
+  ],
+  "icon-park:alphabetical-sorting-two": [
+    "reverse alphabetical",
+    "z to a"
+  ],
+  "icon-park:ambulance": [
+    "emergency vehicle",
+    "medical transport"
+  ],
+  "icon-park:analysis": [
+    "data report"
+  ],
+  "icon-park:anchor": [
+    "anchor point",
+    "control point"
+  ],
+  "icon-park:anchor-one": [
+    "curve anchor",
+    "vector anchor"
+  ],
+  "icon-park:anchor-two": [
+    "boat anchor",
+    "ship anchor"
+  ],
+  "icon-park:angry-face": [
+    "angry emoji",
+    "frowning face"
+  ],
+  "icon-park:anguished-face": [
+    "distressed face",
+    "worried face"
+  ],
+  "icon-park:announcement": [
+    "bulletin board",
+    "notice board"
+  ],
+  "icon-park:aperture-priority": [
+    "aperture mode"
+  ],
+  "icon-park:app-switch": [
+    "app switcher"
+  ],
+  "icon-park:application": [
+    "shop",
+    "storefront"
+  ],
+  "icon-park:application-effect": [
+    "linked circles",
+    "overlapping circles"
+  ],
+  "icon-park:application-menu": [
+    "app grid",
+    "launcher menu"
+  ],
+  "icon-park:arc-de-triomphe": [
+    "monument"
+  ],
+  "icon-park:archers-bow": [
+    "bow and arrow"
+  ],
+  "icon-park:archery": [
+    "bow and arrow"
+  ],
+  "icon-park:area-map": [
+    "area chart",
+    "filled graph"
+  ],
+  "icon-park:arithmetic": [
+    "math operators"
+  ],
+  "icon-park:arithmetic-buttons": [
+    "calculator keypad",
+    "math keypad"
+  ],
+  "icon-park:arithmetic-one": [
+    "math operators"
+  ],
+  "icon-park:arrow-circle-down": [
+    "down arrow button"
+  ],
+  "icon-park:arrow-circle-left": [
+    "left arrow button"
+  ],
+  "icon-park:arrow-circle-right": [
+    "right arrow button"
+  ],
+  "icon-park:arrow-circle-up": [
+    "up arrow button"
+  ],
+  "icon-park:arrow-down": [
+    "downward arrow"
+  ],
+  "icon-park:arrow-keys": [
+    "cursor keys",
+    "navigation keys"
+  ],
+  "icon-park:arrow-left": [
+    "back arrow",
+    "previous"
+  ],
+  "icon-park:arrow-left-down": [
+    "diagonal down left arrow"
+  ],
+  "icon-park:arrow-left-up": [
+    "diagonal up left arrow"
+  ],
+  "icon-park:arrow-right": [
+    "forward arrow"
+  ],
+  "icon-park:arrow-right-down": [
+    "diagonal down right arrow"
+  ],
+  "icon-park:arrow-right-up": [
+    "diagonal up right arrow"
+  ],
+  "icon-park:arrow-up": [
+    "upward arrow"
+  ],
+  "icon-park:astonished-face": [
+    "shocked face",
+    "surprised emoji"
+  ],
+  "icon-park:audio-file": [
+    "music file",
+    "sound file"
+  ],
+  "icon-park:audit": [
+    "approval stamp",
+    "rubber stamp"
+  ],
+  "icon-park:auto-focus": [
+    "focus target"
+  ],
+  "icon-park:auto-height-one": [
+    "resize height",
+    "vertical resize"
+  ],
+  "icon-park:auto-line-height": [
+    "leading",
+    "line spacing"
+  ],
+  "icon-park:auto-line-width": [
+    "horizontal resize",
+    "text width"
+  ],
+  "icon-park:auto-width": [
+    "horizontal resize",
+    "resize width"
+  ],
+  "icon-park:auto-width-one": [
+    "horizontal resize",
+    "resize width"
+  ],
+  "icon-park:avatar": [
+    "headshot",
+    "user silhouette"
+  ],
+  "icon-park:aviation": [
+    "aircraft"
+  ],
+  "icon-park:avocado": [
+    "avocado fruit"
+  ],
+  "icon-park:avocado-one": [
+    "avocado half",
+    "avocado slice"
+  ],
+  "icon-park:baby": [
+    "infant",
+    "newborn"
+  ],
+  "icon-park:baby-bottle": [
+    "feeding bottle",
+    "milk bottle"
+  ],
+  "icon-park:baby-car-seat": [
+    "child car seat",
+    "infant car seat"
+  ],
+  "icon-park:baby-feet": [
+    "baby footprint",
+    "footprint"
+  ],
+  "icon-park:baby-mobile": [
+    "crib mobile",
+    "hanging toy",
+    "nursery mobile"
+  ],
+  "icon-park:baby-one": [
+    "child",
+    "infant"
+  ],
+  "icon-park:baby-sling": [
+    "baby carrier",
+    "baby wrap"
+  ],
+  "icon-park:baby-taste": [
+    "baby face"
+  ],
+  "icon-park:bachelor-cap": [
+    "graduation cap",
+    "mortarboard"
+  ],
+  "icon-park:bachelor-cap-one": [
+    "graduation cap",
+    "mortarboard"
+  ],
+  "icon-park:bachelor-cap-two": [
+    "graduation cap",
+    "mortarboard"
+  ],
+  "icon-park:back": [
+    "back arrow"
+  ],
+  "icon-park:back-one": [
+    "curved back arrow"
+  ],
+  "icon-park:background-color": [
+    "paint bucket"
+  ],
+  "icon-park:backpack": [
+    "rucksack",
+    "school bag"
+  ],
+  "icon-park:bad": [
+    "thumbs down"
+  ],
+  "icon-park:bad-one": [
+    "thumbs down"
+  ],
+  "icon-park:bad-two": [
+    "thumbs down"
+  ],
+  "icon-park:badge-two": [
+    "award ribbon",
+    "medal"
+  ],
+  "icon-park:badminton": [
+    "birdie",
+    "shuttlecock"
+  ],
+  "icon-park:baggage-delay": [
+    "delayed baggage",
+    "luggage delay"
+  ],
+  "icon-park:balance": [
+    "bathroom scale",
+    "weighing scale"
+  ],
+  "icon-park:balance-one": [
+    "bathroom scale",
+    "weight scale"
+  ],
+  "icon-park:balance-two": [
+    "scales of justice"
+  ],
+  "icon-park:banana": [
+    "banana fruit"
+  ],
+  "icon-park:bank": [
+    "bank building"
+  ],
+  "icon-park:bank-card": [
+    "credit card",
+    "debit card"
+  ],
+  "icon-park:bank-card-one": [
+    "credit card",
+    "debit card"
+  ],
+  "icon-park:bank-card-two": [
+    "credit card",
+    "debit card"
+  ],
+  "icon-park:bank-transfer": [
+    "money transfer",
+    "wire transfer"
+  ],
+  "icon-park:barbecue": [
+    "skewers"
+  ],
+  "icon-park:barber-brush": [
+    "lather brush",
+    "shaving brush"
+  ],
+  "icon-park:barber-clippers": [
+    "electric trimmer",
+    "hair clippers"
+  ],
+  "icon-park:baseball": [
+    "baseball ball",
+    "sports ball"
+  ],
+  "icon-park:baseball-bat": [
+    "sports bat"
+  ],
+  "icon-park:baseball-cap": [
+    "baseball hat",
+    "sports cap"
+  ],
+  "icon-park:basketball-clothes": [
+    "basketball jersey",
+    "sports uniform"
+  ],
+  "icon-park:basketball-one": [
+    "basketball hoop",
+    "hoop"
+  ],
+  "icon-park:basketball-stand": [
+    "basketball backboard",
+    "hoop"
+  ],
+  "icon-park:bat": [
+    "flying mammal"
+  ],
+  "icon-park:battery-charge": [
+    "battery charging",
+    "charging battery"
+  ],
+  "icon-park:battery-empty": [
+    "dead battery",
+    "low battery"
+  ],
+  "icon-park:battery-failure": [
+    "battery warning",
+    "dead battery"
+  ],
+  "icon-park:battery-full": [
+    "charged battery",
+    "full charge"
+  ],
+  "icon-park:battery-storage": [
+    "battery pack"
+  ],
+  "icon-park:battery-tips": [
+    "battery warning",
+    "low battery warning"
+  ],
+  "icon-park:battery-working": [
+    "battery level",
+    "charge indicator"
+  ],
+  "icon-park:battery-working-one": [
+    "battery level",
+    "charge indicator"
+  ],
+  "icon-park:beach-umbrella": [
+    "parasol",
+    "sun umbrella"
+  ],
+  "icon-park:bear": [
+    "bear face"
+  ],
+  "icon-park:beauty-instrument": [
+    "beauty device"
+  ],
+  "icon-park:bedside": [
+    "bedside table",
+    "nightstand"
+  ],
+  "icon-park:bedside-two": [
+    "bedside table",
+    "nightstand"
+  ],
+  "icon-park:bee": [
+    "honeybee",
+    "insect"
+  ],
+  "icon-park:beer": [
+    "beer mug",
+    "pint glass"
+  ],
+  "icon-park:beer-mug": [
+    "beer stein",
+    "pint glass"
+  ],
+  "icon-park:bell-ring": [
+    "ringing bell"
+  ],
+  "icon-park:belt": [
+    "belt buckle",
+    "waist belt"
+  ],
+  "icon-park:bezier-curve": [
+    "curve handle",
+    "vector path"
+  ],
+  "icon-park:bib": [
+    "baby bib",
+    "feeding bib"
+  ],
+  "icon-park:big-clock": [
+    "timepiece",
+    "wall clock"
+  ],
+  "icon-park:bike": [
+    "bicycle"
+  ],
+  "icon-park:bill": [
+    "invoice"
+  ],
+  "icon-park:bird": [
+    "flying bird"
+  ],
+  "icon-park:birthday-cake": [
+    "candle cake"
+  ],
+  "icon-park:black-eight": [
+    "8 ball",
+    "pool ball"
+  ],
+  "icon-park:blackboard": [
+    "chalkboard",
+    "presentation board"
+  ],
+  "icon-park:blade": [
+    "razor",
+    "shaving blade"
+  ],
+  "icon-park:bless": [
+    "prayer hands"
+  ],
+  "icon-park:block-eight": [
+    "tetris piece"
+  ],
+  "icon-park:block-five": [
+    "tetris piece"
+  ],
+  "icon-park:block-four": [
+    "tetris piece"
+  ],
+  "icon-park:block-nine": [
+    "tetris piece"
+  ],
+  "icon-park:block-one": [
+    "tetris piece"
+  ],
+  "icon-park:block-seven": [
+    "tetris piece"
+  ],
+  "icon-park:block-six": [
+    "tetris piece"
+  ],
+  "icon-park:block-ten": [
+    "tetris piece"
+  ],
+  "icon-park:block-three": [
+    "tetris piece"
+  ],
+  "icon-park:block-two": [
+    "tetris piece"
+  ],
+  "icon-park:blockchain": [
+    "blockchain network"
+  ],
+  "icon-park:bloom": [
+    "flower bloom",
+    "flowering"
+  ],
+  "icon-park:blossom": [
+    "flower bloom"
+  ],
+  "icon-park:boiler": [
+    "water heater"
+  ],
+  "icon-park:bolt-one": [
+    "electrical plug",
+    "power plug"
+  ],
+  "icon-park:bone": [
+    "dog bone",
+    "skeletal bone"
+  ],
+  "icon-park:book": [
+    "manual",
+    "notebook"
+  ],
+  "icon-park:book-one": [
+    "manual",
+    "notebook"
+  ],
+  "icon-park:book-open": [
+    "open book"
+  ],
+  "icon-park:bookmark": [
+    "favorite",
+    "ribbon bookmark"
+  ],
+  "icon-park:bookmark-one": [
+    "ribbon bookmark"
+  ],
+  "icon-park:bookmark-three": [
+    "ribbon bookmark"
+  ],
+  "icon-park:bookshelf": [
+    "bookcase",
+    "library shelf"
+  ],
+  "icon-park:booster-car-seat": [
+    "car seat",
+    "child booster seat"
+  ],
+  "icon-park:booth": [
+    "kiosk",
+    "shop stall"
+  ],
+  "icon-park:boots": [
+    "rain boots"
+  ],
+  "icon-park:bottle": [
+    "feeding bottle",
+    "milk bottle"
+  ],
+  "icon-park:bottle-one": [
+    "wine bottle"
+  ],
+  "icon-park:bottle-three": [
+    "glass bottle"
+  ],
+  "icon-park:bottle-two": [
+    "glass bottle"
+  ],
+  "icon-park:bow": [
+    "bow tie",
+    "ribbon bow"
+  ],
+  "icon-park:bowl": [
+    "noodle bowl",
+    "ramen"
+  ],
+  "icon-park:bowl-one": [
+    "soup bowl"
+  ],
+  "icon-park:bowling": [
+    "bowling ball"
+  ],
+  "icon-park:box": [
+    "carton",
+    "package"
+  ],
+  "icon-park:boxing": [
+    "boxing gloves"
+  ],
+  "icon-park:boxing-one": [
+    "boxing gloves"
+  ],
+  "icon-park:boy-stroller": [
+    "pram",
+    "pushchair",
+    "stroller"
+  ],
+  "icon-park:brake-pads": [
+    "car brake"
+  ],
+  "icon-park:branch": [
+    "flowchart branch"
+  ],
+  "icon-park:branch-one": [
+    "hierarchy",
+    "tree diagram"
+  ],
+  "icon-park:brdige-three": [
+    "viaduct"
+  ],
+  "icon-park:bread": [
+    "loaf"
+  ],
+  "icon-park:bread-machine": [
+    "bread maker"
+  ],
+  "icon-park:bread-one": [
+    "loaf",
+    "toast"
+  ],
+  "icon-park:breast-pump": [
+    "milk pump"
+  ],
+  "icon-park:bridge-one": [
+    "arch bridge"
+  ],
+  "icon-park:bridge-two": [
+    "suspension bridge"
+  ],
+  "icon-park:briefcase": [
+    "office bag",
+    "work bag"
+  ],
+  "icon-park:brightness": [
+    "light level"
+  ],
+  "icon-park:broadcast": [
+    "broadcast signal"
+  ],
+  "icon-park:broadcast-radio": [
+    "radio receiver",
+    "radio tuner"
+  ],
+  "icon-park:browser": [
+    "internet browser",
+    "web browser"
+  ],
+  "icon-park:bubble-chart": [
+    "bubble graph",
+    "data bubbles"
+  ],
+  "icon-park:bug": [
+    "defect",
+    "software bug"
+  ],
+  "icon-park:building-one": [
+    "high rise",
+    "office building"
+  ],
+  "icon-park:building-three": [
+    "house"
+  ],
+  "icon-park:building-two": [
+    "high rise",
+    "office building"
+  ],
+  "icon-park:bullet-map": [
+    "bullet chart"
+  ],
+  "icon-park:bus": [
+    "public bus"
+  ],
+  "icon-park:bus-one": [
+    "public bus"
+  ],
+  "icon-park:bus-two": [
+    "public bus"
+  ],
+  "icon-park:butterfly": [
+    "winged insect"
+  ],
+  "icon-park:buy": [
+    "shopping bag"
+  ],
+  "icon-park:bye": [
+    "waving hand"
+  ],
+  "icon-park:cable-car": [
+    "aerial tram",
+    "gondola lift"
+  ],
+  "icon-park:cactus": [
+    "desert plant",
+    "succulent"
+  ],
+  "icon-park:cake": [
+    "birthday cake"
+  ],
+  "icon-park:cake-five": [
+    "cupcake"
+  ],
+  "icon-park:cake-four": [
+    "cupcake"
+  ],
+  "icon-park:cake-one": [
+    "cake slice"
+  ],
+  "icon-park:cake-three": [
+    "birthday cake"
+  ],
+  "icon-park:cake-two": [
+    "cake slice"
+  ],
+  "icon-park:calculator": [
+    "calculator keypad"
+  ],
+  "icon-park:calculator-one": [
+    "calculator keypad",
+    "pocket calculator"
+  ],
+  "icon-park:calendar": [
+    "date planner"
+  ],
+  "icon-park:calendar-dot": [
+    "date planner",
+    "event calendar"
+  ],
+  "icon-park:calendar-thirty": [
+    "calendar grid",
+    "monthly calendar"
+  ],
+  "icon-park:calendar-thirty-two": [
+    "calendar grid",
+    "monthly calendar"
+  ],
+  "icon-park:calendar-three": [
+    "calendar grid",
+    "monthly calendar"
+  ],
+  "icon-park:camera": [
+    "digital camera",
+    "photo camera"
+  ],
+  "icon-park:camera-five": [
+    "webcam"
+  ],
+  "icon-park:camera-four": [
+    "cctv camera",
+    "surveillance camera"
+  ],
+  "icon-park:camera-one": [
+    "cctv camera",
+    "surveillance camera"
+  ],
+  "icon-park:camera-three": [
+    "digital camera",
+    "photo camera"
+  ],
+  "icon-park:camera-two": [
+    "camera lens",
+    "webcam"
+  ],
+  "icon-park:camp": [
+    "camping",
+    "tent"
+  ],
+  "icon-park:candy": [
+    "bonbon",
+    "wrapped candy"
+  ],
+  "icon-park:canned-fruit": [
+    "canning jar"
+  ],
+  "icon-park:car": [
+    "automobile",
+    "vehicle"
+  ],
+  "icon-park:car-battery": [
+    "automotive battery"
+  ],
+  "icon-park:card-two": [
+    "playing cards"
+  ],
+  "icon-park:cardioelectric": [
+    "heartbeat"
+  ],
+  "icon-park:carousel": [
+    "image carousel"
+  ],
+  "icon-park:carousel-video": [
+    "video carousel",
+    "video slider"
+  ],
+  "icon-park:carrot": [
+    "root vegetable"
+  ],
+  "icon-park:cast-screen": [
+    "screen casting",
+    "wireless display"
+  ],
+  "icon-park:castle": [
+    "fortress",
+    "palace"
+  ],
+  "icon-park:cat": [
+    "house cat",
+    "kitten"
+  ],
+  "icon-park:cattle": [
+    "bovine",
+    "cow"
+  ],
+  "icon-park:cattle-zodiac": [
+    "bull",
+    "ox",
+    "taurus"
+  ],
+  "icon-park:caution": [
+    "warning triangle"
+  ],
+  "icon-park:cd": [
+    "compact disc",
+    "optical disc"
+  ],
+  "icon-park:cell": [
+    "mobile phone",
+    "smartphone"
+  ],
+  "icon-park:certificate": [
+    "credential",
+    "diploma"
+  ],
+  "icon-park:chafing-dish": [
+    "buffet warmer",
+    "serving dish"
+  ],
+  "icon-park:chafing-dish-one": [
+    "buffet dish",
+    "food warmer"
+  ],
+  "icon-park:chair": [
+    "seat"
+  ],
+  "icon-park:chair-one": [
+    "seat"
+  ],
+  "icon-park:change": [
+    "swap"
+  ],
+  "icon-park:charging-treasure": [
+    "portable charger",
+    "power bank"
+  ],
+  "icon-park:chart-graph": [
+    "hierarchy chart",
+    "org chart"
+  ],
+  "icon-park:chart-histogram": [
+    "frequency chart",
+    "histogram"
+  ],
+  "icon-park:chart-histogram-one": [
+    "frequency chart",
+    "histogram"
+  ],
+  "icon-park:chart-histogram-two": [
+    "frequency chart",
+    "histogram"
+  ],
+  "icon-park:chart-line": [
+    "line graph",
+    "trend chart"
+  ],
+  "icon-park:chart-line-area": [
+    "area chart",
+    "filled graph"
+  ],
+  "icon-park:chart-pie": [
+    "pie chart",
+    "pie graph"
+  ],
+  "icon-park:chart-pie-one": [
+    "pie chart",
+    "pie graph"
+  ],
+  "icon-park:chart-proportion": [
+    "percentage chart",
+    "proportion graph"
+  ],
+  "icon-park:chart-ring": [
+    "donut chart",
+    "radial chart"
+  ],
+  "icon-park:chart-scatter": [
+    "scatter graph",
+    "scatter plot"
+  ],
+  "icon-park:chinese-pavilion": [
+    "pagoda"
+  ],
+  "icon-park:chip": [
+    "integrated circuit",
+    "microchip"
+  ],
+  "icon-park:chopping-board": [
+    "cutting board",
+    "kitchen board"
+  ],
+  "icon-park:chopsticks-fork": [
+    "cutlery",
+    "eating utensils"
+  ],
+  "icon-park:christmas-tree": [
+    "holiday tree"
+  ],
+  "icon-park:christmas-tree-one": [
+    "holiday tree"
+  ],
+  "icon-park:church-one": [
+    "chapel",
+    "church building"
+  ],
+  "icon-park:church-two": [
+    "chapel",
+    "church building"
+  ],
+  "icon-park:circus": [
+    "big top",
+    "circus tent"
+  ],
+  "icon-park:city": [
+    "city skyline",
+    "downtown"
+  ],
+  "icon-park:city-gate": [
+    "archway",
+    "city entrance"
+  ],
+  "icon-park:city-one": [
+    "city skyline",
+    "urban buildings"
+  ],
+  "icon-park:clap": [
+    "clapping hands"
+  ],
+  "icon-park:clipboard": [
+    "clipboard document",
+    "notes"
+  ],
+  "icon-park:clock-tower": [
+    "bell tower"
+  ],
+  "icon-park:clothes-briefs": [
+    "underpants",
+    "underwear"
+  ],
+  "icon-park:clothes-cardigan": [
+    "knit sweater",
+    "knitwear"
+  ],
+  "icon-park:clothes-crew-neck": [
+    "crew neck shirt",
+    "t shirt"
+  ],
+  "icon-park:clothes-diapers": [
+    "diaper",
+    "nappy"
+  ],
+  "icon-park:clothes-gloves": [
+    "handwear"
+  ],
+  "icon-park:clothes-gloves-two": [
+    "handwear"
+  ],
+  "icon-park:clothes-hoodie": [
+    "hooded sweatshirt",
+    "sweatshirt"
+  ],
+  "icon-park:clothes-pants": [
+    "bottoms",
+    "trousers"
+  ],
+  "icon-park:clothes-pants-short": [
+    "short trousers",
+    "shorts"
+  ],
+  "icon-park:clothes-pants-sweat": [
+    "sweatpants",
+    "track pants"
+  ],
+  "icon-park:clothes-short-sleeve": [
+    "short sleeve shirt",
+    "t shirt"
+  ],
+  "icon-park:clothes-skates": [
+    "ice skate"
+  ],
+  "icon-park:clothes-suit": [
+    "business suit",
+    "formalwear"
+  ],
+  "icon-park:clothes-sweater": [
+    "jumper",
+    "pullover"
+  ],
+  "icon-park:clothes-turtleneck": [
+    "polo neck",
+    "turtleneck sweater"
+  ],
+  "icon-park:clothes-windbreaker": [
+    "light jacket",
+    "windbreaker"
+  ],
+  "icon-park:cloud-storage": [
+    "online drive"
+  ],
+  "icon-park:cloudy": [
+    "cloudy weather",
+    "overcast"
+  ],
+  "icon-park:cloudy-night": [
+    "night weather"
+  ],
+  "icon-park:coat-hanger": [
+    "clothes hanger",
+    "wardrobe"
+  ],
+  "icon-park:cocktail": [
+    "martini",
+    "mixed drink"
+  ],
+  "icon-park:coconut-tree": [
+    "coconut palm",
+    "palm tree"
+  ],
+  "icon-park:code": [
+    "source code"
+  ],
+  "icon-park:code-brackets": [
+    "curly braces"
+  ],
+  "icon-park:code-computer": [
+    "computer coding"
+  ],
+  "icon-park:code-laptop": [
+    "computer coding",
+    "programming"
+  ],
+  "icon-park:code-one": [
+    "command prompt",
+    "terminal"
+  ],
+  "icon-park:coffee-machine": [
+    "coffee maker",
+    "espresso machine"
+  ],
+  "icon-park:computer": [
+    "desktop computer"
+  ],
+  "icon-park:computer-one": [
+    "calculator keypad",
+    "pocket calculator"
+  ],
+  "icon-park:conditioner": [
+    "hair conditioner"
+  ],
+  "icon-park:connection": [
+    "connector"
+  ],
+  "icon-park:connection-arrow": [
+    "bidirectional link"
+  ],
+  "icon-park:connection-box": [
+    "linked boxes"
+  ],
+  "icon-park:consignment": [
+    "baggage"
+  ],
+  "icon-park:contrast": [
+    "light dark comparison"
+  ],
+  "icon-park:control": [
+    "device controller",
+    "remote control"
+  ],
+  "icon-park:cooperative-handshake": [
+    "handshake"
+  ],
+  "icon-park:coordinate-system": [
+    "3d axes",
+    "coordinate axes"
+  ],
+  "icon-park:copy": [
+    "clone",
+    "duplicate"
+  ],
+  "icon-park:copy-one": [
+    "duplicate document"
+  ],
+  "icon-park:coronavirus": [
+    "virus"
+  ],
+  "icon-park:cosmetic-brush": [
+    "cosmetics brush",
+    "makeup brush"
+  ],
+  "icon-park:coupon": [
+    "discount coupon",
+    "voucher"
+  ],
+  "icon-park:court": [
+    "basketball court"
+  ],
+  "icon-park:cpu": [
+    "integrated circuit",
+    "microchip"
+  ],
+  "icon-park:crab": [
+    "crustacean"
+  ],
+  "icon-park:croissant": [
+    "pastry"
+  ],
+  "icon-park:cross-ring-two": [
+    "infinity loop"
+  ],
+  "icon-park:crown": [
+    "royal crown"
+  ],
+  "icon-park:crown-three": [
+    "royal crown"
+  ],
+  "icon-park:crown-two": [
+    "royal crown"
+  ],
+  "icon-park:cruise": [
+    "cruise ship",
+    "ocean liner"
+  ],
+  "icon-park:crying-baby": [
+    "baby tears",
+    "crying infant"
+  ],
+  "icon-park:cube": [
+    "3d cube",
+    "wireframe cube"
+  ],
+  "icon-park:cube-five": [
+    "3d shape",
+    "polyhedron"
+  ],
+  "icon-park:cube-four": [
+    "3d shape",
+    "polyhedron"
+  ],
+  "icon-park:cube-three": [
+    "3d shape",
+    "polyhedron"
+  ],
+  "icon-park:cube-two": [
+    "3d shape",
+    "polyhedron"
+  ],
+  "icon-park:cup": [
+    "coffee cup",
+    "mug"
+  ],
+  "icon-park:cup-four": [
+    "tea mug",
+    "teacup"
+  ],
+  "icon-park:cup-one": [
+    "drinking cup",
+    "drinkware"
+  ],
+  "icon-park:curling": [
+    "curling stone"
+  ],
+  "icon-park:currency": [
+    "currency exchange"
+  ],
+  "icon-park:double-left": [
+    "previous"
+  ],
+  "icon-park:external-transmission": [
+    "external link",
+    "open in new tab",
+    "open in new window"
+  ],
+  "icon-park:facial-mask": [
+    "face covering"
+  ],
+  "icon-park:factory-building": [
+    "industrial plant"
+  ],
+  "icon-park:fail-picture": [
+    "broken image"
+  ],
+  "icon-park:family": [
+    "family members"
+  ],
+  "icon-park:fan": [
+    "folding fan"
+  ],
+  "icon-park:feelgood-one": [
+    "chat bubble"
+  ],
+  "icon-park:feiyu": [
+    "fish"
+  ],
+  "icon-park:female": [
+    "female symbol"
+  ],
+  "icon-park:fence-one": [
+    "lattice fence"
+  ],
+  "icon-park:fence-two": [
+    "fence rails"
+  ],
+  "icon-park:ferris-wheel": [
+    "amusement ride"
+  ],
+  "icon-park:fingernail": [
+    "nail polish"
+  ],
+  "icon-park:fire": [
+    "flame"
+  ],
+  "icon-park:fireworks": [
+    "party popper"
+  ],
+  "icon-park:first-aid-kit": [
+    "medical kit"
+  ],
+  "icon-park:fishing": [
+    "angler"
+  ],
+  "icon-park:fist": [
+    "raised fist"
+  ],
+  "icon-park:fitness": [
+    "muscle"
+  ],
+  "icon-park:five-star-badge": [
+    "medal"
+  ],
+  "icon-park:flashlight": [
+    "torch"
+  ],
+  "icon-park:flask": [
+    "laboratory flask"
+  ],
+  "icon-park:flip-camera": [
+    "switch camera"
+  ],
+  "icon-park:float": [
+    "lifebuoy"
+  ],
+  "icon-park:floor-tile": [
+    "flooring"
+  ],
+  "icon-park:fm": [
+    "radio"
+  ],
+  "icon-park:focus": [
+    "focus target"
+  ],
+  "icon-park:focus-one": [
+    "crosshair"
+  ],
+  "icon-park:fog": [
+    "mist"
+  ],
+  "icon-park:folder-code": [
+    "source folder"
+  ],
+  "icon-park:fork": [
+    "branch"
+  ],
+  "icon-park:four-leaves": [
+    "four leaf clover"
+  ],
+  "icon-park:frowning-face-whit-open-mouth": [
+    "皱眉"
+  ],
+  "icon-park:game": [
+    "arcade"
+  ],
+  "icon-park:game-console-one": [
+    "handheld console"
+  ],
+  "icon-park:game-two": [
+    "directional pad"
+  ],
+  "icon-park:gamepad": [
+    "controller"
+  ],
+  "icon-park:garage": [
+    "garage door"
+  ],
+  "icon-park:gate": [
+    "entrance gate"
+  ],
+  "icon-park:gavel": [
+    "auction hammer"
+  ],
+  "icon-park:germs": [
+    "bacteria"
+  ],
+  "icon-park:glasses": [
+    "spectacles"
+  ],
+  "icon-park:go-start": [
+    "previous"
+  ],
+  "icon-park:golf-course": [
+    "golf green"
+  ],
+  "icon-park:gongfu": [
+    "martial arts"
+  ],
+  "icon-park:good": [
+    "thumbs up"
+  ],
+  "icon-park:great-wall": [
+    "fortification"
+  ],
+  "icon-park:guide-board": [
+    "signpost"
+  ],
+  "icon-park:hand-painted-plate": [
+    "graphics tablet"
+  ],
+  "icon-park:handbag": [
+    "purse"
+  ],
+  "icon-park:headset-two": [
+    "earbuds"
+  ],
+  "icon-park:headwear": [
+    "headband"
+  ],
+  "icon-park:heart": [
+    "heart hand gesture"
+  ],
+  "icon-park:heart-rate": [
+    "pulse"
+  ],
+  "icon-park:heartbeat": [
+    "ecg"
+  ],
+  "icon-park:heater-resistor": [
+    "heating coil"
+  ],
+  "icon-park:heavy-metal": [
+    "metal ingot"
+  ],
+  "icon-park:hexagonal": [
+    "hexagonal prism"
+  ],
+  "icon-park:high-heeled-shoes": [
+    "stiletto"
+  ],
+  "icon-park:high-light": [
+    "highlight marker"
+  ],
+  "icon-park:high-speed-rail": [
+    "bullet train"
+  ],
+  "icon-park:histogram": [
+    "bar chart"
+  ],
+  "icon-park:hockey": [
+    "ice hockey"
+  ],
+  "icon-park:honey": [
+    "honey dipper"
+  ],
+  "icon-park:infusion": [
+    "iv drip"
+  ],
+  "icon-park:injection": [
+    "syringe"
+  ],
+  "icon-park:intersection": [
+    "overlapping shapes"
+  ],
+  "icon-park:jump": [
+    "jumping person"
+  ],
+  "icon-park:kettle-one": [
+    "teapot"
+  ],
+  "icon-park:kitchen-knife": [
+    "cleaver"
+  ],
+  "icon-park:ladder-one": [
+    "step ladder"
+  ],
+  "icon-park:leaves": [
+    "foliage"
+  ],
+  "icon-park:left-and-right-branch": [
+    "branching arrows"
+  ],
+  "icon-park:light": [
+    "light rays"
+  ],
+  "icon-park:love-and-help": [
+    "heart care"
+  ],
+  "icon-park:magic-hat": [
+    "top hat"
+  ],
+  "icon-park:map-draw": [
+    "folded map"
+  ],
+  "icon-park:massage-table": [
+    "按摩床"
+  ],
+  "icon-park:maya": [
+    "mayan architecture"
+  ],
+  "icon-park:micro-slr-camera": [
+    "mirrorless camera"
+  ],
+  "icon-park:mirror-two": [
+    "floor mirror"
+  ],
+  "icon-park:monument-one": [
+    "obelisk"
+  ],
+  "icon-park:moon": [
+    "crescent moon"
+  ],
+  "icon-park:more": [
+    "ellipsis"
+  ],
+  "icon-park:mosaic": [
+    "checkerboard"
+  ],
+  "icon-park:movie": [
+    "film reel"
+  ],
+  "icon-park:movie-board": [
+    "movie slate"
+  ],
+  "icon-park:multi-circular": [
+    "concentric circles"
+  ],
+  "icon-park:multi-rectangle": [
+    "nested rectangles"
+  ],
+  "icon-park:multi-ring": [
+    "overlapping rings"
+  ],
+  "icon-park:muscle": [
+    "biceps"
+  ],
+  "icon-park:music-rhythm": [
+    "equalizer"
+  ],
+  "icon-park:mute": [
+    "muted speaker"
+  ],
+  "icon-park:needle": [
+    "injection needle"
+  ],
+  "icon-park:notepad": [
+    "clipboard"
+  ],
+  "icon-park:oil-industry": [
+    "oil barrel"
+  ],
+  "icon-park:one-third-rotation": [
+    "rotate 120 degrees"
+  ],
+  "icon-park:open": [
+    "open doors"
+  ],
+  "icon-park:oscillator": [
+    "oscilloscope"
+  ],
+  "icon-park:oval-love": [
+    "overlapping ovals"
+  ],
+  "icon-park:oven-tray": [
+    "baking tray"
+  ],
+  "icon-park:paper-ship": [
+    "paper boat"
+  ],
+  "icon-park:peach": [
+    "fruit"
+  ],
+  "icon-park:pear": [
+    "fruit"
+  ],
+  "icon-park:peas": [
+    "vegetable"
+  ],
+  "icon-park:pennant": [
+    "flag"
+  ],
+  "icon-park:pentagon-one": [
+    "polygon"
+  ],
+  "icon-park:people": [
+    "person",
+    "user"
+  ],
+  "icon-park:people-bottom-card": [
+    "id card"
+  ],
+  "icon-park:people-delete": [
+    "remove person"
+  ],
+  "icon-park:people-plus": [
+    "add user"
+  ],
+  "icon-park:people-safe": [
+    "user shield"
+  ],
+  "icon-park:people-search": [
+    "search user"
+  ],
+  "icon-park:peoples": [
+    "group",
+    "team"
+  ],
+  "icon-park:percentage": [
+    "percent sign"
+  ],
+  "icon-park:perfume": [
+    "perfume bottle"
+  ],
+  "icon-park:perfumer-bottle": [
+    "perfume bottle"
+  ],
+  "icon-park:perspective": [
+    "perspective grid"
+  ],
+  "icon-park:pesticide": [
+    "insecticide"
+  ],
+  "icon-park:petrol": [
+    "gasoline"
+  ],
+  "icon-park:phone": [
+    "mobile phone"
+  ],
+  "icon-park:phone-booth": [
+    "telephone booth"
+  ],
+  "icon-park:phone-incoming": [
+    "incoming call"
+  ],
+  "icon-park:phone-missed": [
+    "missed call"
+  ],
+  "icon-park:phone-outgoing": [
+    "outgoing call"
+  ],
+  "icon-park:phone-video-call": [
+    "video call"
+  ],
+  "icon-park:phonograph": [
+    "gramophone"
+  ],
+  "icon-park:piano": [
+    "keyboard instrument"
+  ],
+  "icon-park:pic": [
+    "image",
+    "photo"
+  ],
+  "icon-park:picture-album": [
+    "photo album"
+  ],
+  "icon-park:pie": [
+    "pie chart"
+  ],
+  "icon-park:pigeon": [
+    "bird"
+  ],
+  "icon-park:pill": [
+    "medicine",
+    "tablet"
+  ],
+  "icon-park:pin": [
+    "thumbtack"
+  ],
+  "icon-park:pineapple": [
+    "fruit"
+  ],
+  "icon-park:pinwheel": [
+    "paper pinwheel"
+  ],
+  "icon-park:planet": [
+    "globe"
+  ],
+  "icon-park:platte": [
+    "paint palette"
+  ],
+  "icon-park:play": [
+    "play button"
+  ],
+  "icon-park:play-cycle": [
+    "repeat"
+  ],
+  "icon-park:play-two": [
+    "video player"
+  ],
+  "icon-park:play-wrong": [
+    "playback error"
+  ],
+  "icon-park:playback-progress": [
+    "progress bar"
+  ],
+  "icon-park:plug": [
+    "power plug"
+  ],
+  "icon-park:plug-one": [
+    "charger"
+  ],
+  "icon-park:point": [
+    "pointing finger"
+  ],
+  "icon-park:pokeball-one": [
+    "poké ball"
+  ],
+  "icon-park:pot": [
+    "saucepan"
+  ],
+  "icon-park:power": [
+    "power button"
+  ],
+  "icon-park:press": [
+    "tap"
+  ],
+  "icon-park:preview-close": [
+    "hide"
+  ],
+  "icon-park:preview-open": [
+    "visible"
+  ],
+  "icon-park:projector": [
+    "slide projector"
+  ],
+  "icon-park:projector-one": [
+    "film projector"
+  ],
+  "icon-park:projector-two": [
+    "projector screen"
+  ],
+  "icon-park:protect": [
+    "shield"
+  ],
+  "icon-park:protection": [
+    "umbrella"
+  ],
+  "icon-park:public-toilet": [
+    "toilet"
+  ],
+  "icon-park:pull-door": [
+    "open door"
+  ],
+  "icon-park:puzzle": [
+    "puzzle piece"
+  ],
+  "icon-park:quadrangular-pyramid": [
+    "square pyramid"
+  ],
+  "icon-park:quadrilateral": [
+    "four sided polygon"
+  ],
+  "icon-park:quote": [
+    "quotation marks"
+  ],
+  "icon-park:rabbit": [
+    "bunny"
+  ],
+  "icon-park:radar": [
+    "radar scan"
+  ],
+  "icon-park:radar-chart": [
+    "spider chart"
+  ],
+  "icon-park:radish": [
+    "root vegetable"
+  ],
+  "icon-park:rattle": [
+    "baby rattle"
+  ],
+  "icon-park:read-book": [
+    "reading"
+  ],
+  "icon-park:receiver": [
+    "signal receiver"
+  ],
+  "icon-park:recycle-bin": [
+    "trash can"
+  ],
+  "icon-park:recycling": [
+    "recycling symbol"
+  ],
+  "icon-park:red-cross": [
+    "first aid"
+  ],
+  "icon-park:reduce": [
+    "subtract"
+  ],
+  "icon-park:reduce-two": [
+    "minimize"
+  ],
+  "icon-park:reduce-user": [
+    "remove user"
+  ],
+  "icon-park:reel": [
+    "thread spool"
+  ],
+  "icon-park:refresh": [
+    "reload"
+  ],
+  "icon-park:relieved-face": [
+    "smiling face"
+  ],
+  "icon-park:remind": [
+    "notification"
+  ],
+  "icon-park:repair": [
+    "pencil"
+  ],
+  "icon-park:replay-five": [
+    "replay"
+  ],
+  "icon-park:resting": [
+    "beach chair"
+  ],
+  "icon-park:retro-bag": [
+    "handbag"
+  ],
+  "icon-park:return": [
+    "undo"
+  ],
+  "icon-park:reverse-lens": [
+    "switch camera"
+  ],
+  "icon-park:reverse-rotation": [
+    "counterclockwise",
+    "rotate left"
+  ],
+  "icon-park:riding": [
+    "cycling"
+  ],
+  "icon-park:riding-one": [
+    "horseback riding"
+  ],
+  "icon-park:right-angle": [
+    "90 degree angle"
+  ],
+  "icon-park:right-c": [
+    "right circular arrow"
+  ],
+  "icon-park:rings": [
+    "gymnastics rings"
+  ],
+  "icon-park:ripple": [
+    "water ripple"
+  ],
+  "icon-park:road-cone": [
+    "traffic cone"
+  ],
+  "icon-park:road-one": [
+    "roadway"
+  ],
+  "icon-park:robot-two": [
+    "industrial robot"
+  ],
+  "icon-park:rock": [
+    "rock hand sign"
+  ],
+  "icon-park:rocking-horse": [
+    "toy horse"
+  ],
+  "icon-park:rollerskates": [
+    "roller skates"
+  ],
+  "icon-park:romper": [
+    "baby romper"
+  ],
+  "icon-park:rotate": [
+    "turn"
+  ],
+  "icon-park:rotating-forward": [
+    "clockwise",
+    "clockwise rotation"
+  ],
+  "icon-park:rotation": [
+    "loading spinner"
+  ],
+  "icon-park:rotation-horizontal": [
+    "horizontal flip"
+  ],
+  "icon-park:rotation-vertical": [
+    "vertical flip"
+  ],
+  "icon-park:round": [
+    "circle"
+  ],
+  "icon-park:round-caliper": [
+    "caliper"
+  ],
+  "icon-park:round-distortion": [
+    "swirl"
+  ],
+  "icon-park:round-socket": [
+    "power socket"
+  ],
+  "icon-park:router": [
+    "network router"
+  ],
+  "icon-park:router-one": [
+    "wi fi router"
+  ],
+  "icon-park:rowing": [
+    "rowboat"
+  ],
+  "icon-park:rss": [
+    "rss feed"
+  ],
+  "icon-park:rugby": [
+    "rugby ball"
+  ],
+  "icon-park:sailboat-one": [
+    "sailboat"
+  ],
+  "icon-park:sales-report": [
+    "sales chart"
+  ],
+  "icon-park:sandals": [
+    "flip flops"
+  ],
+  "icon-park:sandstorm": [
+    "dust storm"
+  ],
+  "icon-park:sapling": [
+    "seedling"
+  ],
+  "icon-park:save": [
+    "save file"
+  ],
+  "icon-park:scallion": [
+    "green onion"
+  ],
+  "icon-park:scan-code": [
+    "qr code"
+  ],
+  "icon-park:school": [
+    "school building"
+  ],
+  "icon-park:scissors": [
+    "shears"
+  ],
+  "icon-park:screen-rotation": [
+    "rotate screen"
+  ],
+  "icon-park:screenshot": [
+    "screen capture"
+  ],
+  "icon-park:sd": [
+    "memory card"
+  ],
+  "icon-park:seal": [
+    "rubber stamp"
+  ],
+  "icon-park:seat": [
+    "wheelchair"
+  ],
+  "icon-park:selfie": [
+    "selfie stick"
+  ],
+  "icon-park:send": [
+    "paper airplane"
+  ],
+  "icon-park:send-email": [
+    "email"
+  ],
+  "icon-park:server": [
+    "server rack"
+  ],
+  "icon-park:setting": [
+    "gear"
+  ],
+  "icon-park:setting-computer": [
+    "computer settings"
+  ],
+  "icon-park:setting-laptop": [
+    "laptop settings"
+  ],
+  "icon-park:shade": [
+    "parasol"
+  ],
+  "icon-park:shaver": [
+    "electric shaver"
+  ],
+  "icon-park:shaving": [
+    "shaving cream"
+  ],
+  "icon-park:shield": [
+    "security shield"
+  ],
+  "icon-park:ship": [
+    "boat"
+  ],
+  "icon-park:shop": [
+    "storefront"
+  ],
+  "icon-park:shopping": [
+    "shopping cart"
+  ],
+  "icon-park:shopping-bag": [
+    "tote bag"
+  ],
+  "icon-park:shopping-cart": [
+    "cart"
+  ],
+  "icon-park:shopping-cart-add": [
+    "add to cart"
+  ],
+  "icon-park:shopping-cart-del": [
+    "remove from cart"
+  ],
+  "icon-park:shopping-mall": [
+    "shopping center"
+  ],
+  "icon-park:short-skirt": [
+    "skirt"
+  ],
+  "icon-park:shorts": [
+    "short pants"
+  ],
+  "icon-park:shoulder-bag": [
+    "purse"
+  ],
+  "icon-park:shovel": [
+    "spatula"
+  ],
+  "icon-park:shower-head": [
+    "showerhead"
+  ],
+  "icon-park:shrimp": [
+    "prawn"
+  ],
+  "icon-park:shuffle": [
+    "randomize"
+  ],
+  "icon-park:shutter-priority": [
+    "shutter speed"
+  ],
+  "icon-park:sickbed": [
+    "hospital bed"
+  ],
+  "icon-park:signal-strength": [
+    "signal bars"
+  ],
+  "icon-park:signal-tower": [
+    "cell tower"
+  ],
+  "icon-park:sim": [
+    "sim card"
+  ],
+  "icon-park:sinusoid": [
+    "sine wave"
+  ],
+  "icon-park:sippy-cup": [
+    "baby cup"
+  ],
+  "icon-park:skate": [
+    "skateboard"
+  ],
+  "icon-park:skates": [
+    "ice skate"
+  ],
+  "icon-park:skating": [
+    "ice skating"
+  ],
+  "icon-park:skiing-nordic": [
+    "cross country skiing"
+  ],
+  "icon-park:skull": [
+    "skeleton"
+  ],
+  "icon-park:sleaves": [
+    "leaf"
+  ],
+  "icon-park:sleep": [
+    "sleeping"
+  ],
+  "icon-park:slide": [
+    "presentation slide"
+  ],
+  "icon-park:slightly-frowning-face-whit-open-mouth": [
+    "sad face"
+  ],
+  "icon-park:slightly-smiling-face": [
+    "smile"
+  ],
+  "icon-park:slippers": [
+    "house slippers"
+  ],
+  "icon-park:smiling-face": [
+    "happy face"
+  ],
+  "icon-park:snacks": [
+    "snack food"
+  ],
+  "icon-park:snow": [
+    "snowfall"
+  ],
+  "icon-park:snowflake": [
+    "frost"
+  ],
+  "icon-park:soap-bubble": [
+    "soap foam"
+  ],
+  "icon-park:soccer": [
+    "soccer ball"
+  ],
+  "icon-park:socks": [
+    "sock"
+  ],
+  "icon-park:sofa": [
+    "couch"
+  ],
+  "icon-park:softball": [
+    "baseball"
+  ],
+  "icon-park:solar-energy": [
+    "solar power"
+  ],
+  "icon-park:solid-state-disk": [
+    "solid state drive"
+  ],
+  "icon-park:sorcerer-hat": [
+    "wizard hat"
+  ],
+  "icon-park:sound": [
+    "speaker"
+  ],
+  "icon-park:sound-wave": [
+    "audio waveform"
+  ],
+  "icon-park:spanner": [
+    "wrench"
+  ],
+  "icon-park:speed": [
+    "speedometer"
+  ],
+  "icon-park:sperm": [
+    "sperm cell"
+  ],
+  "icon-park:spikedshoes": [
+    "track spikes"
+  ],
+  "icon-park:sport": [
+    "exercise"
+  ],
+  "icon-park:ssd": [
+    "solid state drive"
+  ],
+  "icon-park:stack-light": [
+    "warning light"
+  ],
+  "icon-park:stamp": [
+    "postage stamp"
+  ],
+  "icon-park:star": [
+    "favorite",
+    "rating star"
+  ],
+  "icon-park:steering-wheel": [
+    "car steering wheel"
+  ],
+  "icon-park:stereo-one": [
+    "stereo speaker"
+  ],
+  "icon-park:stethoscope": [
+    "medical stethoscope"
+  ],
+  "icon-park:stickers": [
+    "sticker"
+  ],
+  "icon-park:stock-market": [
+    "stock chart"
+  ],
+  "icon-park:stopwatch": [
+    "timer"
+  ],
+  "icon-park:stopwatch-start": [
+    "countdown timer"
+  ],
+  "icon-park:storage-card-one": [
+    "memory card"
+  ],
+  "icon-park:straight-razor": [
+    "cutthroat razor"
+  ],
+  "icon-park:straw-hat": [
+    "sun hat"
+  ],
+  "icon-park:stretching-one": [
+    "stretch"
+  ],
+  "icon-park:strikethrough": [
+    "crossed out text"
+  ],
+  "icon-park:strongbox": [
+    "safe",
+    "vault"
+  ],
+  "icon-park:subway": [
+    "metro"
+  ],
+  "icon-park:success": [
+    "checkmark"
+  ],
+  "icon-park:sun": [
+    "sunshine"
+  ],
+  "icon-park:sunbath": [
+    "sunbathing"
+  ],
+  "icon-park:sunny": [
+    "sunny day"
+  ],
+  "icon-park:sunrise": [
+    "dawn"
+  ],
+  "icon-park:sunset": [
+    "dusk"
+  ],
+  "icon-park:sunshade": [
+    "awning"
+  ],
+  "icon-park:surprised-face-with-open-big-mouth": [
+    "shocked face"
+  ],
+  "icon-park:surveillance-cameras": [
+    "security camera"
+  ],
+  "icon-park:sweater": [
+    "jumper"
+  ],
+  "icon-park:swimming-pool": [
+    "pool"
+  ],
+  "icon-park:swimming-ring": [
+    "life ring"
+  ],
+  "icon-park:swimsuit": [
+    "swimwear"
+  ],
+  "icon-park:swing": [
+    "waving hand"
+  ],
+  "icon-park:swipe": [
+    "card swipe"
+  ],
+  "icon-park:switch": [
+    "toggle"
+  ],
+  "icon-park:switch-button": [
+    "toggle switch"
+  ],
+  "icon-park:switch-nintendo": [
+    "game console"
+  ],
+  "icon-park:switch-track": [
+    "rail switch"
+  ],
+  "icon-park:symmetry": [
+    "mirror symmetry"
+  ],
+  "icon-park:system": [
+    "app menu"
+  ],
+  "icon-park:t-shirt": [
+    "shirt"
+  ],
+  "icon-park:table": [
+    "spreadsheet"
+  ],
+  "icon-park:table-file": [
+    "data table"
+  ],
+  "icon-park:table-lamp": [
+    "desk lamp"
+  ],
+  "icon-park:tabletennis": [
+    "ping pong"
+  ],
+  "icon-park:tag-one": [
+    "price tag"
+  ],
+  "icon-park:tailoring": [
+    "crop tool"
+  ],
+  "icon-park:take-off": [
+    "airplane takeoff"
+  ],
+  "icon-park:tape": [
+    "cassette tape"
+  ],
+  "icon-park:tape-measure": [
+    "measuring tape"
+  ],
+  "icon-park:target": [
+    "bullseye"
+  ],
+  "icon-park:target-one": [
+    "archery target"
+  ],
+  "icon-park:taxi": [
+    "taxicab"
+  ],
+  "icon-park:tea": [
+    "tea cup"
+  ],
+  "icon-park:teapot": [
+    "kettle"
+  ],
+  "icon-park:teeth": [
+    "tooth"
+  ],
+  "icon-park:telescope": [
+    "spyglass"
+  ],
+  "icon-park:tennis": [
+    "tennis ball"
+  ],
+  "icon-park:tent": [
+    "camping tent"
+  ],
+  "icon-park:terminal": [
+    "command line"
+  ],
+  "icon-park:terrace": [
+    "balcony"
+  ],
+  "icon-park:text-bold": [
+    "bold text"
+  ],
+  "icon-park:text-italic": [
+    "italic text"
+  ],
+  "icon-park:text-message": [
+    "sms"
+  ],
+  "icon-park:text-recognition": [
+    "ocr"
+  ],
+  "icon-park:text-rotation-down": [
+    "rotate text down"
+  ],
+  "icon-park:text-style": [
+    "text formatting"
+  ],
+  "icon-park:text-underline": [
+    "underline text"
+  ],
+  "icon-park:text-wrap-truncation": [
+    "ellipsis"
+  ],
+  "icon-park:textarea": [
+    "text field"
+  ],
+  "icon-park:texture": [
+    "pattern"
+  ],
+  "icon-park:theater": [
+    "movie theater"
+  ],
+  "icon-park:thermometer": [
+    "temperature gauge"
+  ],
+  "icon-park:thermos-cup": [
+    "travel mug"
+  ],
+  "icon-park:three-d-glasses": [
+    "stereoscopic glasses"
+  ],
+  "icon-park:three-hexagons": [
+    "hexagon cluster"
+  ],
+  "icon-park:thumbs-down": [
+    "downvote"
+  ],
+  "icon-park:thumbs-up": [
+    "upvote"
+  ],
+  "icon-park:thunderbolt": [
+    "thunderbolt port"
+  ],
+  "icon-park:thunderstorm": [
+    "lightning storm"
+  ],
+  "icon-park:ticket": [
+    "admission ticket"
+  ],
+  "icon-park:tickets-one": [
+    "boarding pass"
+  ],
+  "icon-park:time": [
+    "clock"
+  ],
+  "icon-park:timed-mail": [
+    "scheduled email"
+  ],
+  "icon-park:timeline": [
+    "timeline chart"
+  ],
+  "icon-park:timer": [
+    "countdown timer"
+  ],
+  "icon-park:tips": [
+    "light bulb"
+  ],
+  "icon-park:title-level": [
+    "heading level"
+  ],
+  "icon-park:to-left": [
+    "align left"
+  ],
+  "icon-park:to-right": [
+    "align right"
+  ],
+  "icon-park:toilet": [
+    "lavatory"
+  ],
+  "icon-park:tool": [
+    "wrench"
+  ],
+  "icon-park:toolkit": [
+    "toolbox"
+  ],
+  "icon-park:torch": [
+    "flame"
+  ],
+  "icon-park:tour-bus": [
+    "tourist bus"
+  ],
+  "icon-park:towel": [
+    "bath towel"
+  ],
+  "icon-park:tower-of-pisa": [
+    "leaning tower of pisa"
+  ],
+  "icon-park:toxins": [
+    "poison"
+  ],
+  "icon-park:trademark": [
+    "tm symbol"
+  ],
+  "icon-park:traditional-chinese-medicine": [
+    "herbal medicine"
+  ],
+  "icon-park:train": [
+    "railway train"
+  ],
+  "icon-park:transfer": [
+    "connecting flight"
+  ],
+  "icon-park:transfer-data": [
+    "data transfer"
+  ],
+  "icon-park:transform": [
+    "convert"
+  ],
+  "icon-park:translate": [
+    "language translation"
+  ],
+  "icon-park:transporter": [
+    "delivery truck"
+  ],
+  "icon-park:tray": [
+    "serving tray"
+  ],
+  "icon-park:treadmill": [
+    "running machine"
+  ],
+  "icon-park:treasure-chest": [
+    "treasure box"
+  ],
+  "icon-park:tree": [
+    "plant"
+  ],
+  "icon-park:tree-diagram": [
+    "organizational chart"
+  ],
+  "icon-park:tree-list": [
+    "tree view"
+  ],
+  "icon-park:trend": [
+    "growth trend"
+  ],
+  "icon-park:trending-down": [
+    "downtrend"
+  ],
+  "icon-park:trending-up": [
+    "uptrend"
+  ],
+  "icon-park:triangle-ruler": [
+    "set square"
+  ],
+  "icon-park:triangular-pyramid": [
+    "tetrahedron"
+  ],
+  "icon-park:trophy": [
+    "award trophy"
+  ],
+  "icon-park:trousers-bell-bottoms": [
+    "bell bottoms"
+  ],
+  "icon-park:truck": [
+    "pickup truck"
+  ],
+  "icon-park:trumpet": [
+    "horn instrument"
+  ],
+  "icon-park:trunk": [
+    "suitcase"
+  ],
+  "icon-park:tub": [
+    "bathtub"
+  ],
+  "icon-park:turkey": [
+    "poultry"
+  ],
+  "icon-park:turn-off-bluetooth": [
+    "bluetooth off"
+  ],
+  "icon-park:tv": [
+    "television"
+  ],
+  "icon-park:two": [
+    "peace sign"
+  ],
+  "icon-park:two-dimensional-code": [
+    "qr code"
+  ],
+  "icon-park:two-fingers": [
+    "two finger gesture"
+  ],
+  "icon-park:two-hands": [
+    "cupped hands"
+  ],
+  "icon-park:type-drive": [
+    "cassette tape"
+  ],
+  "icon-park:u-disk": [
+    "usb flash drive"
+  ],
+  "icon-park:u-turn-down": [
+    "u turn"
+  ],
+  "icon-park:umbrella": [
+    "parasol"
+  ],
+  "icon-park:undo": [
+    "back"
+  ],
+  "icon-park:unlock": [
+    "open lock"
+  ],
+  "icon-park:unordered-list": [
+    "bullet list"
+  ],
+  "icon-park:up-and-down": [
+    "stairs"
+  ],
+  "icon-park:update-rotation": [
+    "refresh"
+  ],
+  "icon-park:upload-computer": [
+    "upload from computer"
+  ],
+  "icon-park:upload-one": [
+    "cloud upload"
+  ],
+  "icon-park:upload-picture": [
+    "image upload"
+  ],
+  "icon-park:usb": [
+    "usb port"
+  ],
+  "icon-park:usb-memory-stick": [
+    "usb flash drive"
+  ],
+  "icon-park:usb-micro-one": [
+    "micro usb"
+  ],
+  "icon-park:usb-type-c": [
+    "usb c"
+  ],
+  "icon-park:user": [
+    "profile"
+  ],
+  "icon-park:user-business": [
+    "business person"
+  ],
+  "icon-park:uterus": [
+    "womb"
+  ],
+  "icon-park:vacuum-cleaner": [
+    "hoover"
+  ],
+  "icon-park:vegetable-basket": [
+    "produce basket"
+  ],
+  "icon-park:vegetables": [
+    "leafy greens"
+  ],
+  "icon-park:vest": [
+    "waistcoat"
+  ],
+  "icon-park:vial": [
+    "sample vial"
+  ],
+  "icon-park:vicia-faba": [
+    "fava bean"
+  ],
+  "icon-park:video": [
+    "movie"
+  ],
+  "icon-park:video-conference": [
+    "video meeting"
+  ],
+  "icon-park:video-file": [
+    "movie file"
+  ],
+  "icon-park:video-one": [
+    "video camera"
+  ],
+  "icon-park:videocamera": [
+    "camcorder"
+  ],
+  "icon-park:viencharts": [
+    "venn diagram"
+  ],
+  "icon-park:view-list": [
+    "list view"
+  ],
+  "icon-park:viewfinder": [
+    "camera viewfinder"
+  ],
+  "icon-park:virtual-reality-glasses": [
+    "vr headset"
+  ],
+  "icon-park:voice": [
+    "microphone"
+  ],
+  "icon-park:voice-input": [
+    "speech to text"
+  ],
+  "icon-park:voice-message": [
+    "voice note"
+  ],
+  "icon-park:voice-off": [
+    "mute microphone"
+  ],
+  "icon-park:voicemail": [
+    "voice mail"
+  ],
+  "icon-park:volume-down": [
+    "decrease volume"
+  ],
+  "icon-park:volume-mute": [
+    "mute speaker"
+  ],
+  "icon-park:volume-up": [
+    "increase volume"
+  ],
+  "icon-park:vr-glasses": [
+    "vr headset"
+  ],
+  "icon-park:waistline": [
+    "waist measurement"
+  ],
+  "icon-park:wallet": [
+    "billfold"
+  ],
+  "icon-park:wallet-one": [
+    "card holder"
+  ],
+  "icon-park:washing-machine": [
+    "washer"
+  ],
+  "icon-park:watch": [
+    "wristwatch"
+  ],
+  "icon-park:water": [
+    "water drop"
+  ],
+  "icon-park:water-level": [
+    "water gauge"
+  ],
+  "icon-park:water-no": [
+    "water shortage"
+  ],
+  "icon-park:water-rate": [
+    "water bill"
+  ],
+  "icon-park:watermelon": [
+    "melon"
+  ],
+  "icon-park:waterpolo": [
+    "water polo ball"
+  ],
+  "icon-park:waves": [
+    "heartbeat"
+  ],
+  "icon-park:web-page": [
+    "browser page"
+  ],
+  "icon-park:webcam": [
+    "web camera"
+  ],
+  "icon-park:weight": [
+    "weighing scale"
+  ],
+  "icon-park:weightlifting": [
+    "barbell"
+  ],
+  "icon-park:wheelchair": [
+    "accessibility"
+  ],
+  "icon-park:whirlwind": [
+    "vortex"
+  ],
+  "icon-park:whistling": [
+    "whistle"
+  ],
+  "icon-park:wifi": [
+    "wireless network"
+  ],
+  "icon-park:wind": [
+    "breeze"
+  ],
+  "icon-park:wind-turbine": [
+    "wind generator"
+  ],
+  "icon-park:windmill-one": [
+    "wind turbine"
+  ],
+  "icon-park:wingsuit-flying": [
+    "wingsuit"
+  ],
+  "icon-park:winking-face": [
+    "wink"
+  ],
+  "icon-park:woman": [
+    "female"
+  ],
+  "icon-park:women-coat": [
+    "overcoat"
+  ],
+  "icon-park:woolen-hat": [
+    "beanie"
+  ],
+  "icon-park:word": [
+    "text document"
+  ],
+  "icon-park:workbench": [
+    "work table"
+  ],
+  "icon-park:worker": [
+    "laborer"
+  ],
+  "icon-park:world": [
+    "world map"
+  ],
+  "icon-park:write": [
+    "pen writing"
+  ],
+  "icon-park:writing-fluently": [
+    "handwriting"
+  ],
+  "icon-park:yep": [
+    "victory sign"
+  ],
+  "icon-park:zero-key": [
+    "number 0 key"
+  ],
+  "icon-park:zip": [
+    "archive file"
+  ],
+  "icon-park:zoom": [
+    "zoom gesture"
+  ],
+  "icon-park:zoom-in": [
+    "magnify"
+  ],
+  "icon-park:zoom-out": [
+    "magnify out"
+  ]
+}

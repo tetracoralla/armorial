@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useMessages } from "../messages.js";
 import { SafeColorSchema } from "../../core/contracts.js";
 
 type HslColor = {
@@ -121,6 +122,7 @@ export function AppearanceColorField({ slot, label, value, onCommit }: Props) {
     if (restoreFocus) window.requestAnimationFrame(() => trigger.current?.focus());
   };
 
+  const { t } = useMessages();
   const editorHex = hslToHex(editor);
   const editorDirty = editorHex !== seedHex.current;
   const swatchStyle = { "--swatch-color": swatchValue(draft) } as CSSProperties;
@@ -133,7 +135,7 @@ export function AppearanceColorField({ slot, label, value, onCommit }: Props) {
           ref={trigger}
           className="appearance-color-swatch"
           type="button"
-          aria-label={`Edit ${label} color`}
+          aria-label={t("editColor", { slot: label })}
           aria-expanded={open}
           aria-controls={editorId}
           style={swatchStyle}
@@ -172,7 +174,7 @@ export function AppearanceColorField({ slot, label, value, onCommit }: Props) {
           id={editorId}
           className="appearance-color-editor"
           role="region"
-          aria-label={`${label} color editor`}
+          aria-label={t("colorEditor", { slot: label })}
           onKeyDown={(event) => {
             if (event.key === "Escape") closeEditor(true);
           }}
@@ -180,48 +182,48 @@ export function AppearanceColorField({ slot, label, value, onCommit }: Props) {
           <header>
             <span className="color-editor-preview" style={{ backgroundColor: editorHex }} aria-hidden="true" />
             <strong>{editorHex}</strong>
-            <button type="button" onClick={() => closeEditor(true)}>Close</button>
+            <button type="button" onClick={() => closeEditor(true)}>{t("close")}</button>
           </header>
           <label>
-            <span>Hue <output>{Math.round(editor.hue)}°</output></span>
+            <span>{t("hueLabel")} <output>{Math.round(editor.hue)}°</output></span>
             <input
               className="hue-range"
               type="range"
               min={0}
               max={359}
               value={editor.hue}
-              aria-label={`${label} hue`}
+              aria-label={t("hue", { slot: label })}
               onChange={(event) => setEditor((current) => ({ ...current, hue: Number(event.target.value) }))}
             />
           </label>
           <label>
-            <span>Saturation <output>{Math.round(editor.saturation)}%</output></span>
+            <span>{t("saturationLabel")} <output>{Math.round(editor.saturation)}%</output></span>
             <input
               type="range"
               min={0}
               max={100}
               value={editor.saturation}
-              aria-label={`${label} saturation`}
+              aria-label={t("saturation", { slot: label })}
               onChange={(event) => setEditor((current) => ({ ...current, saturation: Number(event.target.value) }))}
             />
           </label>
           <label>
-            <span>Lightness <output>{Math.round(editor.lightness)}%</output></span>
+            <span>{t("lightnessLabel")} <output>{Math.round(editor.lightness)}%</output></span>
             <input
               type="range"
               min={0}
               max={100}
               value={editor.lightness}
-              aria-label={`${label} lightness`}
+              aria-label={t("lightness", { slot: label })}
               onChange={(event) => setEditor((current) => ({ ...current, lightness: Number(event.target.value) }))}
             />
           </label>
-          <div className="color-presets" aria-label="Color presets">
+          <div className="color-presets" aria-label={t("colorPresets")}>
             {COLOR_PRESETS.map((preset) => (
               <button
                 key={preset}
                 type="button"
-                aria-label={`Use ${preset}`}
+                aria-label={t("usePreset", { preset })}
                 title={preset}
                 style={{ backgroundColor: preset }}
                 onClick={() => setEditor(hexToHsl(preset))}

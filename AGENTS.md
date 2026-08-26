@@ -1,5 +1,10 @@
 # Armorial repository contract
 
+Before any review, read `docs/REVIEW_CONTRACT.md`. A plain owner request to
+review, audit, 审核, or 复核 invokes that contract end to end; treat it as the
+minimum scope and report `tools-dev workspace escalations` without asking the
+owner for another checklist.
+
 This repository owns a design-system-aware icon selection kernel. Current source and executable contracts outrank generated examples or prior reports.
 
 ## Product boundary
