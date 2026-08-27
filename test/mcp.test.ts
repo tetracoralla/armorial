@@ -72,7 +72,20 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
     assert.deepEqual((browseTool?._meta?.ui as { visibility?: string[] } | undefined)?.visibility, ["app"]);
     assert.deepEqual(browseTool?.inputSchema.additionalProperties, {});
     assert.deepEqual(browseTool?.inputSchema.properties, {});
-    assert.equal(browseTool?.outputSchema, undefined, "app-only catalog output must not inflate model listings");
+    const browseOutputJson = JSON.stringify(browseTool?.outputSchema);
+    assert.match(
+      browseOutputJson,
+      /"status"/,
+      "app-only tool must publish the typed status entry Codex requires for installation",
+    );
+    assert.ok(
+      !/icons|page|render/.test(browseOutputJson),
+      "app-only catalog output must stay a compact status entry, not the full picker contract",
+    );
+    assert.ok(
+      browseOutputJson.length <= 512,
+      `app-only catalog entry is ${browseOutputJson.length} bytes; keep it compact`,
+    );
 
     const resources = await client.listResources();
     assert.equal(resources.resources.some((resource) => resource.uri === ICON_PICKER_RESOURCE_URI), true);

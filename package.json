@@ -69,6 +69,8 @@
     "prepack": "npm run build",
     "plugin:stage": "node --import tsx scripts/stage-plugin.ts",
     "plugin:check": "npm run plugin:stage && node --import tsx scripts/probe-staged-plugin.ts",
+    "release:plugin": "node --import tsx scripts/build-codex-plugin-release.ts",
+    "release:plugin:check": "npm run release:plugin && node --import tsx scripts/probe-codex-plugin-release.ts",
     "start:mcp": "node dist/adapters/mcp.js",
     "start:ui": "node dist/adapters/web-server.js",
     "ui:e2e": "npm run build && playwright test"
