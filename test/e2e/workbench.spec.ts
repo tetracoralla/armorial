@@ -286,6 +286,12 @@ test("load more during a pending appearance change keeps pages consistent", asyn
   await page.clock.fastForward(200);
   await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
 
+  // `clock.install()` starts with time flowing normally. Pause only after the
+  // initial catalog has loaded so runner speed cannot consume the debounce
+  // window between the appearance edit and the pagination click.
+  const pausedAt = await page.evaluate(() => Date.now() + 50);
+  await page.clock.pauseAt(pausedAt);
+
   const size = page.getByLabel("Size value", { exact: true });
   await size.fill("48");
   await size.press("Enter");
