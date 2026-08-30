@@ -9,6 +9,11 @@ import {
 export const FigmaLayerStructureSchema = z.enum(["preserve", "flatten", "union"]);
 export const FigmaLayerNameSchema = z.enum(["icon-name", "Vector", "Union"]);
 
+// Mirrors the LocalePreference union in src/ui/i18n.ts; i18n.test.ts locks the
+// two definitions together so they cannot drift.
+export const FigmaLocalePreferenceSchema = z.enum(["system", "en", "zh-CN"]);
+export type FigmaLocalePreference = z.infer<typeof FigmaLocalePreferenceSchema>;
+
 export const FigmaInsertSettingsSchema = z.strictObject({
   createComponent: z.boolean(),
   outlineStroke: z.boolean(),
@@ -60,6 +65,7 @@ export const FigmaUiMessageSchema = z.union([
   z.strictObject({ type: z.literal("request-state") }),
   z.strictObject({ type: z.literal("save-settings"), settings: FigmaInsertSettingsSchema }),
   z.strictObject({ type: z.literal("save-render"), render: RenderStyleOverrideSchema.nullable() }),
+  z.strictObject({ type: z.literal("save-locale"), locale: FigmaLocalePreferenceSchema }),
   z.strictObject({ type: z.literal("resize-ui"), mode: z.enum(["full", "compact"]) }),
   FigmaInsertRequestSchema,
 ]);
@@ -89,6 +95,7 @@ export const FigmaMainMessageSchema = z.union([
     type: z.literal("state"),
     settings: FigmaInsertSettingsSchema,
     render: RenderStyleOverrideSchema.nullable(),
+    locale: FigmaLocalePreferenceSchema,
     pageName: z.string(),
   }),
   z.strictObject({ type: z.literal("insert-result"), receipt: FigmaInsertionReceiptSchema }),

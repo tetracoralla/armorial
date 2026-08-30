@@ -12,7 +12,11 @@ const workspace = resolve(import.meta.dirname, "..");
 const pluginDirectory = realpathSync(resolve(
   process.env.ICON_SVG_SELECT_PLUGIN_DIRECTORY ?? join(workspace, "plugins", "armorial"),
 ));
-const packageJson = JSON.parse(readFileSync(join(pluginDirectory, "package.json"), "utf8")) as { version: string };
+const packageJson = JSON.parse(readFileSync(join(pluginDirectory, "package.json"), "utf8")) as {
+  version: string;
+  author?: string;
+  license?: string;
+};
 const manifest = JSON.parse(readFileSync(join(pluginDirectory, ".codex-plugin", "plugin.json"), "utf8")) as {
   version: string;
 };
@@ -27,12 +31,80 @@ assert.deepEqual(mcpConfig.mcpServers.icon_svg_select.env_vars, ["ICON_SVG_SELEC
 assert.equal(existsSync(join(pluginDirectory, ".armorial-generated")), true);
 assert.equal(existsSync(join(pluginDirectory, "package-lock.json")), false);
 assert.equal(existsSync(join(pluginDirectory, "node_modules", "typescript")), false);
+assert.equal(packageJson.author, "openAdam");
+assert.equal(packageJson.license, "Apache-2.0");
+for (const fileName of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "figma-plugin/THIRD_PARTY_NOTICES.txt"]) {
+  assert.equal(existsSync(join(pluginDirectory, fileName)), true, `${fileName} must ship in the staged package`);
+}
+const rootNotices = readFileSync(join(pluginDirectory, "THIRD_PARTY_NOTICES.md"), "utf8");
+const figmaNotices = readFileSync(join(pluginDirectory, "figma-plugin/THIRD_PARTY_NOTICES.txt"), "utf8");
+for (const dependency of [
+  "@icon-park/svg@1.4.2",
+  "@modelcontextprotocol/ext-apps@1.7.5",
+  "@modelcontextprotocol/sdk@1.30.0",
+  "@noble/hashes@2.3.0",
+  "zod-to-json-schema@3.25.2",
+]) {
+  assert.match(rootNotices, new RegExp(`^## ${dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+}
+// The Figma distribution's notices stay exact to its two bundles: everything
+// the plugin embeds is attributed, and server-side packages are not.
+for (const dependency of [
+  "@icon-park/svg@1.4.2",
+  "@noble/hashes@2.3.0",
+  "react@19.1.1",
+  "react-dom@19.1.1",
+  "zod@4.4.3",
+]) {
+  assert.match(figmaNotices, new RegExp(`^## ${dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+}
+for (const serverOnly of [
+  "@modelcontextprotocol/ext-apps@",
+  "@modelcontextprotocol/sdk@",
+  "zod-to-json-schema@",
+]) {
+  assert.doesNotMatch(
+    figmaNotices,
+    new RegExp(`^## ${serverOnly.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "m"),
+    `the Figma notices must not attribute ${serverOnly}* — it must not be bundled`,
+  );
+}
+// License manifests are scan-build intermediates; they must never ship inside
+// publishable dist output.
+for (const stray of ["figma-plugin/dist/.vite", "dist/web/.vite", "dist/mcp-app/.vite"]) {
+  assert.equal(existsSync(join(pluginDirectory, stray)), false, `${stray} must not ship in the staged package`);
+}
 
 const dependencyTree = JSON.parse(execFileSync("npm", ["ls", "--omit=dev", "--all", "--json"], {
   cwd: pluginDirectory,
   encoding: "utf8",
 })) as { problems?: string[] };
 assert.deepEqual(dependencyTree.problems ?? [], []);
+const installedDependencies = new Set(
+  execFileSync("npm", ["ls", "--omit=dev", "--all", "--parseable"], {
+    cwd: pluginDirectory,
+    encoding: "utf8",
+  })
+    .split(/\r?\n/)
+    .map((directory) => directory.trim())
+    .filter((directory) => directory.length > 0 && resolve(directory) !== pluginDirectory)
+    .map((directory) => {
+      const metadata = JSON.parse(readFileSync(join(directory, "package.json"), "utf8")) as {
+        name?: unknown;
+        version?: unknown;
+      };
+      assert.equal(typeof metadata.name, "string", `${directory} must expose an installed package name`);
+      assert.equal(typeof metadata.version, "string", `${directory} must expose an installed version`);
+      return `${metadata.name}@${metadata.version}`;
+    }),
+);
+for (const dependency of installedDependencies) {
+  assert.match(
+    rootNotices,
+    new RegExp(`^## ${dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"),
+    `${dependency} must appear in the root third-party inventory`,
+  );
+}
 
 const temporaryRoot = realpathSync(tmpdir());
 const projectDirectory = mkdtempSync(join(temporaryRoot, "armorial-plugin-probe-"));
@@ -80,6 +152,44 @@ try {
     result?: { items?: Array<{ id?: unknown }> };
   } | undefined;
   assert.equal(searchedResult?.result?.items?.[0]?.id, "icon-park:search");
+
+  const compositionalSearch = await client.callTool({
+    name: "search_icons",
+    arguments: { query: "right rotate object", limit: 10 },
+  });
+  assert.equal(compositionalSearch.isError, undefined);
+  const compositionalResult = compositionalSearch.structuredContent as {
+    result?: { items?: Array<{ id?: unknown; rankScore?: number }> };
+  } | undefined;
+  const compositionalItems = compositionalResult?.result?.items ?? [];
+  assert.ok(compositionalItems.slice(0, 2).some((item) => item.id === "icon-park:rotate"));
+  assert.ok(
+    (compositionalItems.find((item) => item.id === "icon-park:rotate")?.rankScore ?? 0) >
+      (compositionalItems.find((item) => item.id === "icon-park:align-right")?.rankScore ?? 0),
+  );
+
+  const boundarySearch = await client.callTool({
+    name: "search_icons",
+    arguments: { query: "clockwise", limit: 8 },
+  });
+  assert.equal(boundarySearch.isError, undefined);
+  const boundarySearchResult = boundarySearch.structuredContent as {
+    result?: { items?: Array<{ id?: unknown }> };
+  } | undefined;
+  assert.equal(
+    boundarySearchResult?.result?.items?.some((item) => item.id === "icon-park:lock"),
+    false,
+  );
+
+  const boundaryResolution = await client.callTool({
+    name: "resolve_icon",
+    arguments: { intent: "clockwise", alternatives: 3 },
+  });
+  assert.equal(boundaryResolution.isError, undefined);
+  const boundaryResolutionResult = boundaryResolution.structuredContent as {
+    result?: { icon?: { id?: unknown } };
+  } | undefined;
+  assert.equal(boundaryResolutionResult?.result?.icon?.id, "icon-park:rotating-forward");
 
   const rendered = await client.callTool({
     name: "get_icon",

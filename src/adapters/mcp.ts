@@ -93,11 +93,17 @@ const GetIconInputMcpSchema = GetIconInputSchema.extend({ render: RenderStyleOve
 const GetIconsInputMcpSchema = GetIconsInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
 const ChooseIconInputMcpSchema = ChooseIconInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
 const ChooseIconMcpOutputSchema = z.strictObject({ result: ChooseIconSummarySchema });
+const BrowseIconsMcpOutputSchema = z.strictObject({
+  result: z.looseObject({
+    status: z.enum(["ok", "error"]),
+    kind: z.literal("icon_catalog").optional(),
+  }),
+});
 
-// browse_icons is never a model entry point. Its only caller is the bundled
-// picker, which shares the BrowseIconsInput contract; the kernel validates the
-// full request again before rendering. Keeping the advertised app-only
-// shape open avoids repeating that large contract in every model tools/list.
+// The picker owns the complete request type. Keep its app-only advertised
+// input and transport envelope compact, while still publishing the typed
+// status/kind entry Codex requires for every installable tool. The adapter
+// validates the exact app payload with BrowseIconsOutputSchema before return.
 const AppBrowseInputMcpSchema = z.looseObject({});
 
 const READ_ONLY_ANNOTATIONS = {
@@ -139,7 +145,8 @@ export function createMcpServer(
     "resolve_icon",
     {
       title: "Resolve approved icon",
-      description: "Select and render one project-aware IconPark SVG for a semantic intent. Default one-call route; the result includes the asset, so do not follow with get_icon. Context is a known configured ASCII policy key, never prose; omit when unknown.",
+      description:
+        "Select and render one project-aware IconPark SVG. Default one-call route; result includes the asset, so do not follow with get_icon. Context is a configured ASCII policy key, never prose; omit when unknown.",
       inputSchema: ResolveInputMcpSchema,
       outputSchema: ResolveMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -169,7 +176,7 @@ export function createMcpServer(
     "get_icon",
     {
       title: "Render exact approved icon",
-      description: "Render a known IconPark id under project policy. Returns deterministic SVG, effective policy, capabilities, and hash.",
+      description: "Render a known IconPark id under project policy; deterministic output.",
       inputSchema: GetIconInputMcpSchema,
       outputSchema: GetIconMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -239,16 +246,15 @@ export function createMcpServer(
     "browse_icons",
     {
       title: "Browse icons for picker",
-      description: "Load one bounded page of rendered icons for the picker.",
+      description: "Load one icon page.",
       inputSchema: AppBrowseInputMcpSchema,
+      outputSchema: BrowseIconsMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: ICON_PICKER_RESOURCE_URI, visibility: ["app"] } },
     },
     (input) => {
-      // This helper is visible only to the bundled app, which already owns the
-      // typed catalog contract. Omitting its large advertised input/output
-      // schemas keeps that app-only contract out of every model tool listing;
-      // the kernel and this adapter still validate both directions.
+      // This helper is visible only to the bundled app. Current Codex still
+      // requires its result to have a typed catalog entry before installation.
       const output = BrowseIconsOutputSchema.parse(kernel.browse(input));
       const envelope = mcpResult(
         output as Record<string, unknown>,

@@ -1,8 +1,10 @@
 node_modules/
 dist/
 .pages-dist/
+.license-build/
 figma-plugin/dist/
 /plugins/
+.release/
 test-results/
 playwright-report/
 .DS_Store

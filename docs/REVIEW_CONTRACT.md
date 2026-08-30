@@ -4,7 +4,7 @@ A current reviewer should re-run the source and runtime checks rather than accep
 
 Product-specific adversarial sequences:
 
-1. Search an exact English name and a Chinese title/tag; verify deterministic order and bounded results.
+1. Search an exact English name, a Chinese title/tag, a multi-word query where one candidate covers more effective terms, and an English string that merely contains an icon name internally (for example `clockwise` / `lock`); verify relevant deterministic order, bounded results, and word/hyphen/camel boundaries without weakening controlled Chinese substring matching.
 2. Resolve a tied Chinese intent without a semantic policy choice; verify no SVG is invented or arbitrarily selected.
 3. Add a policy semantic selection; verify exact and ordinary English/Chinese phrasing resolve to it in one core/MCP call with the context style applied, while a multi-semantic intent does not get swallowed by the pin.
 4. Render the same icon twice; verify byte-for-byte identical SVG even for icons that use internal ids.
@@ -20,3 +20,7 @@ Product-specific adversarial sequences:
 14. Build and import `figma-plugin/manifest.json` in Figma Desktop. On a disposable acceptance page, verify click insertion creates a genuine Component master named `Icon/<slug>`, disabling the option creates a normal editable frame, and the inserted node is selected at the current viewport center.
 15. In one Figma sequence, change theme, colors, size, stroke width, linecap, and linejoin; then enable outline and exercise preserve, flatten, and Boolean union. Independently reacquire the inserted nodes and verify current type, dimensions, hierarchy, naming, editable geometry, and absence of partial residual nodes after any failed operation.
 16. Enter compact Drag mode and verify the plugin exposes usable canvas space; drag an icon onto the acceptance page and into a safe frame, then verify the final parent and relative placement. Attempt a drop over an instance or component set and verify Armorial falls back without mutating that target. Return to Settings, close and reopen the plugin, and verify both appearance and output settings are restored from Figma client storage.
+
+## Boundary
+
+These sequences are minimum coverage, not a completion certificate. Completing every item cannot by itself end a review: first reconstruct the current tool catalog, policy, picker, plugin, and release surfaces from source and a real run, keep at least one discovery route that is not copied from this list or the changed-file list, and report out-of-contract findings and untested compositions. A passing check run supports only its named observable; owner visual and task-fit acceptance remains separate.

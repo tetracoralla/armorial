@@ -61,19 +61,41 @@ function renderInspector(runtime: PickerRuntime): string {
 }
 
 test("UI source exposes Agent capabilities without account-style connection status", async () => {
-  const [header, inspector, runtime, styles] = await Promise.all([
-    readFile(new URL("../src/ui/components/AppHeader.tsx", import.meta.url), "utf8"),
+  const [toolbar, toolbarButtons, inspector, runtime, styles] = await Promise.all([
+    readFile(new URL("../src/ui/components/SearchToolbar.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/ui/components/ToolbarIconButton.tsx", import.meta.url), "utf8"),
     readFile(new URL("../src/ui/components/Inspector.tsx", import.meta.url), "utf8"),
     readFile(new URL("../src/ui/runtime.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/ui/styles.css", import.meta.url), "utf8"),
   ]);
-  const visibleSurface = `${header}\n${inspector}\n${styles}`;
+  const visibleSurface = `${toolbar}\n${toolbarButtons}\n${inspector}\n${styles}`;
   assert.doesNotMatch(visibleSurface, /Connected|Unavailable|connection-status|agent-heading/);
   assert.doesNotMatch(runtime, /readonly connected|this\.connected/);
   assert.match(inspector, /runtime\.canAttach \|\| runtime\.canContinue/);
   assert.match(inspector, /runtime\.canAttach &&/);
   assert.match(inspector, /runtime\.canContinue &&/);
-  assert.match(inspector, /Copy for Agent/);
+  assert.match(inspector, /t\("copyForAgent"\)/);
+});
+
+test("standalone keeps product identity while embedded mode controls live in the search row", async () => {
+  const [app, header, toolbarButtons, styles] = await Promise.all([
+    readFile(new URL("../src/ui/App.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/ui/components/AppHeader.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/ui/components/ToolbarIconButton.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/ui/styles.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(app, /runtime\.mode === "standalone" && <AppHeader \/>/);
+  assert.match(header, /<strong>Armorial<\/strong>/);
+  assert.doesNotMatch(header, /runtime|subtitle|tagline/i);
+  assert.match(styles, /\.app-shell\.has-app-header[\s\S]*?\.app-header/);
+  assert.match(app, /<SearchToolbar[\s\S]*?actions=\{/);
+  assert.match(app, /label=\{figmaCompact \? t\("settings"\) : t\("dragMode"\)\}/);
+  assert.match(toolbarButtons, /aria-label=\{label\}/);
+  assert.match(toolbarButtons, /@icon-park\/svg\/es\/icons\/Drag\.js/);
+  assert.match(toolbarButtons, /@icon-park\/svg\/es\/icons\/Setting\.js/);
+  assert.match(toolbarButtons, /@icon-park\/svg\/es\/icons\/FullScreen\.js/);
+  assert.doesNotMatch(toolbarButtons, /glyphPaths|<svg|<path/);
+  assert.match(styles, /\.search-actions[\s\S]*?\.toolbar-icon-button/);
 });
 
 test("embedded inspector keeps supported Agent actions ahead of secondary style detail", () => {
@@ -99,8 +121,11 @@ test("inspector exposes the editable appearance surface shared with the Agent re
   }
   assert.match(markup, /id="appearance-theme"/);
   assert.match(markup, /id="appearance-size"/);
-  assert.match(markup, /id="appearance-stroke"/);
-  assert.match(markup, /id="appearance-stroke"[^>]+min="1"[^>]+max="4"[^>]+step="1"/);
+  assert.match(markup, /id="appearance-stroke-label"/);
+  assert.match(markup, /aria-label="Stroke value"/);
+  assert.match(markup, /role="radiogroup"/);
+  assert.match(markup, /role="radio" aria-checked="true" tabindex="0"[^>]*>4</);
+  assert.equal(markup.match(/role="radio" aria-checked="false" tabindex="-1"/g)?.length, 3);
   assert.match(markup, /id="appearance-color-primary"/);
   assert.match(markup, /type="range"/);
   assert.match(markup, /aria-label="Edit Primary color"/);

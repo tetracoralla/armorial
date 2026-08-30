@@ -59,7 +59,7 @@ test("fixed-shell modes reflow without clipping and keep both scroll regions com
 
     const inspector = page.locator(".inspector");
     await inspector.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-    await expect(page.getByText("Policy context", { exact: true })).toBeInViewport();
+    await expect(page.getByText("Language", { exact: true })).toBeInViewport();
     await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeInViewport();
     await inspector.evaluate((element) => { element.scrollTop = 0; });
     await expect(options.nth(19)).toHaveAttribute("aria-selected", "true");
@@ -98,6 +98,7 @@ test("compact page mode contains the full task at extreme widths and preserves s
         catalogScroll: rect(".catalog-scroll"),
         inspector: rect(".inspector"),
         appearance: rect(".appearance"),
+        language: rect(".language-row"),
       };
     });
 
@@ -106,14 +107,15 @@ test("compact page mode contains the full task at extreme widths and preserves s
     expect(layout.app.bottom).toBeCloseTo(layout.pageHeight, 0);
     expect(layout.workspace.bottom).toBeCloseTo(layout.pageHeight, 0);
     expect(layout.inspector.bottom).toBeCloseTo(layout.pageHeight, 0);
-    expect(layout.appearance.bottom).toBeCloseTo(layout.pageHeight, 0);
+    expect(layout.language.bottom).toBeCloseTo(layout.pageHeight, 0);
+    expect(layout.appearance.bottom).toBeLessThanOrEqual(layout.language.bottom);
     expect(layout.catalogScroll.bottom).toBeCloseTo(layout.catalog.bottom, 0);
-    for (const rect of [layout.app, layout.workspace, layout.category, layout.catalog, layout.inspector, layout.appearance]) {
+    for (const rect of [layout.app, layout.workspace, layout.category, layout.catalog, layout.inspector, layout.appearance, layout.language]) {
       expectInsideWidth(rect, width);
     }
 
-    await page.getByText("Policy context", { exact: true }).scrollIntoViewIfNeeded();
-    await expect(page.getByText("Policy context", { exact: true })).toBeInViewport();
+    await page.getByText("Language", { exact: true }).scrollIntoViewIfNeeded();
+    await expect(page.getByText("Language", { exact: true })).toBeInViewport();
     await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeInViewport();
     await expect(options.nth(19)).toHaveAttribute("aria-selected", "true");
   }
@@ -147,7 +149,7 @@ test("Figma compact mode remains a full-height single-panel picker at narrow wid
 
   expect(layout.overflowX).toBe(0);
   expect(layout.pageHeight).toBe(560);
-  expect(layout.workspace).toEqual({ x: 0, right: 520, top: 58, bottom: 560 });
+  expect(layout.workspace).toEqual({ x: 0, right: 520, top: 52, bottom: 560 });
   expect(layout.catalog).toEqual(layout.workspace);
   expect(layout.catalogScrollBottom).toBeCloseTo(560, 0);
   expect(layout.categoryDisplay).toBe("none");

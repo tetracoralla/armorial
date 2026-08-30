@@ -57,10 +57,9 @@ test("appearance overrides restyle exports and carry the final render into decis
   await page.getByLabel("Size value", { exact: true }).press("Enter");
   await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2232%22/);
 
-  const stroke = page.getByLabel("Stroke value", { exact: true });
-  await expect(stroke).toHaveValue("4");
-  await stroke.fill("3");
-  await stroke.press("Enter");
+  const stroke = page.getByRole("radiogroup", { name: "Stroke value", exact: true });
+  await expect(stroke.getByRole("radio", { name: "4", exact: true })).toHaveAttribute("aria-checked", "true");
+  await stroke.getByRole("radio", { name: "3", exact: true }).click();
   await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /stroke-width%3D%223%22/);
 
   await page.getByLabel("Primary", { exact: true }).fill("#0055ff");
@@ -84,7 +83,7 @@ test("appearance overrides restyle exports and carry the final render into decis
 
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2224%22/);
-  await expect(stroke).toHaveValue("4");
+  await expect(stroke.getByRole("radio", { name: "4", exact: true })).toHaveAttribute("aria-checked", "true");
 
   await page.getByRole("button", { name: "Copy SVG", exact: true }).click();
   const resetSvg = await page.evaluate(() => navigator.clipboard.readText());
@@ -149,7 +148,7 @@ test("range controls keep drag drafts local and render once on release", async (
   )).length).toBe(1);
 });
 
-test("appearance redraw blocks stale export and rejects invalid drafts locally", async ({ page }) => {
+test("appearance redraw blocks stale export and rejects invalid color drafts locally", async ({ page }) => {
   await page.route("**/api/browse", async (route) => {
     const body = route.request().postDataJSON() as { render?: { size?: number } };
     if (body.render?.size === 48) {
@@ -176,11 +175,52 @@ test("appearance redraw blocks stale export and rejects invalid drafts locally",
   await expect(page.locator(".error-banner")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeEnabled();
 
-  const stroke = page.getByLabel("Stroke value", { exact: true });
-  await stroke.fill("2.5");
-  await stroke.press("Enter");
-  await expect(stroke).toHaveAttribute("aria-invalid", "true");
-  await expect(page.getByText("Use a whole number from 1 to 4.", { exact: true })).toBeVisible();
+});
+
+test("stroke choices follow the radio keyboard pattern and expose only valid weights", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+
+  const group = page.getByRole("radiogroup", { name: "Stroke value", exact: true });
+  const radios = group.getByRole("radio");
+  await expect(radios).toHaveCount(4);
+  await expect(radios.nth(3)).toHaveAttribute("aria-checked", "true");
+  await expect(radios.nth(3)).toHaveAttribute("tabindex", "0");
+  await expect(radios.nth(0)).toHaveAttribute("tabindex", "-1");
+
+  await radios.nth(3).focus();
+  await radios.nth(3).press("ArrowLeft");
+  await expect(radios.nth(2)).toBeFocused();
+  await expect(radios.nth(2)).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /stroke-width%3D%223%22/);
+
+  await radios.nth(2).press("Home");
+  await expect(radios.nth(0)).toBeFocused();
+  await expect(radios.nth(0)).toHaveAttribute("aria-checked", "true");
+  await radios.nth(0).press("End");
+  await expect(radios.nth(3)).toBeFocused();
+  await expect(radios.nth(3)).toHaveAttribute("aria-checked", "true");
+});
+
+test("language selection localizes navigation, identity details, and the document language", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    window.localStorage.setItem("armorial.preferences.v1", JSON.stringify({ version: 1, locale: "en" }));
+  });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("button", { name: "Abstract 121", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "a-cane", exact: true })).toBeVisible();
+
+  await page.getByLabel("Language", { exact: true }).selectOption("zh-CN");
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.getByRole("button", { name: "抽象图形 121", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "拐杖", exact: true })).toBeVisible();
+  await expect(page.locator(".preview-meta p")).toHaveText("a-cane");
+
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.getByPlaceholder("搜索图标", { exact: true })).toBeVisible();
 });
 
 test("a failed appearance redraw returns to the last usable render and can be retried", async ({ page }) => {
