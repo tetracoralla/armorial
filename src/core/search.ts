@@ -54,6 +54,14 @@ type QueryContext = {
   meaningfulTokenCount: number;
 };
 
+type CachedRanking = {
+  ranked: Ranked[];
+  hasMultipleDirectSemanticTargets: boolean;
+};
+
+const MAX_CACHED_QUERIES = 32;
+const MAX_CACHED_RANKED_RESULTS = 256;
+
 const KIND_PRIORITY: Readonly<Record<Candidate["matchKind"], number>> = {
   exact_id: 8,
   exact_name: 7,
@@ -366,6 +374,7 @@ function rankDocument(document: SearchDocument, query: QueryContext): Candidate 
 export class IconSearchIndex {
   readonly #documents: readonly SearchDocument[];
   readonly #documentFrequency: ReadonlyMap<string, number>;
+  readonly #rankingCache = new Map<string, CachedRanking>();
 
   constructor(records: readonly IconRecord[], rawSemantics?: unknown) {
     const recordSlugs = new Set(records.map((record) => record.name));
@@ -391,18 +400,39 @@ export class IconSearchIndex {
   }
 
   rank(query: string): Ranked[] {
-    return this.#rank(buildQueryContext(query, this.#documentFrequency));
+    return this.#ranking(query).ranked;
   }
 
   rankForResolution(query: string): {
     ranked: Ranked[];
     hasMultipleDirectSemanticTargets: boolean;
   } {
+    return this.#ranking(query);
+  }
+
+  #ranking(query: string): CachedRanking {
+    const cached = this.#rankingCache.get(query);
+    if (cached !== undefined) {
+      // Refresh insertion order so repeated UI restyles keep their active
+      // query while old one-off searches leave the bounded cache first.
+      this.#rankingCache.delete(query);
+      this.#rankingCache.set(query, cached);
+      return cached;
+    }
+
     const context = buildQueryContext(query, this.#documentFrequency);
-    return {
+    const result = {
       ranked: this.#rank(context),
       hasMultipleDirectSemanticTargets: context.hasMultipleDirectSemanticTargets,
     };
+    if (result.ranked.length <= MAX_CACHED_RANKED_RESULTS) {
+      this.#rankingCache.set(query, result);
+      if (this.#rankingCache.size > MAX_CACHED_QUERIES) {
+        const oldest = this.#rankingCache.keys().next().value;
+        if (oldest !== undefined) this.#rankingCache.delete(oldest);
+      }
+    }
+    return result;
   }
 
   #rank(context: QueryContext): Ranked[] {

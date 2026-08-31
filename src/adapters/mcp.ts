@@ -15,21 +15,19 @@ import {
   ChooseIconInputSchema,
   ChooseIconSummarySchema,
   GetIconInputSchema,
-  GetIconOutputSchema,
   GetIconsInputSchema,
-  GetIconsOutputSchema,
   ICON_PICKER_SESSION_META_KEY,
   KERNEL_VERSION,
+  MAX_MCP_BATCH_SIZE,
   MAX_STROKE_WIDTH,
   MAX_MCP_APP_RESOURCE_BYTES,
+  MAX_MCP_MODEL_RESPONSE_BYTES,
   MAX_MCP_TOOL_CATALOG_BYTES,
   MAX_UI_CATALOG_RESPONSE_BYTES,
   MIN_STROKE_WIDTH,
   ResolveInputSchema,
-  ResolveOutputSchema,
   SafeColorSchema,
   SearchInputSchema,
-  SearchOutputSchema,
   StrokeLinecapSchema,
   StrokeLinejoinSchema,
   ThemeSchema,
@@ -59,10 +57,35 @@ async function loadBuiltPickerHtml(): Promise<string> {
   return assertBoundedPickerHtml(await readFile(resolve(import.meta.dirname, "../mcp-app/index.html"), "utf8"));
 }
 
-const ResolveMcpOutputSchema = z.strictObject({ result: ResolveOutputSchema });
-const SearchMcpOutputSchema = z.strictObject({ result: SearchOutputSchema });
-const GetIconMcpOutputSchema = z.strictObject({ result: GetIconOutputSchema });
-const GetIconsMcpOutputSchema = z.strictObject({ result: GetIconsOutputSchema });
+// MCP clients replay advertised schemas into Agent context on every model
+// turn. Publish the fields needed to interpret routing and terminal status;
+// the kernel still validates the complete closed result contract before the
+// adapter returns it, and the package exports that full schema for direct
+// programmatic consumers.
+const ResolveMcpOutputSchema = z.strictObject({
+  result: z.looseObject({
+    status: z.enum(["ok", "ambiguous", "error"]),
+    kind: z.literal("icon_resolution").optional(),
+  }),
+});
+const SearchMcpOutputSchema = z.strictObject({
+  result: z.looseObject({
+    status: z.enum(["ok", "error"]),
+    kind: z.literal("icon_search").optional(),
+  }),
+});
+const GetIconMcpOutputSchema = z.strictObject({
+  result: z.looseObject({
+    status: z.enum(["ok", "error"]),
+    kind: z.literal("icon").optional(),
+  }),
+});
+const GetIconsMcpOutputSchema = z.strictObject({
+  result: z.looseObject({
+    status: z.enum(["ok", "error"]),
+    kind: z.literal("icon_batch").optional(),
+  }),
+});
 
 const McpSafeColorSchema = z.string()
   .max(64)
@@ -88,9 +111,15 @@ const RenderStyleOverrideMcpSchema = z.strictObject({
   ).optional(),
 });
 
-const ResolveInputMcpSchema = ResolveInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
+const ResolveInputMcpSchema = ResolveInputSchema.extend({
+  alternatives: z.number().int().min(0).max(8).default(0),
+  render: RenderStyleOverrideMcpSchema.optional(),
+});
 const GetIconInputMcpSchema = GetIconInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
-const GetIconsInputMcpSchema = GetIconsInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
+const GetIconsInputMcpSchema = GetIconsInputSchema.extend({
+  ids: GetIconsInputSchema.shape.ids.max(MAX_MCP_BATCH_SIZE),
+  render: RenderStyleOverrideMcpSchema.optional(),
+});
 const ChooseIconInputMcpSchema = ChooseIconInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() });
 const ChooseIconMcpOutputSchema = z.strictObject({ result: ChooseIconSummarySchema });
 const BrowseIconsMcpOutputSchema = z.strictObject({
@@ -135,6 +164,17 @@ function assertToolResultEnvelope(name: string, envelope: unknown, limit: number
   }
 }
 
+function boundedMcpResult(
+  name: string,
+  output: Record<string, unknown>,
+  presentation: string,
+  isError = false,
+) {
+  const envelope = mcpResult(output, presentation, isError);
+  assertToolResultEnvelope(name, envelope, MAX_MCP_MODEL_RESPONSE_BYTES);
+  return envelope;
+}
+
 export function createMcpServer(
   kernel: IconKernel,
   loadPickerHtml: () => Promise<string> = loadBuiltPickerHtml,
@@ -144,61 +184,61 @@ export function createMcpServer(
   server.registerTool(
     "resolve_icon",
     {
-      title: "Resolve approved icon",
+      title: "Resolve icon",
       description:
-        "Select and render one project-aware IconPark SVG. Default one-call route; result includes the asset, so do not follow with get_icon. Context is a configured ASCII policy key, never prose; omit when unknown.",
+        "Default one-call route: select and render a project-aware IconPark SVG; do not follow with get_icon. Context is a configured ASCII policy key, never prose; omit when unknown.",
       inputSchema: ResolveInputMcpSchema,
       outputSchema: ResolveMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     (input) => {
       const output = kernel.resolve(input);
-      return mcpResult(output as Record<string, unknown>, presentResolve(output), output.status === "error");
+      return boundedMcpResult("resolve_icon", output as Record<string, unknown>, presentResolve(output), output.status === "error");
     },
   );
 
   server.registerTool(
     "search_icons",
     {
-      title: "Search approved icons",
-      description: "Find compact IconPark candidates by name, title, tag, alias, or category. Use only when alternatives are needed.",
+      title: "Search icons",
+      description: "Find compact IconPark candidates by name/title/tag/alias/category; only for alternatives.",
       inputSchema: SearchInputSchema,
       outputSchema: SearchMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     (input) => {
       const output = kernel.search(input);
-      return mcpResult(output as Record<string, unknown>, presentSearch(output), output.status === "error");
+      return boundedMcpResult("search_icons", output as Record<string, unknown>, presentSearch(output), output.status === "error");
     },
   );
 
   server.registerTool(
     "get_icon",
     {
-      title: "Render exact approved icon",
-      description: "Render a known IconPark id under project policy; deterministic output.",
+      title: "Render exact icon",
+      description: "Render one known IconPark id deterministically under project policy.",
       inputSchema: GetIconInputMcpSchema,
       outputSchema: GetIconMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     (input) => {
       const output = kernel.getIcon(input);
-      return mcpResult(output as Record<string, unknown>, presentGet(output), output.status === "error");
+      return boundedMcpResult("get_icon", output as Record<string, unknown>, presentGet(output), output.status === "error");
     },
   );
 
   server.registerTool(
     "get_icons",
     {
-      title: "Render approved icon batch",
-      description: "Render up to 20 known IconPark ids under one policy/context, preserving order and per-id failures.",
+      title: "Render icon batch",
+      description: "Render up to 8 known IconPark ids needed now; preserves order/failures. Use CLI/library for larger automation.",
       inputSchema: GetIconsInputMcpSchema,
       outputSchema: GetIconsMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     (input) => {
       const output = kernel.getIcons(input);
-      return mcpResult(output as Record<string, unknown>, presentBatch(output), output.status === "error");
+      return boundedMcpResult("get_icons", output as Record<string, unknown>, presentBatch(output), output.status === "error");
     },
   );
 
@@ -206,8 +246,8 @@ export function createMcpServer(
     server,
     "choose_icon",
     {
-      title: "Open visual icon picker",
-      description: "Open the human picker only for visual choice, rejection, or unresolved taste. Wait for the user's icon_selection message.",
+      title: "Open icon picker",
+      description: "Open the human picker only for visual choice, rejection, or unresolved taste; wait for icon_selection.",
       inputSchema: ChooseIconInputMcpSchema,
       outputSchema: ChooseIconMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -245,7 +285,7 @@ export function createMcpServer(
     server,
     "browse_icons",
     {
-      title: "Browse icons for picker",
+      title: "Browse picker icons",
       description: "Load one icon page.",
       inputSchema: AppBrowseInputMcpSchema,
       outputSchema: BrowseIconsMcpOutputSchema,

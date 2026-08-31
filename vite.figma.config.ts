@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
-import { browserProviderAlias } from "./vite.browser-runtime.js";
+import { browserProviderAlias, figmaIconCatalogModule } from "./vite.browser-runtime.js";
 
 const projectRoot = import.meta.dirname;
 const figmaRoot = resolve(projectRoot, "figma-plugin");
@@ -12,6 +12,9 @@ const isLicenseScan = process.env["ARMORIAL_LICENSE_SCAN"] === "1";
 
 export default defineConfig(buildTarget === "main"
   ? {
+    // The project-root public discovery surface is unrelated to the Figma
+    // sandbox and must not be copied into the plugin distribution.
+    publicDir: false,
     build: {
       // License-scan builds emit module manifests for THIRD_PARTY_NOTICES
       // generation and never write into the publishable plugin directory.
@@ -34,7 +37,8 @@ export default defineConfig(buildTarget === "main"
   : {
     root: figmaRoot,
     base: "./",
-    plugins: [browserProviderAlias(projectRoot), react(), ...(isLicenseScan ? [] : [viteSingleFile()])],
+    publicDir: false,
+    plugins: [figmaIconCatalogModule(), browserProviderAlias(projectRoot), react(), ...(isLicenseScan ? [] : [viteSingleFile()])],
     build: {
       outDir: isLicenseScan ? resolve(projectRoot, ".license-build/figma-ui") : figmaOutDir,
       emptyOutDir: true,

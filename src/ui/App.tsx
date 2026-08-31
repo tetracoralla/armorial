@@ -320,6 +320,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
           {error !== null && <div className="error-banner" role="alert">{error}</div>}
           <IconGrid
             items={items}
+            total={catalog?.total ?? items.length}
             selectedId={selected?.id ?? null}
             hasMore={catalog?.truncated ?? false}
             loading={loading}

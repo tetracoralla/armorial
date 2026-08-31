@@ -121,7 +121,10 @@ The collection capability declaration is explicit: IconPark uses mixed stroke/fi
 - Exact inspection: one `get_icon` call when the canonical id is already known.
 - Genuine semantic ambiguity: one `resolve_icon` response listing the decision candidates; a semantic selection in project policy removes repeat ambiguity.
 - Invalid input: one stable error response, without retries or generic SVG generation.
-- Batch: one call, at most 20 ids.
+- Batch needed in the current Agent turn: one call, at most 8 ids, with the
+  complete MCP envelope bounded to 80 KiB. Structured automation and durable
+  batches may use the direct CLI/library route at up to 20 ids so SVG payloads
+  do not enter model context.
 - Explicit visual decision: one `choose_icon` call, then one human decision message; ordinary resolution never opens the picker implicitly.
 
 The weakest intended client is a general MCP Agent that can select a tool from its name, first description sentence, and JSON schema. English and Simplified Chinese icon wording are supported by package metadata and compact aliases.

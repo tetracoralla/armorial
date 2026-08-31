@@ -1,7 +1,9 @@
 import type { RenderStyle } from "../core/contracts.js";
+import { IconKernelError } from "../core/errors.js";
 
 export const PAGES_ICON_CATALOG_VERSION = 1 as const;
 export const MAX_PAGES_ICON_CATALOG_BYTES = 5 * 1024 * 1024;
+export const MAX_COMPRESSED_PAGES_ICON_CATALOG_BYTES = 1024 * 1024;
 
 const TEMPLATE_SIZE = "__ARMORIAL_SIZE__";
 const TEMPLATE_STROKE_WIDTH = "__ARMORIAL_STROKE_WIDTH__";
@@ -21,6 +23,35 @@ export type PagesIconCatalog = {
   metadata: unknown;
   templates: Record<string, string>;
 };
+
+function invalidCatalog(message: string): IconKernelError {
+  return new IconKernelError({ code: "ICON_RENDER_FAILED", message });
+}
+
+export function parsePagesIconCatalog(value: unknown): PagesIconCatalog {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw invalidCatalog("The embedded IconPark catalog has an invalid envelope.");
+  }
+  const candidate = value as { version?: unknown; metadata?: unknown; templates?: unknown };
+  if (candidate.version !== PAGES_ICON_CATALOG_VERSION) {
+    throw invalidCatalog("The embedded IconPark catalog version is not supported.");
+  }
+  if (typeof candidate.templates !== "object" || candidate.templates === null || Array.isArray(candidate.templates)) {
+    throw invalidCatalog("The embedded IconPark catalog has no renderer templates.");
+  }
+  const templates = Object.create(null) as Record<string, string>;
+  for (const [name, template] of Object.entries(candidate.templates)) {
+    if (typeof template !== "string") {
+      throw invalidCatalog(`The embedded IconPark template "${name}" is invalid.`);
+    }
+    templates[name] = template;
+  }
+  return {
+    version: PAGES_ICON_CATALOG_VERSION,
+    metadata: candidate.metadata,
+    templates,
+  };
+}
 
 export type IconTemplateSourceRenderer = (props: {
   theme: RenderStyle["theme"];

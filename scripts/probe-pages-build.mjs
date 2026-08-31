@@ -1,19 +1,13 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { chromium } from "@playwright/test";
+import { hasExpectedDeployedContentType, localContentType } from "./pages-content-types.mjs";
 
 const projectRoot = resolve(import.meta.dirname, "..");
 const pagesRoot = resolve(projectRoot, ".pages-dist");
-const contentTypes = new Map([
-  [".css", "text/css; charset=utf-8"],
-  [".html", "text/html; charset=utf-8"],
-  [".js", "text/javascript; charset=utf-8"],
-  [".json", "application/json; charset=utf-8"],
-  [".svg", "image/svg+xml"],
-]);
-
 async function filesBelow(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
@@ -46,7 +40,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     const body = await readFile(filePath);
-    response.writeHead(200, { "Content-Type": contentTypes.get(extname(filePath)) ?? "application/octet-stream" });
+    response.writeHead(200, { "Content-Type": localContentType(filePath) });
     response.end(body);
   } catch {
     response.writeHead(404).end("Not found");
@@ -68,17 +62,59 @@ try {
   const page = await context.newPage();
   const errors = [];
   const apiRequests = [];
+  const catalogRequests = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
   page.on("request", (request) => {
-    if (new URL(request.url()).pathname.startsWith("/api/")) apiRequests.push(request.url());
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.startsWith("/api/")) apiRequests.push(request.url());
+    if (pathname.includes("icon-catalog")) catalogRequests.push(pathname);
   });
 
   await page.goto(origin, { waitUntil: "networkidle" });
-  assert.equal(await page.title(), "Armorial");
+  assert.equal(await page.title(), "Search and render project-aware IconPark SVGs locally — Armorial");
+  assert.equal(await page.locator('link[rel="canonical"]').getAttribute("href"), "https://tetracoralla.github.io/armorial/");
+  assert.equal(await page.locator('link[rel="help"]').getAttribute("href"), "./agent-selection.html");
+  assert.equal(await page.locator('meta[name="robots"]').getAttribute("content"), "index,follow");
+  assert.equal(await page.locator('link[rel="describedby"]').getAttribute("href"), "./llms.txt");
+  const [llmsResponse, selectionResponse, selectionHtmlResponse, sourceCommitResponse, robotsResponse, sitemapResponse] = await Promise.all([
+    page.request.get(`${origin}/llms.txt`),
+    page.request.get(`${origin}/agent-selection.txt`),
+    page.request.get(`${origin}/agent-selection.html`),
+    page.request.get(`${origin}/source-commit.txt`),
+    page.request.get(`${origin}/robots.txt`),
+    page.request.get(`${origin}/sitemap.xml`),
+  ]);
+  for (const response of [llmsResponse, selectionResponse, selectionHtmlResponse, sourceCommitResponse, sitemapResponse]) {
+    assert.equal(response.ok(), true);
+    assert.equal(
+      hasExpectedDeployedContentType(new URL(response.url()).pathname, response.headers()["content-type"]),
+      true,
+      response.url(),
+    );
+  }
+  assert.match(await llmsResponse.text(), /# Armorial/);
+  assert.match(await selectionResponse.text(), /## Do not use Armorial for/);
+  assert.match(await selectionHtmlResponse.text(), /<h2>Do not use Armorial for<\/h2>/);
+  assert.equal(robotsResponse.status(), 404);
+  assert.match(await sitemapResponse.text(), /agent-selection\.html/);
+  const sourceCommit = await sourceCommitResponse.text();
+  assert.match(sourceCommit, /^[0-9a-f]{40}\n$/);
+  assert.equal(
+    sourceCommit.trim(),
+    execFileSync("git", ["rev-parse", "HEAD"], { cwd: projectRoot, encoding: "utf8" }).trim(),
+  );
+
+  const taskPage = await context.newPage();
+  await taskPage.goto(`${origin}/agent-selection.html`, { waitUntil: "domcontentloaded" });
+  assert.equal(await taskPage.locator('link[rel="canonical"]').getAttribute("href"), "https://tetracoralla.github.io/armorial/agent-selection.html");
+  assert.equal(await taskPage.locator('link[rel="alternate"][type="text/plain"]').getAttribute("href"), "./agent-selection.txt");
+  assert.equal(await taskPage.locator('meta[name="robots"]').getAttribute("content"), "index,follow");
+  await taskPage.close();
   await page.getByText("2,658 icons", { exact: true }).waitFor();
+  assert.deepEqual(catalogRequests, ["/assets/icon-catalog.json.gz"]);
   await page.getByPlaceholder("Search icons", { exact: true }).fill("notification");
   await page.getByRole("option", { name: "remind", exact: true }).click();
   await page.getByRole("heading", { name: "remind", exact: true }).waitFor();

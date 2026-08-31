@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { expandAliases, isGenericTaskTerm } from "./aliases.js";
 import {
   BrowseIconsInputSchema,
   BrowseIconsOutputSchema,
@@ -39,6 +40,7 @@ import {
 } from "./policy.js";
 import { IconParkProvider, type IconRecord } from "./provider.js";
 import { IconSearchIndex } from "./search.js";
+import { normalizeText, queryTerms } from "./normalize.js";
 import { utf8ByteLength } from "./svg.js";
 
 function invalidInput(error: z.ZodError): KernelError {
@@ -97,13 +99,16 @@ function buildCategories(records: readonly IconRecord[]): readonly CatalogCatego
 export class IconKernel {
   readonly policy: IconPolicy;
   readonly provider: IconParkProvider;
-  readonly searchIndex: IconSearchIndex;
+  // Search preparation is the most expensive cold-start phase. Keep it lazy
+  // so exact get/batch calls and an unfiltered first human page do not pay for
+  // semantic ranking they never use.
+  searchIndex: IconSearchIndex | undefined;
   readonly #categories: readonly CatalogCategory[];
 
   constructor(policyInput: unknown = DEFAULT_POLICY) {
     this.policy = parseIconPolicy(policyInput);
     this.provider = new IconParkProvider();
-    this.searchIndex = new IconSearchIndex(this.provider.records);
+    this.searchIndex = undefined;
     this.#categories = buildCategories(this.provider.records);
 
     for (const [intent, iconId] of Object.entries(this.policy.selections)) {
@@ -122,7 +127,7 @@ export class IconKernel {
     if (!parsed.success) return SearchOutputSchema.parse(failure(invalidInput(parsed.error)));
 
     try {
-      const ranked = this.searchIndex.rank(parsed.data.query);
+      const ranked = this.#searchIndex().rank(parsed.data.query);
       const items = ranked.slice(0, parsed.data.limit).map(({ candidate }) => CandidateSchema.parse(candidate));
       return SearchOutputSchema.parse({
         status: "ok",
@@ -143,7 +148,7 @@ export class IconKernel {
     try {
       const query = parsed.data.query ?? "";
       const rankedRecords = query.length > 0
-        ? this.searchIndex.rank(query)
+        ? this.#searchIndex().rank(query)
           .map(({ candidate }) => this.provider.get(candidate.id))
           .filter((record): record is IconRecord => record !== undefined)
         : [...this.provider.records];
@@ -250,7 +255,48 @@ export class IconKernel {
 
     try {
       const selection = findSemanticSelection(this.policy, parsed.data.intent);
-      const { ranked, hasMultipleDirectSemanticTargets } = this.searchIndex.rankForResolution(parsed.data.intent);
+      if (selection !== undefined && parsed.data.alternatives === 0) {
+        const icon = this.#renderIcon(selection, parsed.data.context, parsed.data.render);
+        return ResolveOutputSchema.parse({
+          status: "ok",
+          kind: "icon_resolution",
+          intent: parsed.data.intent,
+          selectionMethod: "policy",
+          icon,
+          alternatives: [],
+        });
+      }
+
+      const directId = parsed.data.intent.trim().toLocaleLowerCase("en-US");
+      const directRecord = this.provider.get(directId);
+      if (selection === undefined && directRecord !== undefined && parsed.data.alternatives === 0) {
+        const icon = this.#renderIcon(directRecord.canonicalId, parsed.data.context, parsed.data.render);
+        return ResolveOutputSchema.parse({
+          status: "ok",
+          kind: "icon_resolution",
+          intent: parsed.data.intent,
+          selectionMethod: directId.startsWith("icon-park:") ? "exact_id" : "exact_name",
+          icon,
+          alternatives: [],
+        });
+      }
+
+      const fastSemantic = selection === undefined && parsed.data.alternatives === 0
+        ? this.#fastSemanticRecord(parsed.data.intent)
+        : undefined;
+      if (fastSemantic !== undefined) {
+        const icon = this.#renderIcon(fastSemantic.record.canonicalId, parsed.data.context, parsed.data.render);
+        return ResolveOutputSchema.parse({
+          status: "ok",
+          kind: "icon_resolution",
+          intent: parsed.data.intent,
+          selectionMethod: fastSemantic.selectionMethod,
+          icon,
+          alternatives: [],
+        });
+      }
+
+      const { ranked, hasMultipleDirectSemanticTargets } = this.#searchIndex().rankForResolution(parsed.data.intent);
       const candidates = ranked.slice(0, Math.max(2, parsed.data.alternatives + 1)).map(({ candidate }) => candidate);
 
       if (selection !== undefined) {
@@ -352,6 +398,43 @@ export class IconKernel {
       asset,
       warnings: effective.warnings,
     });
+  }
+
+  #searchIndex(): IconSearchIndex {
+    return this.searchIndex ??= new IconSearchIndex(this.provider.records);
+  }
+
+  #fastSemanticRecord(intent: string): {
+    record: IconRecord;
+    selectionMethod: "exact_name" | "ranked";
+  } | undefined {
+    const terms = queryTerms(intent).filter((term) => !isGenericTaskTerm(term));
+    const directRecords = [...new Set(terms
+      .map((term) => this.provider.get(term))
+      .filter((record): record is IconRecord => record !== undefined))];
+    if (directRecords.length === 1) {
+      return { record: directRecords[0]!, selectionMethod: "exact_name" };
+    }
+    if (directRecords.length > 1) return undefined;
+
+    const aliases = expandAliases(intent, terms);
+    if (aliases.independentDirectTargetCount !== 1 || aliases.targets.length !== 1) return undefined;
+
+    // An exact localized title outranks a built-in alias. Preserve ambiguous
+    // title behavior (for example the two IconPark icons titled "关闭") by
+    // falling through to the complete semantic index whenever it is not
+    // uniquely determined.
+    const normalizedIntent = normalizeText(intent);
+    const exactTitles = this.provider.records.filter(
+      (record) => normalizeText(record.title) === normalizedIntent,
+    );
+    if (exactTitles.length === 1) {
+      return { record: exactTitles[0]!, selectionMethod: "ranked" };
+    }
+    if (exactTitles.length > 1) return undefined;
+
+    const record = this.provider.get(aliases.targets[0]!);
+    return record === undefined ? undefined : { record, selectionMethod: "ranked" };
   }
 
   #recordSummary(record: IconRecord) {

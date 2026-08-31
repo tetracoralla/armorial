@@ -1,15 +1,32 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 test("GitHub Pages is the official static human workbench", async () => {
-  const [packageSource, readme, workflow, ciWorkflow, viteConfig, gitignore] = await Promise.all([
+  const [
+    packageSource,
+    readme,
+    workflow,
+    ciWorkflow,
+    viteConfig,
+    gitignore,
+    indexHtml,
+    llmsTxt,
+    agentSelection,
+    agentSelectionHtml,
+    sitemap,
+  ] = await Promise.all([
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../README.md", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/deploy-pages.yml", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"),
     readFile(new URL("../vite.config.ts", import.meta.url), "utf8"),
     readFile(new URL("../.gitignore", import.meta.url), "utf8"),
+    readFile(new URL("../index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/llms.txt", import.meta.url), "utf8"),
+    readFile(new URL("../public/agent-selection.txt", import.meta.url), "utf8"),
+    readFile(new URL("../public/agent-selection.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/sitemap.xml", import.meta.url), "utf8"),
   ]);
   const packageJson = JSON.parse(packageSource) as {
     homepage?: string;
@@ -32,8 +49,34 @@ test("GitHub Pages is the official static human workbench", async () => {
   assert.match(workflow, /path: \.pages-dist/);
   assert.match(workflow, /npm run pages:deployment:check/);
   assert.match(viteConfig, /pagesIconCatalogAsset/);
+  assert.match(viteConfig, /pagesSourceCommitAsset/);
+  assert.match(viteConfig, /publicDir: isMcpApp \? false : "public"/);
+  assert.match(viteConfig, /embeddedWorkbenchMetadataBoundary/);
   assert.match(viteConfig, /pagesProviderAlias/);
   assert.match(viteConfig, /browserStandaloneRuntimeAlias/);
   assert.match(viteConfig, /\.pages-dist/);
   assert.match(gitignore, /^\.pages-dist\/$/m);
+  assert.match(indexHtml, /rel="canonical" href="https:\/\/tetracoralla\.github\.io\/armorial\/"/);
+  assert.match(indexHtml, /rel="help" href="\.\/agent-selection\.html"/);
+  assert.doesNotMatch(indexHtml, /rel="alternate"[^>]+agent-selection\.(?:md|txt)/);
+  assert.match(indexHtml, /<meta name="robots" content="index,follow"/);
+  assert.match(indexHtml, /<title>Search and render project-aware IconPark SVGs locally — Armorial<\/title>/);
+  assert.match(indexHtml, /rel="describedby" href="\.\/llms\.txt" type="text\/markdown"/);
+  assert.match(llmsTxt, /Do not use Armorial for|not a logo or illustration generator/i);
+  assert.match(llmsTxt, /No npm package or official\s+MCP Registry entry is claimed/i);
+  assert.match(agentSelection, /## Use Armorial for/);
+  assert.match(agentSelection, /## Do not use Armorial for/);
+  assert.match(agentSelection, /source-commit\.txt/);
+  assert.match(agentSelection, /git checkout --detach "\$ARMORIAL_COMMIT"/);
+  assert.match(agentSelection, /npm ci --ignore-scripts/);
+  assert.match(agentSelection, /Node\.js 22 or newer/);
+  assert.doesNotMatch(agentSelection, /git clone[^\n]+\ncd armorial\nnpm ci\n/);
+  assert.match(agentSelection, /Do not install Agent Host for one direct Armorial call/);
+  assert.match(readme, /Agent discovery and selection/);
+  assert.match(agentSelectionHtml, /rel="canonical" href="https:\/\/tetracoralla\.github\.io\/armorial\/agent-selection\.html"/);
+  assert.match(agentSelectionHtml, /rel="alternate" type="text\/plain" href="\.\/agent-selection\.txt"/);
+  assert.match(agentSelectionHtml, /Deployment-pinned source probe/);
+  await assert.rejects(access(new URL("../public/robots.txt", import.meta.url)));
+  assert.match(sitemap, /https:\/\/tetracoralla\.github\.io\/armorial\/agent-selection\.html/);
+  assert.match(sitemap, /https:\/\/tetracoralla\.github\.io\/armorial\/agent-selection\.txt/);
 });

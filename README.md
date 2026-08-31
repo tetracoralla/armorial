@@ -8,6 +8,33 @@ Armorial is a local-first, design-system-aware icon workbench and deterministic 
 
 It does not ask a model to draw SVG. It also does not pretend arbitrary filled icon libraries can be normalized by changing `stroke-width`.
 
+## Agent discovery and selection
+
+Use Armorial when the task is to find and render an existing IconPark icon,
+apply a project's explicit icon policy, compare deterministic candidates, or
+hand a genuine visual choice to a person. Do not use it to draw logos or
+illustrations, edit arbitrary SVG paths, search other icon collections, or make
+an aesthetic decision automatically.
+
+The public [task and integration guide](https://tetracoralla.github.io/armorial/agent-selection.html)
+gives an Agent the supported intents, rejection cases, privacy and effect
+boundaries, deployment-pinned source installation route, a repeatable probe, and
+the point at which Agent Host becomes useful. The path-scoped
+[`llms.txt`](https://tetracoralla.github.io/armorial/llms.txt) is a small map to
+that guide and the authoritative repository documents; it is not a tool
+manifest or a quality claim.
+
+The project deployment intentionally contains no `/armorial/robots.txt`.
+Crawler policy is an origin-level responsibility; when the organization wants
+to advertise this Sitemap from robots, `https://tetracoralla.github.io/robots.txt`
+must be owned and published by the root site. In the absence of a root policy,
+the workbench and task guide carry explicit per-page indexing metadata.
+
+Armorial does not currently publish an npm package or official MCP Registry
+entry. The public MCP route is built from source today. A registry entry should
+be added only after an immutable public MCP package exists and its installation
+can be reproduced independently of this checkout.
+
 ## What is working
 
 - Validated local index over all 2,658 icons in `@icon-park/svg@1.4.2`.
@@ -139,7 +166,7 @@ The repository root is also a Codex plugin bundle: [plugin.json](./.codex-plugin
 
 For local host testing, run `npm run plugin:check`. It assembles the ignored `plugins/armorial/` directory from the exact `npm pack` contents, installs production dependencies from `package-lock.json` without lifecycle scripts, gives the staged manifest a fresh local Codex cachebuster, and probes the isolated MCP entry with a project policy. [`.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json) points at that generated directory, so a fresh clone must run this command before adding the local marketplace. The staging swap rejects symlink ancestors and does not expose a half-written plugin. The result contains no sources, tests, dev dependencies, package lock, or Git data. After changing the plugin, re-run the command, reinstall, and start a new Codex session so the cached copy updates.
 
-Armorial's current public distribution is the GitHub repository, the static GitHub Pages workbench, and tagged source releases. The npm-shaped archive is an internal reproducibility boundary for staging and verification; this release does not require an npm account or publish a registry package.
+Armorial's current public distribution is the GitHub repository, the static GitHub Pages workbench, and source releases. The Pages deployment publishes `source-commit.txt`, the exact immutable Git commit used for its task guide and workbench; the public probe checks out that commit instead of mutable `main`. The npm-shaped archive is an internal reproducibility boundary for staging and verification; this release does not require an npm account or publish a registry package.
 
 ## Policy
 

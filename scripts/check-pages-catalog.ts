@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, extname, join, resolve } from "node:path";
+import { gunzipSync } from "node:zlib";
 import {
   createIconTemplate,
+  MAX_COMPRESSED_PAGES_ICON_CATALOG_BYTES,
   MAX_PAGES_ICON_CATALOG_BYTES,
   PAGES_ICON_CATALOG_VERSION,
   renderIconTemplate,
@@ -16,11 +18,15 @@ const require = createRequire(import.meta.url);
 const projectRoot = resolve(import.meta.dirname, "..");
 const pagesRoot = resolve(projectRoot, ".pages-dist");
 const catalogPath = resolve(pagesRoot, "assets", "icon-catalog.json");
+const compressedCatalogPath = resolve(pagesRoot, "assets", "icon-catalog.json.gz");
 const packageRoot = dirname(require.resolve("@icon-park/svg/package.json"));
 const upstreamMetadata: unknown = require("@icon-park/svg/icons.json");
 
 const source = await readFile(catalogPath, "utf8");
 assert.ok(Buffer.byteLength(source) <= MAX_PAGES_ICON_CATALOG_BYTES);
+const compressedSource = await readFile(compressedCatalogPath);
+assert.ok(compressedSource.byteLength <= MAX_COMPRESSED_PAGES_ICON_CATALOG_BYTES);
+assert.equal(gunzipSync(compressedSource).toString("utf8"), source);
 const catalog = JSON.parse(source) as PagesIconCatalog;
 assert.equal(catalog.version, PAGES_ICON_CATALOG_VERSION);
 assert.deepEqual(catalog.metadata, upstreamMetadata);
@@ -75,5 +81,5 @@ const javascriptBytes = (await Promise.all(javascriptPaths.map(async (path) => (
 assert.ok(javascriptBytes <= 1024 * 1024, `Pages JavaScript is ${javascriptBytes} bytes`);
 
 console.log(
-  `Pages icon catalog matches ${upstreamMetadata.length} pinned renderers; startup JavaScript is ${javascriptBytes} B.`,
+  `Pages icon catalog matches ${upstreamMetadata.length} pinned renderers; optimized transfer is ${compressedSource.byteLength} B and startup JavaScript is ${javascriptBytes} B.`,
 );

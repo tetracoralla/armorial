@@ -9,8 +9,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
 const workspace = resolve(import.meta.dirname, "..");
 const packageJson = JSON.parse(readFileSync(join(workspace, "package.json"), "utf8")) as { version: string };
+const releaseDirectory = resolve(process.env.ARMORIAL_RELEASE_DIRECTORY ?? join(workspace, ".release"));
 const archive = resolve(process.env.ARMORIAL_PLUGIN_ARCHIVE
-  ?? join(workspace, ".release", `armorial-${packageJson.version}-codex-plugin-macos-arm64.tar.gz`));
+  ?? join(releaseDirectory, `armorial-${packageJson.version}-codex-plugin-macos-arm64.tar.gz`));
 const checksum = `${archive}.sha256`;
 assert.equal(existsSync(archive), true, `Missing immutable plugin archive: ${archive}`);
 assert.equal(existsSync(checksum), true, `Missing immutable plugin checksum: ${checksum}`);

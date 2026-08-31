@@ -4,8 +4,10 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 import {
   browserProviderAlias,
   browserStandaloneRuntimeAlias,
+  embeddedWorkbenchMetadataBoundary,
   pagesIconCatalogAsset,
   pagesProviderAlias,
+  pagesSourceCommitAsset,
 } from "./vite.browser-runtime.js";
 
 const isMcpApp = process.env["ICON_MCP_APP"] === "1";
@@ -15,12 +17,17 @@ const projectRoot = import.meta.dirname;
 
 export default defineConfig({
   base: "./",
+  // Agent-discovery documents belong to the standalone/public web carrier,
+  // never the single-file MCP App resource.
+  publicDir: isMcpApp ? false : "public",
   plugins: [
     ...(isPages ? [
       pagesIconCatalogAsset(),
+      pagesSourceCommitAsset(projectRoot),
       pagesProviderAlias(projectRoot),
       browserStandaloneRuntimeAlias(projectRoot),
     ] : []),
+    ...(isMcpApp ? [embeddedWorkbenchMetadataBoundary()] : []),
     react(),
     ...(isMcpApp && !isLicenseScan ? [viteSingleFile()] : []),
   ],

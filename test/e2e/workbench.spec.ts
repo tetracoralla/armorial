@@ -384,3 +384,32 @@ test("icon listbox supports roving focus and grid keyboard navigation", async ({
   await expect(options.last()).toHaveAttribute("aria-selected", "true");
   expect(await page.locator('[role="option"][tabindex="0"]').count()).toBe(1);
 });
+
+test("a deeply loaded catalog keeps the rendered grid bounded and preserves exact keyboard position", async ({ page }) => {
+  await page.goto("/");
+  const listbox = page.getByRole("listbox", { name: "Icon results" });
+  const loadMore = page.getByRole("button", { name: "Load more", exact: true });
+  for (const expectedLoaded of [120, 180, 240, 300]) {
+    await loadMore.scrollIntoViewIfNeeded();
+    await loadMore.click();
+    await expect(listbox).toHaveAttribute("data-loaded-count", String(expectedLoaded));
+    await expect(listbox).toHaveAttribute("aria-busy", "false");
+    await expect(listbox.getByRole("option").first()).toHaveAttribute("aria-posinset", expectedLoaded === 120 ? "1" : /\d+/);
+  }
+
+  const renderedOptions = listbox.getByRole("option");
+  const renderedCount = await renderedOptions.count();
+  expect(renderedCount).toBeLessThanOrEqual(160);
+  await expect(renderedOptions.first()).toHaveAttribute("aria-setsize", "2658");
+
+  // Focus a currently painted option, then send the key to the active element.
+  // Re-resolving `.first()` after focus can target a different virtualized
+  // element if the browser scrolls an overscan row into view.
+  await renderedOptions.nth(Math.floor(renderedCount / 2)).focus();
+  await page.keyboard.press("End");
+  const lastLoaded = listbox.locator('[role="option"][aria-posinset="300"]');
+  await expect(lastLoaded).toBeFocused();
+  await expect(lastLoaded).toHaveAttribute("aria-selected", "true");
+  expect(await page.locator(".catalog-scroll").evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(await page.locator('[role="option"][tabindex="0"]').count()).toBe(1);
+});
