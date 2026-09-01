@@ -6,8 +6,8 @@ to install or a request to run lifecycle scripts.
 
 ## Runtime binding
 
-The archive contains Armorial's production JavaScript dependencies. It does
-not contain a Node.js executable. Its `.mcp.json` deliberately declares
+The archive contains Armorial's production JavaScript dependencies and both
+its MCP and direct CLI adapters. It does not contain a Node.js executable. Its `.mcp.json` deliberately declares
 `command: "node"`; the Agent Host binds that command to the Node runtime it
 already manages. Installation therefore needs a macOS arm64 Agent Host whose
 MCP launch environment provides `node`. No `npm install`, registry access, or
@@ -21,7 +21,7 @@ vendored Node binary.
 ## Contents and verification
 
 The archive root is `armorial/` and contains only the Codex manifest, MCP
-configuration, product Skill, MCP runtime/core, MCP App picker, production
+configuration, product Skill, MCP and CLI runtime/core, MCP App picker, production
 dependencies, icon-policy schema/example, `LICENSE`, `NOTICE`, third-party
 notices, and `SBOM.spdx.json`. It intentionally excludes TypeScript source,
 tests, build tooling, Figma files, standalone web-server assets, source maps,
@@ -35,3 +35,15 @@ five model-facing tools `resolve_icon`, `search_icons`, `get_icon`,
 
 `ICON_SVG_SELECT_POLICY` is the only plugin environment variable. It is an
 operator-selected policy path, not an MCP tool argument.
+
+Agent Host may project the plugin without its MCP declaration when Armorial is
+installed but not in the active tool set. In that form the product Skill and a
+Host-generated `scripts/armorial` launcher remain available. The launcher is
+bound to this archive's exact CLI bytes and the Host-managed Node runtime; it
+does not discover or execute a mutable source checkout. Its task-local sprite
+routes support either a same-origin external SVG file or marker-bounded inline
+insertion into an existing HTML file, without returning geometry to the Agent.
+The CLI can deterministically resolve up to 20 compact intents and publish that
+carrier in one process; ambiguities or misses close before file mutation and
+return all resolved mappings plus every unresolved intent and bounded candidate
+ids rather than stopping at the first failure or publishing a partial sprite.

@@ -33,6 +33,15 @@ try {
   assert.equal(packageManifest.version, packageJson.version);
   assert.equal(packageManifest.scripts, undefined);
   assert.equal(packageManifest.bin, undefined);
+  const cli = join(pluginDirectory, "dist/adapters/cli.js");
+  assert.equal(execFileSync(process.execPath, [cli, "--version"], { cwd: pluginDirectory, encoding: "utf8" }).trim(), packageJson.version);
+  const cliResolved = JSON.parse(execFileSync(process.execPath, [cli, "resolve", "search", "--format", "json"], {
+    cwd: pluginDirectory,
+    encoding: "utf8",
+  })) as { status?: unknown; icon?: { id?: unknown; asset?: { svg?: unknown } } };
+  assert.equal(cliResolved.status, "ok");
+  assert.equal(cliResolved.icon?.id, "icon-park:search");
+  assert.match(String(cliResolved.icon?.asset?.svg), /<svg/);
   const mcpConfig = JSON.parse(readFileSync(join(pluginDirectory, ".mcp.json"), "utf8")) as {
     mcpServers?: { icon_svg_select?: { command?: unknown; args?: unknown; cwd?: unknown } };
   };
@@ -71,7 +80,7 @@ try {
   writeFileSync(policyPath, JSON.stringify(policy), "utf8");
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [join(pluginDirectory, "dist/adapters/mcp.js")],
+    args: [cli, "mcp"],
     cwd: pluginDirectory,
     env: { ...process.env, ICON_SVG_SELECT_POLICY: policyPath },
     stderr: "pipe",
@@ -96,7 +105,7 @@ try {
   } finally {
     await client.close();
   }
-  process.stdout.write(`${JSON.stringify({ status: "ok", archive, sha256: digest, tools: "list+resolve+get+choose", resource: "picker" })}\n`);
+  process.stdout.write(`${JSON.stringify({ status: "ok", archive, sha256: digest, tools: "list+resolve+get+choose", cli: "version+resolve+mcp", resource: "picker" })}\n`);
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }

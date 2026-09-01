@@ -31,9 +31,12 @@ must be owned and published by the root site. In the absence of a root policy,
 the workbench and task guide carry explicit per-page indexing metadata.
 
 Armorial does not currently publish an npm package or official MCP Registry
-entry. The public MCP route is built from source today. A registry entry should
-be added only after an immutable public MCP package exists and its installation
-can be reproduced independently of this checkout.
+entry. The repository now carries version-aligned `server.json` and npm
+`mcpName` metadata, and the package-default `armorial mcp` route has passed the
+official publisher's online validation plus an isolated packaged-runtime probe.
+Publication remains a separate owner action after the npm package is released;
+the checked-in metadata does not claim that external installation already
+works.
 
 ## What is working
 
@@ -107,6 +110,11 @@ In the Figma desktop app, choose **Plugins -> Development -> Import plugin from 
 
 The checked-in manifest points at generated files under `figma-plugin/dist/`; those files are intentionally Git-ignored. Run the build before importing from a fresh clone. `npm run figma:probe` validates the manifest, offline declaration, bundle budgets, local catalog UI, and drag envelope without touching a Figma document.
 
+The Figma development plugin remains a source/release artifact and is not
+carried inside the npm package. Figma does not install this adapter through
+npm, so including it would increase every CLI/MCP installation without making
+the Figma flow more installable.
+
 ## CLI
 
 ```sh
@@ -121,11 +129,28 @@ node dist/adapters/cli.js resolve 设置 \
 # Pure SVG on stdout
 node dist/adapters/cli.js get icon-park:search --format svg
 
+# Compact semantic discovery followed by one model-context-free sprite file
+node dist/adapters/cli.js resolve shopping-bag --format text
+node dist/adapters/cli.js batch icon-park:user icon-park:shopping-bag \
+  --format sprite --symbol-prefix ui- --output generated/armorial-sprite.svg
+
 # Validate a project policy
 node dist/adapters/cli.js policy validate icon-policy.example.json
+
+# Start the same MCP server through the package-default executable
+node dist/adapters/cli.js mcp --policy icon-policy.example.json
 ```
 
-The CLI never writes SVG files. Pipe or redirect stdout when a human deliberately chooses a destination. The CLI resolves its policy the same way as the MCP server: `--policy`, then `ICON_SVG_SELECT_POLICY`, then `./icon-policy.json` in the working directory, then the built-in default.
+The CLI writes an SVG file only when `batch --format sprite` receives an
+explicit relative `.svg` `--output` inside the current working directory. That
+route publishes atomically and returns only a compact path, byte count, hash,
+and symbol count. `resolve --format text` keeps successful semantic discovery
+compact. Sprite batching accepts exact ids only, preserves input order, emits
+no partial sprite, and gives each symbol the stable id
+`<symbol-prefix><canonical-slug>` so durable HTML automation does not replay SVG
+paths through model context. The CLI resolves its policy the same way as the MCP
+server: `--policy`, then `ICON_SVG_SELECT_POLICY`, then `./icon-policy.json` in
+the working directory, then the built-in default.
 
 ## MCP
 
@@ -135,6 +160,12 @@ Build first, then configure an MCP client to launch:
 node /absolute/path/to/armorial/dist/adapters/mcp.js \
   --policy /absolute/path/to/project/icon-policy.json
 ```
+
+The equivalent package-default command is `armorial mcp --policy ...`. The
+Registry-ready [`server.json`](./server.json) uses that explicit subcommand so
+npm clients cannot mistake the human CLI for the MCP process when the package
+contains several executables. After—not before—`armorial@0.6.10` is published to
+npm, the declared Registry launch shape is `npx armorial@0.6.10 mcp`.
 
 The policy is a server-operator startup decision, never a tool input. When no `--policy` argument is given, the server resolves one policy file at startup, in this order:
 
@@ -166,7 +197,7 @@ The repository root is also a Codex plugin bundle: [plugin.json](./.codex-plugin
 
 For local host testing, run `npm run plugin:check`. It assembles the ignored `plugins/armorial/` directory from the exact `npm pack` contents, installs production dependencies from `package-lock.json` without lifecycle scripts, gives the staged manifest a fresh local Codex cachebuster, and probes the isolated MCP entry with a project policy. [`.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json) points at that generated directory, so a fresh clone must run this command before adding the local marketplace. The staging swap rejects symlink ancestors and does not expose a half-written plugin. The result contains no sources, tests, dev dependencies, package lock, or Git data. After changing the plugin, re-run the command, reinstall, and start a new Codex session so the cached copy updates.
 
-Armorial's current public distribution is the GitHub repository, the static GitHub Pages workbench, and source releases. The Pages deployment publishes `source-commit.txt`, the exact immutable Git commit used for its task guide and workbench; the public probe checks out that commit instead of mutable `main`. The npm-shaped archive is an internal reproducibility boundary for staging and verification; this release does not require an npm account or publish a registry package.
+Armorial's current public distribution is the GitHub repository, the static GitHub Pages workbench, and source releases. The Pages deployment publishes `source-commit.txt`, the exact immutable Git commit used for its task guide and workbench; the public probe checks out that commit instead of mutable `main`. The npm-shaped archive and macOS arm64 Codex-plugin archive are reproducibility boundaries for staging and verification. This work prepares npm and MCP Registry metadata but does not publish either one.
 
 ## Policy
 

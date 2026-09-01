@@ -1453,8 +1453,17 @@
   "icon-park:light": [
     "light rays"
   ],
+  "icon-park:local": [
+    "geolocation",
+    "location",
+    "map marker"
+  ],
   "icon-park:love-and-help": [
     "heart care"
+  ],
+  "icon-park:magic": [
+    "sparkle",
+    "sparkles"
   ],
   "icon-park:magic-hat": [
     "top hat"

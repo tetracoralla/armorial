@@ -329,13 +329,21 @@ export function createMcpServer(
 }
 
 export async function main(args = process.argv.slice(2)): Promise<void> {
-  const parsed = parseArgs({
-    args,
-    strict: true,
-    options: {
-      policy: { type: "string" },
-    },
-  });
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args,
+      strict: true,
+      options: {
+        policy: { type: "string" },
+      },
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new IconKernelError({ code: "INVALID_INPUT", message: error.message });
+    }
+    throw error;
+  }
   const policy = await resolvePolicyInput(parsed.values.policy);
   const server = createMcpServer(new IconKernel(policy));
   await server.connect(new StdioServerTransport());

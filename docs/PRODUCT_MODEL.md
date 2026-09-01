@@ -12,7 +12,9 @@ Brand identity is not the protocol contract. The descriptive Skill name,
 `[icon-selection:vN]` carrier family and deterministic SVG id prefixes remain stable; v3 is current and the Skill retains guarded v1/v2 reproduction paths.
 The package exposes `armorial`, `armorial-mcp`, and `armorial-ui` as the primary
 commands while retaining the earlier descriptive commands as compatibility
-aliases.
+aliases. `armorial mcp` deliberately reaches the same stdio server through the
+package-default executable; MCP Registry npm metadata uses that subcommand so
+clients do not need to select a secondary bin.
 
 ## Users and tasks
 
@@ -29,6 +31,8 @@ The optional connected flow exists for one reason: when an Agent's prior icon ch
 - Copy-to-chat fallback: select -> copy a bounded `icon_selection` message carrying the final render style -> paste it into any Agent conversation.
 - Agent-hosted handoff: an Agent opens the picker with an intent and an optional starting render style -> human selects and may adjust appearance -> explicitly attach the decision or send `Select & continue` -> the Agent verifies the exact icon and continues the already-authorized task.
 - Agent dominant path: `resolve_icon(intent, context?, render?)` once.
+- Agent inactive-provider path: load the product Skill, then invoke its
+  version-locked direct launcher without adding the MCP schemas to every turn.
 - Agent inspection path: `search_icons(query)` -> `get_icon(id, render?)`.
 - Agent human-decision path: `choose_icon(intent, context?, requestId?, render?)` once, then wait for the UI's explicit decision message.
 - Agent batch path: `get_icons(ids, render?)` once, preserving input order and per-item failures.
@@ -123,8 +127,22 @@ The collection capability declaration is explicit: IconPark uses mixed stroke/fi
 - Invalid input: one stable error response, without retries or generic SVG generation.
 - Batch needed in the current Agent turn: one call, at most 8 ids, with the
   complete MCP envelope bounded to 80 KiB. Structured automation and durable
-  batches may use the direct CLI/library route at up to 20 ids so SVG payloads
-  do not enter model context.
+  HTML batches use one CLI `batch --resolve-intents` call for up to 20 compact
+  meanings, or one exact-id batch when selection is already settled. The
+  intent batch resolves and renders inside one process, reports all resolved
+  mappings plus bounded candidates for every unresolved meaning in one failed
+  response, fails before mutation if any meaning is ambiguous or missing, deduplicates shared canonical ids,
+  and returns only the compact intent/id mapping plus carrier integrity. A same-origin served
+  artifact uses `--output <task-local-relative.svg>`; a single-file or direct
+  `file://` HTML artifact uses `--inline-into <task-local-relative.html>` so SVG
+  payloads never enter model context. Both routes write atomically inside the
+  current working directory and return only a compact path, byte count, hash,
+  and symbol count. Inline replacement is marker-bounded and idempotent. Sprite generation preserves exact
+  provider geometry, input order, and stable canonical symbol ids; it closes
+  rather than emitting a partial or duplicate sprite.
+- Sprite documents retain the SVG namespace so same-origin local assets can be
+  referenced as `<use href="relative.svg#symbol-id">`; the direct CLI owns
+  mechanical inline insertion for single-file and `file://` consumers.
 - Explicit visual decision: one `choose_icon` call, then one human decision message; ordinary resolution never opens the picker implicitly.
 
 The weakest intended client is a general MCP Agent that can select a tool from its name, first description sentence, and JSON schema. English and Simplified Chinese icon wording are supported by package metadata and compact aliases.
@@ -133,6 +151,9 @@ The weakest intended client is a general MCP Agent that can select a tool from i
 
 - The same built UI supports a standalone local browser and an MCP App host.
 - The Figma build reuses the same React workbench and browser-safe kernel behind an offline manifest. Its main sandbox validates the strict UI message, SVG envelope, and asset hash before invoking Figma-native insertion or geometry APIs.
+- The npm carrier includes the library, CLI, local web UI, MCP server/App,
+  product Skill, and Registry metadata. The Figma development plugin is built
+  and distributed separately because Figma does not install it from npm.
 - Standalone mode owns direct human export. An Agent host may add decision-delivery actions according to its declared capabilities; the picker exposes no account-connection or authorization state.
 - HTML drag exposes SVG and text transfer types, but actual drop acceptance remains the destination application's behavior. Copy and download are the guaranteed carriers.
 - The UI exposes appearance controls over the same typed render override that Agents pass as `render`; the decision message carries the final effective style, so any adjusted asset remains exactly reproducible through `get_icon`. The UI still does not edit the project policy file, present MCP names, schemas, or protocol state.

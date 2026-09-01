@@ -24,10 +24,12 @@ const requiredRuntimeFiles = [
   ".codex-plugin/plugin.json",
   ".mcp.json",
   "skills/icon-svg-select/SKILL.md",
+  "dist/adapters/cli.js",
   "dist/adapters/mcp.js",
   "dist/adapters/main-module.js",
   "dist/adapters/policy-file.js",
   "dist/adapters/presentation.js",
+  "dist/version.js",
   "dist/mcp-app/index.html",
   "icon-policy.schema.json",
   "icon-policy.example.json",
@@ -148,7 +150,7 @@ function removeEmptyDirectories(directory: string): boolean {
 function pruneToPluginRuntime(directory: string): void {
   const dist = join(directory, "dist");
   const adapters = join(dist, "adapters");
-  for (const name of ["cli.js", "web-server.js"]) remove(join(adapters, name), adapters);
+  remove(join(adapters, "web-server.js"), adapters);
   for (const name of ["cli.d.ts", "web-server.d.ts", "mcp.d.ts", "main-module.d.ts", "policy-file.d.ts", "presentation.d.ts"]) {
     remove(join(adapters, name), adapters);
   }
