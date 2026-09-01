@@ -1,6 +1,6 @@
 {
   "name": "armorial",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "description": "Select and render project-aware IconPark SVGs through tools or a visual picker.",
   "author": {
     "name": "openAdam"
