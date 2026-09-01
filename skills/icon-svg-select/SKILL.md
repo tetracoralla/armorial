@@ -37,6 +37,7 @@ managed launcher exists next to this Skill.
 
 - Ordinary intent whose SVG is needed immediately: run `scripts/armorial resolve <compact-intent> --format json` once.
 - Discovery before a single exact choice: run `scripts/armorial resolve <compact-intent> --format text`. It returns the selected canonical id without sending SVG geometry through Agent context.
+- Two or more independent meanings whose ids are needed without an asset carrier: run `scripts/armorial batch <compact-intent...> --resolve-intents --format json` once. Use its ordered, indexed `items` mapping; do not launch one resolver process per intent. This route does not render or return SVG.
 - Alternatives: run `scripts/armorial search <compact-query> --limit 8 --format json`.
 - Exact id: run `scripts/armorial get <icon-id> --format json` or add `--format svg` when only the verbatim asset is needed.
 - A bounded set of exact ids: run `scripts/armorial batch <icon-id...> --format json`.

@@ -31,6 +31,7 @@ Usage:
   armorial resolve <intent...> [--context name] [--alternatives 3] [--format json|text|svg] [--policy file]
   armorial get <icon-id> [--context name] [--format json|svg] [--policy file]
   armorial batch <icon-id...> [--context name] [--format json|text|sprite] [--symbol-prefix text] [--output relative.svg | --inline-into relative.html] [--allow-symbol-removal] [--policy file]
+  armorial batch <intent...> --resolve-intents [--context name] [--format json|text] [--policy file]
   armorial batch <intent...> --resolve-intents [--context name] [--symbol-prefix text] (--output relative.svg | --inline-into relative.html) [--allow-symbol-removal] [--policy file]
   armorial policy validate <file>
   armorial policy schema
@@ -463,10 +464,10 @@ async function runBatch(args: string[]): Promise<void> {
       field: "allow-symbol-removal",
     });
   }
-  if (resolveIntents && (!hasSpriteCarrier || format !== "sprite")) {
+  if (resolveIntents && format === "sprite" && !hasSpriteCarrier) {
     throw new IconKernelError({
       code: "INVALID_INPUT",
-      message: "resolve-intents requires exactly one --output or --inline-into sprite carrier.",
+      message: "resolve-intents with sprite format requires exactly one --output or --inline-into carrier.",
       field: "resolve-intents",
     });
   }
@@ -520,6 +521,24 @@ async function runBatch(args: string[]): Promise<void> {
         resolved,
         unresolved,
       });
+      return;
+    }
+    if (!hasSpriteCarrier) {
+      const items = resolved.map(({ intent, id }, index) => ({ index, intent, id }));
+      if (format === "text") {
+        writeText(items.map(({ index, intent, id }) => `${index}\t${JSON.stringify(intent)}\t${id}`).join("\n"));
+      } else {
+        writeJson({
+          status: "ok",
+          kind: "icon_intent_batch",
+          summary: {
+            requested: items.length,
+            resolved: items.length,
+            uniqueIcons: new Set(items.map(({ id }) => id)).size,
+          },
+          items,
+        });
+      }
       return;
     }
     iconIds = [...new Set(resolved.map(({ id }) => id))];

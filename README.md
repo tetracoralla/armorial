@@ -164,8 +164,8 @@ node /absolute/path/to/armorial/dist/adapters/mcp.js \
 The equivalent package-default command is `armorial mcp --policy ...`. The
 Registry-ready [`server.json`](./server.json) uses that explicit subcommand so
 npm clients cannot mistake the human CLI for the MCP process when the package
-contains several executables. After—not before—`armorial@0.6.10` is published to
-npm, the declared Registry launch shape is `npx armorial@0.6.10 mcp`.
+contains several executables. After—not before—`armorial@0.6.11` is published to
+npm, the declared Registry launch shape is `npx armorial@0.6.11 mcp`.
 
 The policy is a server-operator startup decision, never a tool input. When no `--policy` argument is given, the server resolves one policy file at startup, in this order:
 

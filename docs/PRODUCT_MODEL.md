@@ -128,8 +128,11 @@ The collection capability declaration is explicit: IconPark uses mixed stroke/fi
 - Batch needed in the current Agent turn: one call, at most 8 ids, with the
   complete MCP envelope bounded to 80 KiB. Structured automation and durable
   HTML batches use one CLI `batch --resolve-intents` call for up to 20 compact
-  meanings, or one exact-id batch when selection is already settled. The
-  intent batch resolves and renders inside one process, reports all resolved
+  meanings, or one exact-id batch when selection is already settled. A
+  selection-only request for two or more semantic meanings uses that same
+  command without an output carrier; it returns one ordered, indexed intent/id
+  mapping and does not render SVG. A durable intent batch resolves and renders
+  inside one process, reports all resolved
   mappings plus bounded candidates for every unresolved meaning in one failed
   response, fails before mutation if any meaning is ambiguous or missing, deduplicates shared canonical ids,
   and returns only the compact intent/id mapping plus carrier integrity. A same-origin served

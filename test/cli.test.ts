@@ -329,6 +329,32 @@ test("CLI resolves a bounded intent set and writes one compact sprite carrier at
   assert.match(html, /<main>Keep me<\/main>/);
 });
 
+test("CLI resolves multiple intents once without rendering or publishing a carrier", () => {
+  const result = runCli(
+    "batch",
+    "user",
+    "search",
+    "user",
+    "--resolve-intents",
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /<svg|<symbol|<path|asset/);
+  assert.deepEqual(JSON.parse(result.stdout), {
+    status: "ok",
+    kind: "icon_intent_batch",
+    summary: { requested: 3, resolved: 3, uniqueIcons: 2 },
+    items: [
+      { index: 0, intent: "user", id: "icon-park:user" },
+      { index: 1, intent: "search", id: "icon-park:search" },
+      { index: 2, intent: "user", id: "icon-park:user" },
+    ],
+  });
+
+  const text = runCli("batch", "user", "search", "--resolve-intents", "--format", "text");
+  assert.equal(text.status, 0, text.stderr);
+  assert.equal(text.stdout, "0\t\"user\"\ticon-park:user\n1\t\"search\"\ticon-park:search\n");
+});
+
 test("CLI intent batch fails before mutation on ambiguity, misses, or an unbounded carrier", async (context) => {
   const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-intent-batch-failure-"));
   context.after(() => rm(scratch, { recursive: true, force: true }));
@@ -363,16 +389,11 @@ test("CLI intent batch fails before mutation on ambiguity, misses, or an unbound
   assert.ok((summary.unresolved[0]?.candidates?.length ?? 0) >= 2);
   assert.equal(await readFile(target, "utf8"), original);
 
-  for (const args of [
-    ["batch", "user", "--resolve-intents"],
-  ]) {
-    await writeFile(target, original, "utf8");
-    const result = runCliAt(scratch, ...args);
-    assert.equal(result.status, 2, `${args.join(" ")}\n${result.stderr}`);
-    assert.equal(result.stdout, "");
-    assert.doesNotThrow(() => JSON.parse(result.stderr));
-    assert.equal(await readFile(target, "utf8"), original);
-  }
+  const unboundedSprite = runCliAt(scratch, "batch", "user", "--resolve-intents", "--format", "sprite");
+  assert.equal(unboundedSprite.status, 2, unboundedSprite.stderr);
+  assert.equal(unboundedSprite.stdout, "");
+  assert.equal(JSON.parse(unboundedSprite.stderr).error.field, "resolve-intents");
+  assert.equal(await readFile(target, "utf8"), original);
 });
 
 test("CLI returns a stable nonzero ambiguity without putting SVG on stdout", () => {
