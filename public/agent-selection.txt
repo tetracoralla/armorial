@@ -48,6 +48,9 @@ Representative requests:
   named task-local file after validation. Inline admission bounds caller-owned
   HTML to 8 MiB and the Armorial-managed marker block to 512 KiB plus four
   framing bytes, so an accepted first insert remains retryable and replaceable.
+  Before publishing inline output, Armorial revalidates the original file
+  identity, version metadata, and complete bytes; an intervening external save
+  fails without overwriting that newer version or leaving a temporary file.
   Browser download, clipboard, Figma
   insertion, and an explicit human decision are separate user-visible effects.
 - MCP tools do not accept paths, URLs, raw SVG, or source code. The server

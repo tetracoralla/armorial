@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmod, mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const tsxImport = import.meta.resolve("tsx");
+const inlineConflictInjector = resolve(workspace, "scripts/inject-inline-conflict.mjs");
 
 function runCliAt(cwd: string, ...args: string[]) {
   return spawnSync(process.execPath, ["--import", tsxImport, resolve(workspace, "src/adapters/cli.ts"), ...args], {
@@ -18,6 +19,36 @@ function runCliAt(cwd: string, ...args: string[]) {
 
 function runCli(...args: string[]) {
   return runCliAt(workspace, ...args);
+}
+
+function runInlineConflictCli(
+  cwd: string,
+  target: string,
+  externalContent: Buffer,
+  method: "in-place" | "replace",
+) {
+  return spawnSync(process.execPath, [
+    "--import",
+    inlineConflictInjector,
+    "--import",
+    tsxImport,
+    resolve(workspace, "src/adapters/cli.ts"),
+    "batch",
+    "icon-park:search",
+    "--inline-into",
+    "index.html",
+    "--format",
+    "json",
+  ], {
+    cwd,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ARMORIAL_INLINE_CONFLICT_TARGET: target,
+      ARMORIAL_INLINE_CONFLICT_CONTENT_BASE64: externalContent.toString("base64"),
+      ARMORIAL_INLINE_CONFLICT_METHOD: method,
+    },
+  });
 }
 
 test("CLI validates policy and renders SVG without writing a file", () => {
@@ -208,6 +239,45 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
   const reduced = await readFile(target, "utf8");
   assert.match(reduced, /<symbol id="i-user"/);
   assert.doesNotMatch(reduced, /<symbol id="i-search"/);
+});
+
+test("CLI preserves same-size external HTML saves before inline publication", async (context) => {
+  for (const method of ["in-place", "replace"] as const) {
+    const scratch = await mkdtemp(resolve(tmpdir(), `armorial-cli-inline-conflict-${method}-`));
+    context.after(() => rm(scratch, { recursive: true, force: true }));
+    const target = resolve(scratch, "index.html");
+    const original = Buffer.from("<!doctype html><html><body><main>ORIGINAL-01</main></body></html>\n", "utf8");
+    const external = Buffer.from("<!doctype html><html><body><main>EXTERNAL-01</main></body></html>\n", "utf8");
+    assert.equal(external.byteLength, original.byteLength);
+    await writeFile(target, original);
+    const before = await stat(target, { bigint: true });
+
+    const result = runInlineConflictCli(scratch, target, external, method);
+
+    assert.equal(result.status, 2, result.stderr);
+    assert.equal(result.stdout, "");
+    const failure = JSON.parse(result.stderr) as {
+      status?: unknown;
+      error?: { code?: unknown; message?: unknown; field?: unknown };
+    };
+    assert.deepEqual(failure, {
+      status: "error",
+      error: {
+        code: "INVALID_INPUT",
+        message: "inline-into HTML changed after Armorial read it; the external version was preserved. Retry with a stable task file.",
+        field: "inline-into",
+      },
+    });
+    assert.deepEqual(await readFile(target), external, `${method} external content must survive`);
+    const after = await stat(target, { bigint: true });
+    if (method === "in-place") assert.equal(after.ino, before.ino, "the fixture must exercise an in-place save");
+    else assert.notEqual(after.ino, before.ino, "the fixture must exercise a replacement inode");
+    assert.deepEqual(
+      (await readdir(scratch)).filter((name) => name.includes(".armorial-") && name.endsWith(".tmp")),
+      [],
+      "a failed optimistic publication must clean its temporary file",
+    );
+  }
 });
 
 test("CLI keeps an exact 8 MiB caller carrier admissible after insert, retry, and replacement", async (context) => {

@@ -141,7 +141,11 @@ The collection capability declaration is explicit: IconPark uses mixed stroke/fi
   `file://` HTML artifact uses `--inline-into <task-local-relative.html>` so SVG
   payloads never enter model context. Both routes write atomically inside the
   current working directory and return only a compact path, byte count, hash,
-  and symbol count. Inline replacement is marker-bounded and idempotent. Sprite generation preserves exact
+  and symbol count. Inline replacement is marker-bounded and idempotent. Before
+  publication it revalidates the target's original file identity, version
+  metadata, and complete bytes; an external save causes a stable failure that
+  preserves the external version and removes the unpublished temporary file.
+  Sprite generation preserves exact
   provider geometry, input order, and stable canonical symbol ids; it closes
   rather than emitting a partial or duplicate sprite. Because an SVG `<symbol>`
   has no final rendered dimensions, sprite routes reject `--size`; the consuming

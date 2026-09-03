@@ -1,5 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
-import { chmod, lstat, open, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { constants, type BigIntStats } from "node:fs";
+import {
+  chmod,
+  lstat,
+  open,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+  type FileHandle,
+} from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { IconKernelError } from "../core/errors.js";
 
@@ -17,6 +27,23 @@ const MAX_MARKER_INDENTATION_CODE_UNITS = 256;
 
 export type ResolvedIntent = Readonly<{ intent: string; id: string }>;
 
+type TaskFileIdentity = Readonly<{
+  dev: bigint;
+  ino: bigint;
+  mode: bigint;
+  nlink: bigint;
+  uid: bigint;
+  gid: bigint;
+  size: bigint;
+  mtimeNs: bigint;
+  ctimeNs: bigint;
+}>;
+
+type TaskFileVersion = Readonly<{
+  identity: TaskFileIdentity;
+  bytes: Buffer;
+}>;
+
 function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
@@ -24,6 +51,108 @@ function writeJson(value: unknown): void {
 function pathIsInside(root: string, candidate: string): boolean {
   const remainder = relative(root, candidate);
   return remainder === "" || (!isAbsolute(remainder) && remainder !== ".." && !remainder.startsWith(`..${sep}`));
+}
+
+function taskFileIdentity(value: BigIntStats): TaskFileIdentity {
+  return {
+    dev: value.dev,
+    ino: value.ino,
+    mode: value.mode,
+    nlink: value.nlink,
+    uid: value.uid,
+    gid: value.gid,
+    size: value.size,
+    mtimeNs: value.mtimeNs,
+    ctimeNs: value.ctimeNs,
+  };
+}
+
+function taskFileIdentityMatches(left: TaskFileIdentity, right: TaskFileIdentity): boolean {
+  return Object.keys(left).every((key) => left[key as keyof TaskFileIdentity] === right[key as keyof TaskFileIdentity]);
+}
+
+function changedInlineCarrier(): IconKernelError {
+  return new IconKernelError({
+    code: "INVALID_INPUT",
+    message: "inline-into HTML changed after Armorial read it; the external version was preserved. Retry with a stable task file.",
+    field: "inline-into",
+  });
+}
+
+function isConcurrentFileChange(error: unknown): boolean {
+  return ["EACCES", "EISDIR", "ELOOP", "ENOENT", "ENOTDIR", "EPERM"].includes(
+    (error as NodeJS.ErrnoException).code ?? "",
+  );
+}
+
+async function readBoundedFile(handle: FileHandle, maximumBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  while (bytes <= maximumBytes) {
+    const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, maximumBytes + 1 - bytes));
+    const { bytesRead } = await handle.read(buffer, 0, buffer.byteLength, null);
+    if (bytesRead === 0) break;
+    chunks.push(buffer.subarray(0, bytesRead));
+    bytes += bytesRead;
+  }
+  return Buffer.concat(chunks, bytes);
+}
+
+async function readStableTaskFile(
+  destination: string,
+  admittedIdentity: TaskFileIdentity,
+  maximumBytes: number,
+): Promise<TaskFileVersion> {
+  let handle: FileHandle | undefined;
+  try {
+    handle = await open(destination, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const before = taskFileIdentity(await handle.stat({ bigint: true }));
+    if (!taskFileIdentityMatches(admittedIdentity, before)) throw changedInlineCarrier();
+    const bytes = await readBoundedFile(handle, maximumBytes);
+    const after = taskFileIdentity(await handle.stat({ bigint: true }));
+    const pathAfter = taskFileIdentity(await lstat(destination, { bigint: true }));
+    if (
+      bytes.byteLength > maximumBytes
+      || BigInt(bytes.byteLength) !== after.size
+      || !taskFileIdentityMatches(before, after)
+      || !taskFileIdentityMatches(after, pathAfter)
+    ) throw changedInlineCarrier();
+    return { identity: after, bytes };
+  } catch (error) {
+    if (error instanceof IconKernelError) throw error;
+    if (isConcurrentFileChange(error)) throw changedInlineCarrier();
+    throw error;
+  } finally {
+    await handle?.close();
+  }
+}
+
+async function holdUnchangedTaskFile(
+  destination: string,
+  expected: TaskFileVersion,
+  maximumBytes: number,
+): Promise<FileHandle> {
+  let handle: FileHandle | undefined;
+  try {
+    handle = await open(destination, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const before = taskFileIdentity(await handle.stat({ bigint: true }));
+    if (!taskFileIdentityMatches(expected.identity, before)) throw changedInlineCarrier();
+    const bytes = await readBoundedFile(handle, maximumBytes);
+    const after = taskFileIdentity(await handle.stat({ bigint: true }));
+    const pathAfter = taskFileIdentity(await lstat(destination, { bigint: true }));
+    if (
+      bytes.byteLength > maximumBytes
+      || !bytes.equals(expected.bytes)
+      || !taskFileIdentityMatches(before, after)
+      || !taskFileIdentityMatches(after, pathAfter)
+    ) throw changedInlineCarrier();
+    return handle;
+  } catch (error) {
+    await handle?.close();
+    if (error instanceof IconKernelError) throw error;
+    if (isConcurrentFileChange(error)) throw changedInlineCarrier();
+    throw error;
+  }
 }
 
 export async function writeSpriteFile(
@@ -108,7 +237,7 @@ async function resolveExistingTaskFile(inputPath: string, extension: RegExp, fie
   workingRoot: string;
   destination: string;
   mode: number;
-  size: number;
+  identity: TaskFileIdentity;
 }> {
   if (isAbsolute(inputPath) || !extension.test(inputPath)) {
     throw new IconKernelError({
@@ -147,7 +276,7 @@ async function resolveExistingTaskFile(inputPath: string, extension: RegExp, fie
   const destination = join(parentRoot, basename(logicalDestination));
   let current;
   try {
-    current = await lstat(destination);
+    current = await lstat(destination, { bigint: true });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       throw new IconKernelError({
@@ -165,7 +294,12 @@ async function resolveExistingTaskFile(inputPath: string, extension: RegExp, fie
       field,
     });
   }
-  return { workingRoot, destination, mode: current.mode & 0o777, size: current.size };
+  return {
+    workingRoot,
+    destination,
+    mode: Number(current.mode & 0o777n),
+    identity: taskFileIdentity(current),
+  };
 }
 
 type FileChunk = string | Uint8Array;
@@ -174,9 +308,11 @@ async function replaceFileAtomically(
   destination: string,
   chunks: readonly FileChunk[],
   mode: number,
+  expected: TaskFileVersion,
 ): Promise<Readonly<{ bytes: number; sha256: string }>> {
   const temporary = join(dirname(destination), `.${basename(destination)}.armorial-${randomUUID()}.tmp`);
   let handle;
+  let destinationHandle: FileHandle | undefined;
   try {
     handle = await open(temporary, "wx", 0o644);
     const hash = createHash("sha256");
@@ -199,10 +335,14 @@ async function replaceFileAtomically(
     await handle.close();
     handle = undefined;
     await chmod(temporary, mode);
+    destinationHandle = await holdUnchangedTaskFile(destination, expected, MAX_INLINE_HTML_PHYSICAL_BYTES);
     await rename(temporary, destination);
+    await destinationHandle.close();
+    destinationHandle = undefined;
     return { bytes, sha256: `sha256:${hash.digest("hex")}` };
   } finally {
     await handle?.close();
+    await destinationHandle?.close();
     await rm(temporary, { force: true });
   }
 }
@@ -230,22 +370,16 @@ export async function inlineSpriteIntoHtml(
   resolved?: readonly ResolvedIntent[],
   allowSymbolRemoval = false,
 ): Promise<void> {
-  const { workingRoot, destination, mode, size } = await resolveExistingTaskFile(inputPath, /\.html?$/i, "inline-into");
-  if (size > MAX_INLINE_HTML_PHYSICAL_BYTES) {
+  const { workingRoot, destination, mode, identity } = await resolveExistingTaskFile(inputPath, /\.html?$/i, "inline-into");
+  if (identity.size > BigInt(MAX_INLINE_HTML_PHYSICAL_BYTES)) {
     throw new IconKernelError({
       code: "INVALID_INPUT",
       message: `inline-into physical HTML must not exceed ${MAX_INLINE_HTML_PHYSICAL_BYTES} bytes.`,
       field: "inline-into",
     });
   }
-  const originalBytes = await readFile(destination);
-  if (originalBytes.byteLength !== size) {
-    throw new IconKernelError({
-      code: "INVALID_INPUT",
-      message: "inline-into HTML changed while it was being admitted; retry with a stable task file.",
-      field: "inline-into",
-    });
-  }
+  const originalVersion = await readStableTaskFile(destination, identity, MAX_INLINE_HTML_PHYSICAL_BYTES);
+  const originalBytes = originalVersion.bytes;
   const {
     parseHtmlCarrierStructure,
     SPRITE_END_MARKER,
@@ -368,7 +502,7 @@ export async function inlineSpriteIntoHtml(
     });
   }
 
-  const publication = await replaceFileAtomically(destination, chunks, mode);
+  const publication = await replaceFileAtomically(destination, chunks, mode, originalVersion);
   writeJson({
     status: "ok",
     kind: "icon_sprite_inline",

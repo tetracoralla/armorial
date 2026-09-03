@@ -42,6 +42,14 @@ try {
   assert.equal(cliResolved.status, "ok");
   assert.equal(cliResolved.icon?.id, "icon-park:search");
   assert.match(String(cliResolved.icon?.asset?.svg), /<svg/);
+  const conflictObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-inline-conflict.mjs"),
+    "--cli",
+    cli,
+  ], { encoding: "utf8" })) as { status?: unknown; observations?: Array<{ code?: unknown; residue?: unknown }> };
+  assert.equal(conflictObservation.status, "ok");
+  assert.equal(conflictObservation.observations?.length, 2);
+  assert.equal(conflictObservation.observations?.every(({ code, residue }) => code === "INVALID_INPUT" && residue === 0), true);
   for (const [fileName, unsafeHtml] of new Map([
     ["script-pseudo-body.html", '<!doctype html><html><head><script>const template = "<body>";</script></head></html>\n'],
     ["head-marker-block.html", "<!doctype html><html><head><!-- armorial:sprite:start --><!-- armorial:sprite:end --></head><body><main>keep</main></body></html>\n"],
@@ -166,7 +174,7 @@ try {
   } finally {
     await client.close();
   }
-  process.stdout.write(`${JSON.stringify({ status: "ok", archive, sha256: digest, tools: "list+resolve+get+choose", cli: "version+resolve+inline+mcp", resource: "picker" })}\n`);
+  process.stdout.write(`${JSON.stringify({ status: "ok", archive, sha256: digest, tools: "list+resolve+get+choose", cli: "version+resolve+inline-conflict+mcp", resource: "picker" })}\n`);
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }

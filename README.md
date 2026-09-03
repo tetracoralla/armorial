@@ -170,7 +170,11 @@ published carrier may be at most 8,912,900 bytes and remains admissible for an
 exact retry or replacement. Armorial enforces a 5-second parse deadline, 50,000-node and
 50,000-attribute structural ceilings, a 256-open-element ceiling, a 2 MiB
 retained-attribute budget, and a 64 Ki-code-unit lexical-token ceiling before
-atomic publication. The build also measures fresh 1, 4, 7.5, and 8 MiB calls
+atomic publication. Immediately before that publication, it revalidates the
+target's file identity, version metadata, and complete original bytes. An
+external save after admission returns `INVALID_INPUT`, preserves the external
+version, emits no success summary, and removes Armorial's temporary file. The
+build also measures fresh 1, 4, 7.5, and 8 MiB calls
 against a 6-second / 256 MiB max-RSS regression boundary. These limits protect
 the carrier operation; they are not claims about browser rendering cost.
 

@@ -43,7 +43,10 @@ consumer patch does not invalidate an unchanged completed sprite; reuse it.
 Caller-owned HTML is bounded to 8 MiB. The managed marker block is separately
 bounded to 512 KiB plus four canonical framing bytes, so every accepted first
 insert remains admissible for an exact retry or replacement; do not strip or
-recreate the markers to work around the carrier limits.
+recreate the markers to work around the carrier limits. Armorial revalidates
+the target's original identity, version metadata, and complete bytes before
+publication. If another editor saves after admission, retain that version and
+retry the complete batch only after reacquiring the current consumer file.
 
 ## Patch and verify consumers
 

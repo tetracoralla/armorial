@@ -98,6 +98,14 @@ writeFileSync(policyPath, JSON.stringify({
 
 const cleanEnvironment = { ...process.env, ICON_SVG_SELECT_POLICY: policyPath };
 const entry = join(pluginDirectory, "dist", "adapters", "mcp.js");
+const conflictObservation = JSON.parse(execFileSync(process.execPath, [
+  join(workspace, "scripts/probe-inline-conflict.mjs"),
+  "--cli",
+  join(pluginDirectory, "dist", "adapters", "cli.js"),
+], { encoding: "utf8" })) as { status?: unknown; observations?: Array<{ code?: unknown; residue?: unknown }> };
+assert.equal(conflictObservation.status, "ok");
+assert.equal(conflictObservation.observations?.length, 2);
+assert.equal(conflictObservation.observations?.every(({ code, residue }) => code === "INVALID_INPUT" && residue === 0), true);
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [entry],
@@ -249,5 +257,5 @@ process.stdout.write(`${JSON.stringify({
   policyIcon: "icon-park:setting-two",
   compoundIntent: "ambiguous",
   lazyRenderers: 2,
-  routes: ["resolve", "search", "get", "batch", "choose", "browse", "resource"],
+  routes: ["resolve", "search", "get", "batch", "inline-conflict", "choose", "browse", "resource"],
 })}\n`);
