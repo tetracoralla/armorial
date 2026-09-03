@@ -258,6 +258,36 @@ test("a failed appearance redraw returns to the last usable render and can be re
   await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeEnabled();
 });
 
+test("a failed search cannot publish a stale pagination route", async ({ page }) => {
+  const browseBodies: Array<Record<string, unknown>> = [];
+  await page.route("**/api/browse", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    browseBodies.push(body);
+    if (body.query === "injected failure") {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "injected search failure" }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto("/");
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+
+  await page.getByPlaceholder("Search icons", { exact: true }).fill("injected failure");
+  await expect(page.locator(".error-banner")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Load more", exact: true })).toHaveCount(0);
+  expect(browseBodies.some((body) => body.query === "injected failure" && body.offset === 60)).toBe(false);
+
+  await page.getByPlaceholder("Search icons", { exact: true }).fill("");
+  await expect(page.locator(".error-banner")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Load more", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Load more", exact: true }).click();
+  await expect.poll(() => browseBodies.some((body) => body.query === "" && body.offset === 60)).toBe(true);
+});
+
 test("focus and blur without an edit leaves appearance unmodified", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();

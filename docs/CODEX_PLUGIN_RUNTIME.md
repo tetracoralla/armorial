@@ -47,3 +47,8 @@ The CLI can deterministically resolve up to 20 compact intents and publish that
 carrier in one process; ambiguities or misses close before file mutation and
 return all resolved mappings plus every unresolved intent and bounded candidate
 ids rather than stopping at the first failure or publishing a partial sprite.
+An explicit `--format json` remains valid with a file or inline carrier because
+the carrier selects the sprite while stdout returns its compact integrity
+summary. Typed appearance flags feed the same validated core render override
+as MCP, Web, and Figma. Sprite routes reject `--size`; each consuming `<svg>`
+owns its final width and height.

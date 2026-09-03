@@ -93,13 +93,13 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
 
   async function loadCatalog(input: BrowseIconsInput, append = false): Promise<void> {
     const sequence = ++requestSequence.current;
-    lastLoadBasis.current = { query: input.query ?? "", category: input.category ?? null };
     setLoading(true);
     setError(null);
     try {
       const output = await runtime.browse(input);
       if (sequence !== requestSequence.current) return;
       if (output.status !== "ok") throw new Error(output.error.message);
+      lastLoadBasis.current = { query: input.query ?? "", category: input.category ?? null };
       setCatalog(output);
       setAppliedStyleOverride(input.render ?? null);
       setItems((current) => append ? [...current, ...output.items] : output.items);
@@ -322,7 +322,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
             items={items}
             total={catalog?.total ?? items.length}
             selectedId={selected?.id ?? null}
-            hasMore={catalog?.truncated ?? false}
+            hasMore={error === null && (catalog?.truncated ?? false)}
             loading={loading}
             onSelect={setSelected}
             onLoadMore={() => void loadMore()}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -107,11 +107,13 @@ test("CLI writes a sprite atomically and returns only a compact integrity summar
   assert.match(sprite, /<symbol id="i-search"/);
 
   await writeFile(resolve(scratch, "generated/icons.svg"), "stale", "utf8");
+  await chmod(resolve(scratch, "generated/icons.svg"), 0o640);
   const replacement = spawnSync(process.execPath, [
     "--import", tsxImport, script, "batch", "user", "--format", "sprite", "--output", "generated/icons.svg",
   ], { cwd: scratch, encoding: "utf8" });
   assert.equal(replacement.status, 0, replacement.stderr);
   assert.doesNotMatch(await readFile(resolve(scratch, "generated/icons.svg"), "utf8"), /stale/);
+  assert.equal((await stat(resolve(scratch, "generated/icons.svg"))).mode & 0o777, 0o640);
 });
 
 test("CLI atomically inlines an opaque sprite into a single-file HTML artifact", async (context) => {
@@ -120,6 +122,7 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
   const target = resolve(scratch, "index.html");
   const original = "<!doctype html>\n<html><head><title>Fixture</title></head><body class=\"app\"><main>Keep me</main><script>window.fixture = true;</script></body></html>\n";
   await writeFile(target, original, "utf8");
+  await chmod(target, 0o600);
 
   const args = [
     "batch",
@@ -163,6 +166,7 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
   assert.match(inlined, /<symbol id="i-search"/);
   assert.match(inlined, /<!-- armorial:sprite:end -->\n<main>Keep me<\/main>/);
   assert.match(inlined, /<script>window\.fixture = true;<\/script>/);
+  assert.equal((await stat(target)).mode & 0o777, 0o600, "atomic replacement must preserve task-file permissions");
 
   const second = runCliAt(scratch, ...args);
   assert.equal(second.status, 0, second.stderr);
@@ -285,6 +289,144 @@ test("CLI batch carriers infer sprite format and batch help avoids kernel work",
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /--inline-into relative\.html/);
   assert.doesNotMatch(help.stdout, /<svg|<symbol|<path/);
+});
+
+test("CLI accepts a JSON summary request with an unambiguous sprite carrier", async (context) => {
+  const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-json-carrier-"));
+  context.after(() => rm(scratch, { recursive: true, force: true }));
+  const target = resolve(scratch, "index.html");
+  await writeFile(target, "<body><main>Keep me</main></body>\n", "utf8");
+
+  const result = runCliAt(
+    scratch,
+    "batch",
+    "search",
+    "settings",
+    "close",
+    "--resolve-intents",
+    "--format",
+    "json",
+    "--symbol-prefix",
+    "ui-",
+    "--inline-into",
+    "index.html",
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /<svg|<symbol|<path/);
+  const summary = JSON.parse(result.stdout) as {
+    kind: string;
+    symbols: number;
+    resolved: Array<{ intent: string; id: string }>;
+  };
+  assert.equal(summary.kind, "icon_sprite_inline");
+  assert.equal(summary.symbols, 3);
+  assert.deepEqual(summary.resolved, [
+    { intent: "search", id: "icon-park:search" },
+    { intent: "settings", id: "icon-park:setting" },
+    { intent: "close", id: "icon-park:close" },
+  ]);
+  const html = await readFile(target, "utf8");
+  assert.match(html, /<symbol id="ui-search"/);
+  assert.match(html, /<symbol id="ui-setting"/);
+  assert.match(html, /<symbol id="ui-close"/);
+
+  const incompatible = runCliAt(
+    scratch,
+    "batch",
+    "search",
+    "--format",
+    "text",
+    "--inline-into",
+    "index.html",
+  );
+  assert.equal(incompatible.status, 2, incompatible.stderr);
+  assert.equal(JSON.parse(incompatible.stderr).error.code, "INVALID_INPUT");
+  assert.equal(await readFile(target, "utf8"), html);
+});
+
+test("CLI render flags preserve the shared typed override across resolve, get, and batch", async (context) => {
+  const renderArgs = [
+    "--theme", "two-tone",
+    "--size", "32",
+    "--stroke-width", "2",
+    "--stroke-linecap", "square",
+    "--stroke-linejoin", "bevel",
+    "--primary", "#112233",
+    "--secondary", "rebeccapurple",
+    "--inner-stroke", "var(--icon-stroke)",
+    "--inner-fill", "transparent",
+  ];
+  const resolved = runCli("resolve", "search", "--alternatives", "0", "--format", "json", ...renderArgs);
+  assert.equal(resolved.status, 0, resolved.stderr);
+  const resolvedIcon = JSON.parse(resolved.stdout).icon;
+  assert.deepEqual(resolvedIcon.policy, {
+    theme: "two-tone",
+    size: 32,
+    strokeWidth: 2,
+    strokeLinecap: "square",
+    strokeLinejoin: "bevel",
+    colors: {
+      primary: "#112233",
+      secondary: "rebeccapurple",
+      innerStroke: "var(--icon-stroke)",
+      innerFill: "transparent",
+    },
+    context: null,
+  });
+  assert.equal(resolvedIcon.policyCompliance, "overridden");
+
+  const exact = runCli("get", "icon-park:search", "--format", "json", ...renderArgs);
+  assert.equal(exact.status, 0, exact.stderr);
+  assert.equal(JSON.parse(exact.stdout).icon.asset.sha256, resolvedIcon.asset.sha256);
+
+  const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-render-carrier-"));
+  context.after(() => rm(scratch, { recursive: true, force: true }));
+  const spriteRenderArgs = [
+    "--theme", "two-tone",
+    "--stroke-width", "2",
+    "--stroke-linecap", "square",
+    "--stroke-linejoin", "bevel",
+    "--primary", "#112233",
+    "--secondary", "rebeccapurple",
+    "--inner-stroke", "var(--icon-stroke)",
+    "--inner-fill", "transparent",
+  ];
+  const output = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:search",
+    "--format",
+    "json",
+    "--output",
+    "icons.svg",
+    ...spriteRenderArgs,
+  );
+  assert.equal(output.status, 0, output.stderr);
+  const sprite = await readFile(resolve(scratch, "icons.svg"), "utf8");
+  assert.match(sprite, /stroke-width="2"/);
+  assert.match(sprite, /#112233/);
+
+  for (const invalid of [
+    ["--size", "32"],
+    ["--size", "7"],
+    ["--stroke-width", "2.5"],
+    ["--theme", "duotone"],
+    ["--primary", "url(https://example.com/icon.svg)"],
+  ]) {
+    const failure = runCliAt(
+      scratch,
+      "batch",
+      "icon-park:search",
+      "--format",
+      "json",
+      "--output",
+      "icons.svg",
+      ...invalid,
+    );
+    assert.equal(failure.status, 2, `${invalid.join(" ")}\n${failure.stderr}`);
+    assert.equal(JSON.parse(failure.stderr).error.code, "INVALID_INPUT");
+    assert.equal(await readFile(resolve(scratch, "icons.svg"), "utf8"), sprite);
+  }
 });
 
 test("CLI resolves a bounded intent set and writes one compact sprite carrier atomically", async (context) => {

@@ -32,7 +32,8 @@ The optional connected flow exists for one reason: when an Agent's prior icon ch
 - Agent-hosted handoff: an Agent opens the picker with an intent and an optional starting render style -> human selects and may adjust appearance -> explicitly attach the decision or send `Select & continue` -> the Agent verifies the exact icon and continues the already-authorized task.
 - Agent dominant path: `resolve_icon(intent, context?, render?)` once.
 - Agent inactive-provider path: load the product Skill, then invoke its
-  version-locked direct launcher without adding the MCP schemas to every turn.
+  version-locked direct launcher without adding the MCP schemas to every turn;
+  typed CLI flags carry the same explicit appearance override when requested.
 - Agent inspection path: `search_icons(query)` -> `get_icon(id, render?)`.
 - Agent human-decision path: `choose_icon(intent, context?, requestId?, render?)` once, then wait for the UI's explicit decision message.
 - Agent batch path: `get_icons(ids, render?)` once, preserving input order and per-item failures.
@@ -142,7 +143,9 @@ The collection capability declaration is explicit: IconPark uses mixed stroke/fi
   current working directory and return only a compact path, byte count, hash,
   and symbol count. Inline replacement is marker-bounded and idempotent. Sprite generation preserves exact
   provider geometry, input order, and stable canonical symbol ids; it closes
-  rather than emitting a partial or duplicate sprite.
+  rather than emitting a partial or duplicate sprite. Because an SVG `<symbol>`
+  has no final rendered dimensions, sprite routes reject `--size`; the consuming
+  `<svg>` owns width and height.
 - Sprite documents retain the SVG namespace so same-origin local assets can be
   referenced as `<use href="relative.svg#symbol-id">`; the direct CLI owns
   mechanical inline insertion for single-file and `file://` consumers.

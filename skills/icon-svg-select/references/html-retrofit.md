@@ -19,9 +19,9 @@ replaced. It is not required for an ids-only selection task.
 Use one atomic intent batch rather than one resolver process per icon:
 
 - same-origin served artifact:
-  `scripts/armorial batch <compact-intent...> --resolve-intents --symbol-prefix <safe-prefix> --output <task-local-relative.svg>`
+  `scripts/armorial batch <compact-intent...> --resolve-intents --format json --symbol-prefix <safe-prefix> --output <task-local-relative.svg>`
 - single-file or direct `file://` artifact:
-  `scripts/armorial batch <compact-intent...> --resolve-intents --symbol-prefix <safe-prefix> --inline-into <task-local-relative.html>`
+  `scripts/armorial batch <compact-intent...> --resolve-intents --format json --symbol-prefix <safe-prefix> --inline-into <task-local-relative.html>`
 
 The command returns a compact mapping and integrity summary without printing
 SVG. It writes nothing when any intent is ambiguous or missing, reports all
@@ -29,6 +29,12 @@ resolved mappings plus every unresolved intent, and bounds candidate ids. Keep
 the resolved mappings, refine only unresolved meanings, then rerun one corrected
 union batch. Intent batches may share one canonical symbol; exact-id batches
 reject duplicates.
+
+The file/inline flag selects the sprite carrier. `--format json` describes the
+compact stdout summary and is optional; `--format sprite` remains a supported
+compatibility spelling.
+Do not pass `--size` to a sprite batch. SVG symbols have no final rendered
+size; preserve or set width/height on each consuming `<svg>` element instead.
 
 The inline route replaces the complete marker-bounded managed sprite. If a later
 run would remove symbols, first prove their consumers are gone and then pass

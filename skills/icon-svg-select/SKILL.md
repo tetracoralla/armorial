@@ -50,6 +50,15 @@ Do not invent a context key from prose.
 - Exact asset: `scripts/armorial get <icon-id> --format json` or `--format svg`.
 - Known id batch: `scripts/armorial batch <icon-id...> --format json`.
 
+For an explicit appearance request on the managed CLI route, append the typed
+flags `--theme`, `--size`, `--stroke-width`, `--stroke-linecap`,
+`--stroke-linejoin`, `--primary`, `--secondary`, `--inner-stroke`, or
+`--inner-fill`. They form the same bounded render override as the MCP `render`
+object; do not edit returned geometry.
+For a sprite carrier, omit `--size`: the consuming `<svg>` owns its rendered
+width and height, so accepting a symbol size would be a no-op. Set the consumer
+size while patching its markup or stylesheet.
+
 Interpret CLI status, ambiguity, candidates, policy metadata, and assets exactly
 like the matching MCP result. Exit status `2` is a closed input, ambiguity,
 not-found, or policy failure; inspect its bounded JSON and do not retry with

@@ -129,10 +129,15 @@ node dist/adapters/cli.js resolve 设置 \
 # Pure SVG on stdout
 node dist/adapters/cli.js get icon-park:search --format svg
 
+# The same typed appearance override as MCP/Web/Figma
+node dist/adapters/cli.js get icon-park:search --format json \
+  --theme two-tone --size 32 --stroke-width 2 \
+  --primary '#0f172a' --secondary '#2f88ff'
+
 # Compact semantic discovery followed by one model-context-free sprite file
 node dist/adapters/cli.js resolve shopping-bag --format text
 node dist/adapters/cli.js batch icon-park:user icon-park:shopping-bag \
-  --format sprite --symbol-prefix ui- --output generated/armorial-sprite.svg
+  --format json --symbol-prefix ui- --output generated/armorial-sprite.svg
 
 # Validate a project policy
 node dist/adapters/cli.js policy validate icon-policy.example.json
@@ -141,12 +146,17 @@ node dist/adapters/cli.js policy validate icon-policy.example.json
 node dist/adapters/cli.js mcp --policy icon-policy.example.json
 ```
 
-The CLI writes an SVG file only when `batch --format sprite` receives an
-explicit relative `.svg` `--output` inside the current working directory. That
-route publishes atomically and returns only a compact path, byte count, hash,
-and symbol count. `resolve --format text` keeps successful semantic discovery
-compact. Sprite batching accepts exact ids only, preserves input order, emits
-no partial sprite, and gives each symbol the stable id
+The CLI writes an SVG file only when `batch` receives an explicit relative
+`.svg` `--output` inside the current working directory. `--output` or
+`--inline-into` selects the sprite carrier; `--format json` is accepted as the
+compact stdout summary request, while the older `--format sprite` spelling
+remains supported. The route publishes atomically and returns only a compact
+path, byte count, hash, and symbol count. `resolve --format text` keeps
+successful semantic discovery compact. The typed appearance flags map to the
+same core render override used by MCP, Web, and Figma. A sprite rejects
+`--size` because a `<symbol>` has no final rendered size; set width/height on
+each consuming `<svg>` instead. Sprite batching accepts
+exact ids only, preserves input order, emits no partial sprite, and gives each symbol the stable id
 `<symbol-prefix><canonical-slug>` so durable HTML automation does not replay SVG
 paths through model context. The CLI resolves its policy the same way as the MCP
 server: `--policy`, then `ICON_SVG_SELECT_POLICY`, then `./icon-policy.json` in
@@ -164,8 +174,8 @@ node /absolute/path/to/armorial/dist/adapters/mcp.js \
 The equivalent package-default command is `armorial mcp --policy ...`. The
 Registry-ready [`server.json`](./server.json) uses that explicit subcommand so
 npm clients cannot mistake the human CLI for the MCP process when the package
-contains several executables. After—not before—`armorial@0.6.12` is published to
-npm, the declared Registry launch shape is `npx armorial@0.6.12 mcp`.
+contains several executables. After—not before—`armorial@0.6.13` is published to
+npm, the declared Registry launch shape is `npx armorial@0.6.13 mcp`.
 
 The policy is a server-operator startup decision, never a tool input. When no `--policy` argument is given, the server resolves one policy file at startup, in this order:
 

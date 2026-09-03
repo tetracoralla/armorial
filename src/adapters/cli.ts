@@ -1,20 +1,21 @@
 #!/usr/bin/env node
-import { createHash, randomUUID } from "node:crypto";
-import { lstat, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
+import {
+  RenderStyleOverrideSchema,
+  type RenderStyleOverride,
+} from "../core/contracts.js";
 import { KERNEL_VERSION } from "../version.js";
-import { IconKernelError, toKernelError } from "../core/errors.js";
+import { IconKernelError, toKernelError, zodIssuesToKernelError } from "../core/errors.js";
+import {
+  inlineSpriteIntoHtml,
+  type ResolvedIntent,
+  writeSpriteFile,
+} from "./cli-artifact.js";
 import { isMainModule } from "./main-module.js";
 
 type Format = "json" | "text" | "svg" | "sprite";
 
 const SYMBOL_PREFIX_PATTERN = /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/;
-const MAX_INLINE_HTML_BYTES = 8 * 1024 * 1024;
-const SPRITE_START_MARKER = "<!-- armorial:sprite:start -->";
-const SPRITE_END_MARKER = "<!-- armorial:sprite:end -->";
-
-type ResolvedIntent = Readonly<{ intent: string; id: string }>;
 type UnresolvedIntent = Readonly<{
   index: number;
   intent: string;
@@ -28,17 +29,44 @@ const HELP = `armorial ${KERNEL_VERSION}
 Usage:
   armorial mcp [--policy file]
   armorial search <query...> [--limit 8] [--format text|json] [--policy file]
-  armorial resolve <intent...> [--context name] [--alternatives 3] [--format json|text|svg] [--policy file]
-  armorial get <icon-id> [--context name] [--format json|svg] [--policy file]
-  armorial batch <icon-id...> [--context name] [--format json|text|sprite] [--symbol-prefix text] [--output relative.svg | --inline-into relative.html] [--allow-symbol-removal] [--policy file]
-  armorial batch <intent...> --resolve-intents [--context name] [--format json|text] [--policy file]
-  armorial batch <intent...> --resolve-intents [--context name] [--symbol-prefix text] (--output relative.svg | --inline-into relative.html) [--allow-symbol-removal] [--policy file]
+  armorial resolve <intent...> [--context name] [render options] [--alternatives 3] [--format json|text|svg] [--policy file]
+  armorial get <icon-id> [--context name] [render options] [--format json|svg] [--policy file]
+  armorial batch <icon-id...> [--context name] [render options] [--format json|text|sprite] [--symbol-prefix text] [--output relative.svg | --inline-into relative.html] [--allow-symbol-removal] [--policy file]
+  armorial batch <intent...> --resolve-intents [--context name] [render options] [--format json|text] [--policy file]
+  armorial batch <intent...> --resolve-intents [--context name] [render options] [--format json|sprite] [--symbol-prefix text] (--output relative.svg | --inline-into relative.html) [--allow-symbol-removal] [--policy file]
   armorial policy validate <file>
   armorial policy schema
 
+Render options: --theme, --size, --stroke-width, --stroke-linecap, --stroke-linejoin,
+                --primary, --secondary, --inner-stroke, --inner-fill.
+
 Policy resolution order: --policy file, $ICON_SVG_SELECT_POLICY, ./icon-policy.json, built-in default.
 
-The CLI writes results to stdout unless an explicit task-local --output or --inline-into path is used with --format sprite.`;
+With --output or --inline-into, omit --format or use --format json|sprite: the carrier receives a sprite and stdout receives a compact JSON summary.`;
+
+const RENDER_OPTIONS = {
+  theme: { type: "string" },
+  size: { type: "string" },
+  "stroke-width": { type: "string" },
+  "stroke-linecap": { type: "string" },
+  "stroke-linejoin": { type: "string" },
+  primary: { type: "string" },
+  secondary: { type: "string" },
+  "inner-stroke": { type: "string" },
+  "inner-fill": { type: "string" },
+} as const;
+
+type CliRenderValues = Readonly<{
+  theme?: string;
+  size?: string;
+  "stroke-width"?: string;
+  "stroke-linecap"?: string;
+  "stroke-linejoin"?: string;
+  primary?: string;
+  secondary?: string;
+  "inner-stroke"?: string;
+  "inner-fill"?: string;
+}>;
 
 function asInteger(value: string | undefined, fallback: number): number {
   if (value === undefined) return fallback;
@@ -55,6 +83,35 @@ function parseFormat(value: string | undefined, allowed: readonly Format[], fall
     });
   }
   return format as Format;
+}
+
+function parseRenderOverride(values: CliRenderValues): RenderStyleOverride | undefined {
+  const colors = {
+    ...(values.primary === undefined ? {} : { primary: values.primary }),
+    ...(values.secondary === undefined ? {} : { secondary: values.secondary }),
+    ...(values["inner-stroke"] === undefined ? {} : { innerStroke: values["inner-stroke"] }),
+    ...(values["inner-fill"] === undefined ? {} : { innerFill: values["inner-fill"] }),
+  };
+  const input = {
+    ...(values.theme === undefined ? {} : { theme: values.theme }),
+    ...(values.size === undefined ? {} : { size: asInteger(values.size, Number.NaN) }),
+    ...(values["stroke-width"] === undefined
+      ? {}
+      : { strokeWidth: asInteger(values["stroke-width"], Number.NaN) }),
+    ...(values["stroke-linecap"] === undefined ? {} : { strokeLinecap: values["stroke-linecap"] }),
+    ...(values["stroke-linejoin"] === undefined ? {} : { strokeLinejoin: values["stroke-linejoin"] }),
+    ...(Object.keys(colors).length === 0 ? {} : { colors }),
+  };
+  if (Object.keys(input).length === 0) return undefined;
+  const parsed = RenderStyleOverrideSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new IconKernelError(zodIssuesToKernelError(
+      "INVALID_INPUT",
+      parsed.error,
+      "The render override is invalid.",
+    ));
+  }
+  return parsed.data;
 }
 
 async function createKernel(policyPath?: string) {
@@ -76,236 +133,6 @@ function writeText(value: string): void {
 function writeFailure(value: unknown): void {
   process.stderr.write(`${JSON.stringify(value, null, 2)}\n`);
   process.exitCode = 2;
-}
-
-function pathIsInside(root: string, candidate: string): boolean {
-  const remainder = relative(root, candidate);
-  return remainder === "" || (!isAbsolute(remainder) && remainder !== ".." && !remainder.startsWith(`..${sep}`));
-}
-
-async function writeSpriteFile(
-  outputPath: string,
-  sprite: string,
-  symbolCount: number,
-  resolved?: readonly ResolvedIntent[],
-): Promise<void> {
-  if (isAbsolute(outputPath) || !outputPath.toLowerCase().endsWith(".svg")) {
-    throw new IconKernelError({
-      code: "INVALID_INPUT",
-      message: "output must be a relative .svg path inside the current working directory.",
-      field: "output",
-    });
-  }
-
-  const logicalDestination = resolve(process.cwd(), outputPath);
-  let workingRoot: string;
-  let parentRoot: string;
-  try {
-    [workingRoot, parentRoot] = await Promise.all([
-      realpath(process.cwd()),
-      realpath(dirname(logicalDestination)),
-    ]);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new IconKernelError({
-        code: "INVALID_INPUT",
-        message: "output parent directory must already exist.",
-        field: "output",
-      });
-    }
-    throw error;
-  }
-  if (!pathIsInside(workingRoot, parentRoot)) {
-    throw new IconKernelError({
-      code: "INVALID_INPUT",
-      message: "output must remain inside the current working directory and cannot traverse a symlink outside it.",
-      field: "output",
-    });
-  }
-
-  const destination = join(parentRoot, basename(logicalDestination));
-  try {
-    const current = await lstat(destination);
-    if (!current.isFile() || current.isSymbolicLink()) {
-      throw new IconKernelError({
-        code: "INVALID_INPUT",
-        message: "output may replace only a regular file.",
-        field: "output",
-      });
-    }
-  } catch (error) {
-    if (error instanceof IconKernelError) throw error;
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-
-  const serialized = `${sprite}\n`;
-  const temporary = join(parentRoot, `.${basename(destination)}.armorial-${randomUUID()}.tmp`);
-  try {
-    await writeFile(temporary, serialized, { encoding: "utf8", flag: "wx", mode: 0o644 });
-    await rename(temporary, destination);
-  } finally {
-    await rm(temporary, { force: true });
-  }
-
-  writeJson({
-    status: "ok",
-    kind: "icon_sprite_file",
-    output: relative(workingRoot, destination) || basename(destination),
-    bytes: Buffer.byteLength(serialized),
-    sha256: `sha256:${createHash("sha256").update(serialized).digest("hex")}`,
-    symbols: symbolCount,
-    ...(resolved === undefined ? {} : { resolved }),
-  });
-}
-
-async function resolveExistingTaskFile(inputPath: string, extension: RegExp, field: string): Promise<{
-  workingRoot: string;
-  destination: string;
-}> {
-  if (isAbsolute(inputPath) || !extension.test(inputPath)) {
-    throw new IconKernelError({
-      code: "INVALID_INPUT",
-      message: `${field} must be a relative ${field === "inline-into" ? ".html or .htm" : ".svg"} path inside the current working directory.`,
-      field,
-    });
-  }
-
-  const logicalDestination = resolve(process.cwd(), inputPath);
-  let workingRoot: string;
-  let parentRoot: string;
-  try {
-    [workingRoot, parentRoot] = await Promise.all([
-      realpath(process.cwd()),
-      realpath(dirname(logicalDestination)),
-    ]);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new IconKernelError({
-        code: "INVALID_INPUT",
-        message: `${field} parent directory must already exist.`,
-        field,
-      });
-    }
-    throw error;
-  }
-  if (!pathIsInside(workingRoot, parentRoot)) {
-    throw new IconKernelError({
-      code: "INVALID_INPUT",
-      message: `${field} must remain inside the current working directory and cannot traverse a symlink outside it.`,
-      field,
-    });
-  }
-
-  const destination = join(parentRoot, basename(logicalDestination));
-  let current;
-  try {
-    current = await lstat(destination);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new IconKernelError({
-        code: "INVALID_INPUT",
-        message: `${field} must name an existing regular file.`,
-        field,
-      });
-    }
-    throw error;
-  }
-  if (!current.isFile() || current.isSymbolicLink()) {
-    throw new IconKernelError({
-      code: "INVALID_INPUT",
-      message: `${field} must name an existing regular file.`,
-      field,
-    });
-  }
-  return { workingRoot, destination };
-}
-
-async function replaceFileAtomically(destination: string, serialized: string): Promise<void> {
-  const temporary = join(dirname(destination), `.${basename(destination)}.armorial-${randomUUID()}.tmp`);
-  try {
-    await writeFile(temporary, serialized, { encoding: "utf8", flag: "wx", mode: 0o644 });
-    await rename(temporary, destination);
-  } finally {
-    await rm(temporary, { force: true });
-  }
-}
-
-async function inlineSpriteIntoHtml(
-  inputPath: string,
-  sprite: string,
-  symbolCount: number,
-  resolved?: readonly ResolvedIntent[],
-  allowSymbolRemoval = false,
-): Promise<void> {
-  const { workingRoot, destination } = await resolveExistingTaskFile(inputPath, /\.html?$/i, "inline-into");
-  const original = await readFile(destination, "utf8");
-  if (Buffer.byteLength(original) > MAX_INLINE_HTML_BYTES) {
-    throw new IconKernelError({
-      code: "INVALID_INPUT",
-      message: `inline-into HTML must not exceed ${MAX_INLINE_HTML_BYTES} bytes.`,
-      field: "inline-into",
-    });
-  }
-
-  const starts = original.split(SPRITE_START_MARKER).length - 1;
-  const ends = original.split(SPRITE_END_MARKER).length - 1;
-  if (starts !== ends || starts > 1) {
-    throw new IconKernelError({
-      code: "INVALID_INPUT",
-      message: "inline-into HTML contains an incomplete or duplicate Armorial sprite block.",
-      field: "inline-into",
-    });
-  }
-
-  const block = `${SPRITE_START_MARKER}\n${sprite}\n${SPRITE_END_MARKER}`;
-  let serialized: string;
-  if (starts === 1) {
-    const start = original.indexOf(SPRITE_START_MARKER);
-    const end = original.indexOf(SPRITE_END_MARKER, start) + SPRITE_END_MARKER.length;
-    const previousBlock = original.slice(start, end);
-    const previousSymbols = [...previousBlock.matchAll(/<symbol id="([^"]+)"/g)].map((match) => match[1]!);
-    const nextSymbols = new Set([...sprite.matchAll(/<symbol id="([^"]+)"/g)].map((match) => match[1]!));
-    const removedSymbols = previousSymbols.filter((id) => !nextSymbols.has(id));
-    if (removedSymbols.length > 0 && !allowSymbolRemoval) {
-      throw new IconKernelError({
-        code: "INVALID_INPUT",
-        message: `inline-into would remove ${removedSymbols.length} existing Armorial symbols (${removedSymbols.slice(0, 8).join(", ")}${removedSymbols.length > 8 ? ", …" : ""}); rerun with the complete union or pass --allow-symbol-removal after confirming they are unused.`,
-        field: "inline-into",
-      });
-    }
-    const lineStart = original.lastIndexOf("\n", start - 1) + 1;
-    const indentation = original.slice(lineStart, start);
-    if (!/^\s*$/.test(indentation)) {
-      throw new IconKernelError({
-        code: "INVALID_INPUT",
-        message: "inline-into Armorial sprite marker must start on its own line.",
-        field: "inline-into",
-      });
-    }
-    serialized = `${original.slice(0, start)}${block.replaceAll("\n", `\n${indentation}`)}${original.slice(end)}`;
-  } else {
-    const bodyTags = [...original.matchAll(/<body(?:\s[^>]*)?>/gi)];
-    if (bodyTags.length !== 1 || bodyTags[0]?.index === undefined) {
-      throw new IconKernelError({
-        code: "INVALID_INPUT",
-        message: "inline-into HTML must contain exactly one body opening tag.",
-        field: "inline-into",
-      });
-    }
-    const insertion = bodyTags[0].index + bodyTags[0][0].length;
-    serialized = `${original.slice(0, insertion)}\n  ${block.replaceAll("\n", "\n  ")}\n${original.slice(insertion)}`;
-  }
-
-  await replaceFileAtomically(destination, serialized);
-  writeJson({
-    status: "ok",
-    kind: "icon_sprite_inline",
-    output: relative(workingRoot, destination) || basename(destination),
-    bytes: Buffer.byteLength(serialized),
-    sha256: `sha256:${createHash("sha256").update(serialized).digest("hex")}`,
-    symbols: symbolCount,
-    ...(resolved === undefined ? {} : { resolved }),
-  });
 }
 
 function parseCliArgs<T>(parse: () => T): T {
@@ -353,13 +180,16 @@ async function runResolve(args: string[]): Promise<void> {
       alternatives: { type: "string" },
       format: { type: "string" },
       policy: { type: "string" },
+      ...RENDER_OPTIONS,
     },
   }));
+  const render = parseRenderOverride(parsed.values);
   const kernel = await createKernel(parsed.values.policy);
   const output = kernel.resolve({
     intent: parsed.positionals.join(" "),
     alternatives: asInteger(parsed.values.alternatives, 3),
     ...(parsed.values.context === undefined ? {} : { context: parsed.values.context }),
+    ...(render === undefined ? {} : { render }),
   });
   const format = parseFormat(parsed.values.format, ["json", "text", "svg"], "json");
   if (format === "svg" && output.status === "ok") writeText(output.icon.asset.svg);
@@ -380,15 +210,18 @@ async function runGet(args: string[]): Promise<void> {
       context: { type: "string" },
       format: { type: "string" },
       policy: { type: "string" },
+      ...RENDER_OPTIONS,
     },
   }));
   const [id, ...extra] = parsed.positionals;
   if (id === undefined || extra.length > 0) {
     throw new IconKernelError({ code: "INVALID_INPUT", message: "get requires exactly one icon id." });
   }
+  const render = parseRenderOverride(parsed.values);
   const output = (await createKernel(parsed.values.policy)).getIcon({
     id,
     ...(parsed.values.context === undefined ? {} : { context: parsed.values.context }),
+    ...(render === undefined ? {} : { render }),
   });
   const format = parseFormat(parsed.values.format, ["json", "svg"], "json");
   if (format === "svg" && output.status === "ok") writeText(output.icon.asset.svg);
@@ -412,6 +245,7 @@ async function runBatch(args: string[]): Promise<void> {
       "allow-symbol-removal": { type: "boolean" },
       help: { type: "boolean", short: "h" },
       policy: { type: "string" },
+      ...RENDER_OPTIONS,
     },
   }));
   if (parsed.values.help === true) {
@@ -419,8 +253,12 @@ async function runBatch(args: string[]): Promise<void> {
     return;
   }
   const hasSpriteCarrier = parsed.values.output !== undefined || parsed.values["inline-into"] !== undefined;
-  const format = parseFormat(parsed.values.format, ["json", "text", "sprite"], hasSpriteCarrier ? "sprite" : "json");
+  const requestedFormat = parsed.values.format;
+  const format = hasSpriteCarrier && (requestedFormat === undefined || requestedFormat === "json")
+    ? "sprite"
+    : parseFormat(requestedFormat, ["json", "text", "sprite"], "json");
   const resolveIntents = parsed.values["resolve-intents"] === true;
+  const render = parseRenderOverride(parsed.values);
   const symbolPrefix = parsed.values["symbol-prefix"] ?? "armorial-";
   if (!SYMBOL_PREFIX_PATTERN.test(symbolPrefix)) {
     throw new IconKernelError({
@@ -464,6 +302,13 @@ async function runBatch(args: string[]): Promise<void> {
       field: "allow-symbol-removal",
     });
   }
+  if (format === "sprite" && render?.size !== undefined) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: "size belongs to each consuming <svg> element and cannot be encoded in an SVG <symbol> carrier.",
+      field: "size",
+    });
+  }
   if (resolveIntents && format === "sprite" && !hasSpriteCarrier) {
     throw new IconKernelError({
       code: "INVALID_INPUT",
@@ -493,6 +338,7 @@ async function runBatch(args: string[]): Promise<void> {
         intent,
         alternatives: 0,
         ...(parsed.values.context === undefined ? {} : { context: parsed.values.context }),
+        ...(render === undefined ? {} : { render }),
       });
       if (resolution.status !== "ok") {
         unresolved.push({
@@ -555,6 +401,7 @@ async function runBatch(args: string[]): Promise<void> {
   const output = kernel.getIcons({
     ids: iconIds,
     ...(parsed.values.context === undefined ? {} : { context: parsed.values.context }),
+    ...(render === undefined ? {} : { render }),
   });
   if (format === "sprite" && output.status === "ok" && output.summary.failed === 0) {
     const { presentSprite } = await import("./presentation.js");
