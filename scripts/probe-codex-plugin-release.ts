@@ -42,19 +42,24 @@ try {
   assert.equal(cliResolved.status, "ok");
   assert.equal(cliResolved.icon?.id, "icon-park:search");
   assert.match(String(cliResolved.icon?.asset?.svg), /<svg/);
-  const unsafeHtmlPath = join(temporaryRoot, "script-pseudo-body.html");
-  const unsafeHtml = '<!doctype html><html><head><script>const template = "<body>";</script></head></html>\n';
-  writeFileSync(unsafeHtmlPath, unsafeHtml, "utf8");
-  const unsafeInline = spawnSync(process.execPath, [
-    cli,
-    "batch",
-    "icon-park:search",
-    "--inline-into",
-    basename(unsafeHtmlPath),
-  ], { cwd: temporaryRoot, encoding: "utf8" });
-  assert.equal(unsafeInline.status, 2, unsafeInline.stderr);
-  assert.equal(unsafeInline.stdout, "");
-  assert.equal(readFileSync(unsafeHtmlPath, "utf8"), unsafeHtml, "immutable CLI must fail before mutation");
+  for (const [fileName, unsafeHtml] of new Map([
+    ["script-pseudo-body.html", '<!doctype html><html><head><script>const template = "<body>";</script></head></html>\n'],
+    ["head-marker-block.html", "<!doctype html><html><head><!-- armorial:sprite:start --><!-- armorial:sprite:end --></head><body><main>keep</main></body></html>\n"],
+  ])) {
+    const unsafeHtmlPath = join(temporaryRoot, fileName);
+    writeFileSync(unsafeHtmlPath, unsafeHtml, "utf8");
+    const unsafeInline = spawnSync(process.execPath, [
+      cli,
+      "batch",
+      "icon-park:search",
+      "--inline-into",
+      basename(unsafeHtmlPath),
+    ], { cwd: temporaryRoot, encoding: "utf8" });
+    assert.equal(unsafeInline.status, 2, unsafeInline.stderr);
+    assert.equal(unsafeInline.stdout, "");
+    assert.equal(JSON.parse(unsafeInline.stderr).error.code, "INVALID_INPUT");
+    assert.equal(readFileSync(unsafeHtmlPath, "utf8"), unsafeHtml, "immutable CLI must fail before mutation");
+  }
 
   const validHtmlPath = join(temporaryRoot, "valid-body.html");
   writeFileSync(validHtmlPath, '<!doctype html><html><body data-fixture="kept"><svg><use href="#armorial-search"></use></svg></body></html>\n', "utf8");
@@ -74,6 +79,13 @@ try {
     symbols: 1,
   });
   assert.match(readFileSync(validHtmlPath, "utf8"), /<symbol id="armorial-search"/);
+  const resourceObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-inline-resource.mjs"),
+    "--module",
+    join(pluginDirectory, "dist/adapters/cli-artifact.js"),
+  ], { encoding: "utf8" })) as { status?: unknown; observations?: unknown[] };
+  assert.equal(resourceObservation.status, "ok");
+  assert.equal(resourceObservation.observations?.length, 3);
   const mcpConfig = JSON.parse(readFileSync(join(pluginDirectory, ".mcp.json"), "utf8")) as {
     mcpServers?: { icon_svg_select?: { command?: unknown; args?: unknown; cwd?: unknown } };
   };

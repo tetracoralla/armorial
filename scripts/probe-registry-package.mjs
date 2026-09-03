@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
@@ -70,22 +70,28 @@ try {
 
   const coldConnectMs = await probe("cold");
   const warmConnectMs = await probe("warm");
-  const unsafeHtmlPath = join(temporaryRoot, "script-pseudo-body.html");
-  const unsafeHtml = '<!doctype html><html><head><script>const template = "<body>";</script></head></html>\n';
-  writeFileSync(unsafeHtmlPath, unsafeHtml, "utf8");
-  const unsafeInline = spawnSync("npm", [
-    "exec",
-    "--yes",
-    `--package=${archive}`,
-    "--",
-    packageJson.name,
-    "batch",
-    "icon-park:search",
-    "--inline-into",
-    "script-pseudo-body.html",
-  ], { cwd: temporaryRoot, env: npmEnvironment, encoding: "utf8" });
-  assert.notEqual(unsafeInline.status, 0, unsafeInline.stderr);
-  assert.equal(readFileSync(unsafeHtmlPath, "utf8"), unsafeHtml, "registry CLI must fail before mutation");
+  for (const [fileName, unsafeHtml] of new Map([
+    ["script-pseudo-body.html", '<!doctype html><html><head><script>const template = "<body>";</script></head></html>\n'],
+    ["head-marker-block.html", "<!doctype html><html><head><!-- armorial:sprite:start --><!-- armorial:sprite:end --></head><body><main>keep</main></body></html>\n"],
+  ])) {
+    const unsafeHtmlPath = join(temporaryRoot, fileName);
+    writeFileSync(unsafeHtmlPath, unsafeHtml, "utf8");
+    const unsafeInline = spawnSync("npm", [
+      "exec",
+      "--yes",
+      `--package=${archive}`,
+      "--",
+      packageJson.name,
+      "batch",
+      "icon-park:search",
+      "--inline-into",
+      fileName,
+    ], { cwd: temporaryRoot, env: npmEnvironment, encoding: "utf8" });
+    assert.equal(unsafeInline.status, 2, unsafeInline.stderr);
+    assert.equal(unsafeInline.stdout, "");
+    assert.equal(JSON.parse(unsafeInline.stderr).error.code, "INVALID_INPUT");
+    assert.equal(readFileSync(unsafeHtmlPath, "utf8"), unsafeHtml, "registry CLI must fail before mutation");
+  }
 
   const validHtmlPath = join(temporaryRoot, "valid-body.html");
   writeFileSync(validHtmlPath, '<!doctype html><html><body><svg><use href="#armorial-search"></use></svg></body></html>\n', "utf8");
@@ -104,6 +110,20 @@ try {
   assert.equal(validInline.kind, "icon_sprite_inline");
   assert.equal(validInline.symbols, 1);
   assert.match(readFileSync(validHtmlPath, "utf8"), /<symbol id="armorial-search"/);
+  const installedPackageRoot = join(temporaryRoot, "installed-package");
+  mkdirSync(installedPackageRoot);
+  execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", archive], {
+    cwd: installedPackageRoot,
+    env: npmEnvironment,
+    stdio: "ignore",
+  });
+  const resourceObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-inline-resource.mjs"),
+    "--module",
+    join(installedPackageRoot, "node_modules", packageJson.name, "dist/adapters/cli-artifact.js"),
+  ], { encoding: "utf8" }));
+  assert.equal(resourceObservation.status, "ok");
+  assert.equal(resourceObservation.observations.length, 3);
   process.stdout.write(`${JSON.stringify({
       status: "ok",
       package: `${packageJson.name}@${packageJson.version}`,
@@ -114,7 +134,7 @@ try {
       warmNpmMcpConnectMs: Math.round(warmConnectMs * 100) / 100,
       invocation: `npx ${packageJson.name}@${packageJson.version} mcp`,
       resolved: "icon-park:local",
-      inlineCarrier: "blocked-invalid+published-valid",
+      inlineCarrier: "blocked-invalid+published-valid+bounded-resource",
     })}\n`);
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });

@@ -120,7 +120,7 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
   const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-inline-"));
   context.after(() => rm(scratch, { recursive: true, force: true }));
   const target = resolve(scratch, "index.html");
-  const original = "<!doctype html>\n<html><head><title>Fixture</title></head><body class=\"app\"><main>Keep me</main><script>window.fixture = true;</script></body></html>\n";
+  const original = "\uFEFF<!doctype html>\n<html><head><title>Fixture 检查</title></head><body class=\"app\"><main>Keep me ©</main><script>window.fixture = true;</script></body></html>\n";
   await writeFile(target, original, "utf8");
   await chmod(target, 0o600);
 
@@ -158,13 +158,15 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
     symbols: 2,
   });
   const inlined = await readFile(target, "utf8");
+  assert.match(inlined, /^\uFEFF<!doctype html>/, "a leading UTF-8 BOM must remain byte-aligned around the splice");
   assert.equal(Buffer.byteLength(inlined), firstSummary.bytes);
   assert.match(firstSummary.sha256, /^sha256:[a-f0-9]{64}$/);
   assert.match(inlined, /<body class="app">\n  <!-- armorial:sprite:start -->/);
   assert.match(inlined, /<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
   assert.match(inlined, /<symbol id="i-user"/);
   assert.match(inlined, /<symbol id="i-search"/);
-  assert.match(inlined, /<!-- armorial:sprite:end -->\n<main>Keep me<\/main>/);
+  assert.match(inlined, /<title>Fixture 检查<\/title>/);
+  assert.match(inlined, /<!-- armorial:sprite:end -->\n<main>Keep me ©<\/main>/);
   assert.match(inlined, /<script>window\.fixture = true;<\/script>/);
   assert.equal((await stat(target)).mode & 0o777, 0o600, "atomic replacement must preserve task-file permissions");
 
@@ -260,10 +262,23 @@ test("CLI inline parser accepts one explicit body and rejects pseudo, missing, o
     ["ambiguous-body.html", "<!doctype html><html><body>first<body data-second>second</body></html>\n"],
     ["self-closing-body.html", "<!doctype html><html><body/><main>ambiguous body</main></html>\n"],
     [
+      "head-marker-block.html",
+      "<!doctype html><html><head><!-- armorial:sprite:start --><!-- armorial:sprite:end --></head><body><main>keep</main></body></html>\n",
+    ],
+    [
+      "html-root-marker-block.html",
+      "<!doctype html><html><!-- armorial:sprite:start --><!-- armorial:sprite:end --><head></head><body><main>keep</main></body></html>\n",
+    ],
+    [
+      "trailing-marker-block.html",
+      "<!doctype html><html><head></head><body><main>keep</main></body><!-- armorial:sprite:start --><!-- armorial:sprite:end --></html>\n",
+    ],
+    [
       "inert-marker-block.html",
       "<!doctype html><html><body><template><!-- armorial:sprite:start --><svg></svg><!-- armorial:sprite:end --></template></body></html>\n",
     ],
     ["invalid-utf8.html", Buffer.from([0x3c, 0x62, 0x6f, 0x64, 0x79, 0x3e, 0xff, 0x3c, 0x2f, 0x62, 0x6f, 0x64, 0x79, 0x3e])],
+    ["oversized.html", Buffer.alloc((8 * 1024 * 1024) + 1, 0x78)],
   ]);
   for (const [fileName, source] of invalidFixtures) {
     const target = resolve(scratch, fileName);
