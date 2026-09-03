@@ -163,11 +163,14 @@ server: `--policy`, then `ICON_SVG_SELECT_POLICY`, then `./icon-policy.json` in
 the working directory, then the built-in default.
 
 Inline HTML input is a bounded artifact carrier, not an unrestricted document
-rewriter. It must be valid UTF-8, no larger than 8 MiB, and contain exactly one
-explicit HTML body. Armorial enforces a 5-second parse deadline, 50,000-node and
+rewriter. Caller-owned HTML must be valid UTF-8, no larger than 8 MiB, and
+contain exactly one explicit HTML body. The Armorial-managed marker block has a
+separate 512 KiB byte ceiling, plus four canonical framing bytes, so a valid
+published carrier may be at most 8,912,900 bytes and remains admissible for an
+exact retry or replacement. Armorial enforces a 5-second parse deadline, 50,000-node and
 50,000-attribute structural ceilings, a 256-open-element ceiling, a 2 MiB
 retained-attribute budget, and a 64 Ki-code-unit lexical-token ceiling before
-atomic publication. The build also measures fresh 1, 4, and 7.5 MiB calls
+atomic publication. The build also measures fresh 1, 4, 7.5, and 8 MiB calls
 against a 6-second / 256 MiB max-RSS regression boundary. These limits protect
 the carrier operation; they are not claims about browser rendering cost.
 

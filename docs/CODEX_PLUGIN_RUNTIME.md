@@ -53,9 +53,12 @@ summary. Typed appearance flags feed the same validated core render override
 as MCP, Web, and Figma. Sprite routes reject `--size`; each consuming `<svg>`
 owns its final width and height.
 
-The inline carrier accepts only valid UTF-8 task files up to 8 MiB with one
-explicit HTML body. Its runtime parsing boundary is 5 seconds, 50,000
+The inline carrier accepts caller-owned valid UTF-8 up to 8 MiB with one
+explicit HTML body. Its Armorial-managed marker block is separately bounded to
+512 KiB plus four canonical framing bytes, for an 8,912,900-byte physical
+carrier ceiling; a successful first insert therefore remains valid for exact
+retry or replacement. Its runtime parsing boundary is 5 seconds, 50,000
 structural nodes, 50,000 attributes, 256 simultaneously open elements, 2 MiB
 of retained attribute data, and 64 Ki UTF-16 code units per lexical token. The
-immutable-package probe repeats the fresh-process 1, 4, and 7.5 MiB resource
+immutable-package probe repeats the fresh-process 1, 4, 7.5, and 8 MiB resource
 check against a 6-second / 256 MiB max-RSS regression boundary.

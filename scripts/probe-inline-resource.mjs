@@ -17,7 +17,12 @@ const workspace = resolve(import.meta.dirname, "..");
 const defaultModule = resolve(workspace, "dist/adapters/cli-artifact.js");
 const MAX_RSS_BYTES = 256 * 1024 * 1024;
 const MAX_CALL_MS = 6_000;
-const sizes = [1 * 1024 * 1024, 4 * 1024 * 1024, Math.floor(7.5 * 1024 * 1024)];
+const sizes = [
+  1 * 1024 * 1024,
+  4 * 1024 * 1024,
+  Math.floor(7.5 * 1024 * 1024),
+  8 * 1024 * 1024,
+];
 
 function argument(name) {
   const index = process.argv.indexOf(name);

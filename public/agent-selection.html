@@ -58,7 +58,7 @@
       </table>
 
       <h2>Execution boundary</h2>
-      <p class="boundary">Search and rendering are local after dependencies and build artifacts are present. Direct MCP tools do not write files or accept paths, URLs, raw SVG, or source code. Ordinary CLI results use stdout; only explicit batch <code>--output &lt;relative.svg&gt;</code> or <code>--inline-into &lt;relative.html&gt;</code> carriers atomically write or replace that validated task-local file. A successful result does not establish design approval or task success.</p>
+      <p class="boundary">Search and rendering are local after dependencies and build artifacts are present. Direct MCP tools do not write files or accept paths, URLs, raw SVG, or source code. Ordinary CLI results use stdout; only explicit batch <code>--output &lt;relative.svg&gt;</code> or <code>--inline-into &lt;relative.html&gt;</code> carriers atomically write or replace that validated task-local file. Inline admission bounds caller-owned HTML to 8 MiB and the Armorial-managed marker block to 512 KiB plus four framing bytes, so an accepted first insert remains retryable and replaceable. A successful result does not establish design approval or task success.</p>
 
       <h2>Deployment-pinned source probe</h2>
       <p>Requires Git, curl, and Node.js 22 or newer. The deployment publishes the exact Git commit it was built from; the probe checks out that commit rather than mutable <code>main</code>.</p>

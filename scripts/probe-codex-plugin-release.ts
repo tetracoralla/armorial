@@ -85,7 +85,24 @@ try {
     join(pluginDirectory, "dist/adapters/cli-artifact.js"),
   ], { encoding: "utf8" })) as { status?: unknown; observations?: unknown[] };
   assert.equal(resourceObservation.status, "ok");
-  assert.equal(resourceObservation.observations?.length, 3);
+  assert.equal(resourceObservation.observations?.length, 4);
+  const transitionObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-inline-transition.mjs"),
+    "--cli",
+    cli,
+  ], { encoding: "utf8" })) as {
+    status?: unknown;
+    contract?: { callerBytes?: number };
+    transition?: { firstBytes?: number; replacementBytes?: number; overLimit?: unknown };
+  };
+  assert.equal(transitionObservation.status, "ok");
+  assert.equal(transitionObservation.transition?.overLimit, "INVALID_INPUT");
+  assert.ok(
+    Number(transitionObservation.transition?.firstBytes) > Number(transitionObservation.contract?.callerBytes),
+  );
+  assert.ok(
+    Number(transitionObservation.transition?.replacementBytes) > Number(transitionObservation.contract?.callerBytes),
+  );
   const mcpConfig = JSON.parse(readFileSync(join(pluginDirectory, ".mcp.json"), "utf8")) as {
     mcpServers?: { icon_svg_select?: { command?: unknown; args?: unknown; cwd?: unknown } };
   };

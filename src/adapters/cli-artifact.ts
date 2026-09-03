@@ -3,8 +3,16 @@ import { chmod, lstat, open, readFile, realpath, rename, rm, writeFile } from "n
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { IconKernelError } from "../core/errors.js";
 
-const MAX_INLINE_HTML_BYTES = 8 * 1024 * 1024;
-const MAX_EXISTING_SPRITE_BLOCK_CODE_UNITS = 512 * 1024;
+export const MAX_INLINE_HTML_CALLER_BYTES = 8 * 1024 * 1024;
+export const MAX_INLINE_SPRITE_BLOCK_BYTES = 512 * 1024;
+const CANONICAL_INLINE_PREFIX = "\n  ";
+const CANONICAL_INLINE_SUFFIX = "\n";
+// Treat Armorial's own published bytes separately so a valid first insert at
+// the caller limit remains a valid input for exact retries and replacements.
+export const MAX_INLINE_HTML_PHYSICAL_BYTES =
+  MAX_INLINE_HTML_CALLER_BYTES
+  + MAX_INLINE_SPRITE_BLOCK_BYTES
+  + Buffer.byteLength(CANONICAL_INLINE_PREFIX + CANONICAL_INLINE_SUFFIX);
 const MAX_MARKER_INDENTATION_CODE_UNITS = 256;
 
 export type ResolvedIntent = Readonly<{ intent: string; id: string }>;
@@ -100,6 +108,7 @@ async function resolveExistingTaskFile(inputPath: string, extension: RegExp, fie
   workingRoot: string;
   destination: string;
   mode: number;
+  size: number;
 }> {
   if (isAbsolute(inputPath) || !extension.test(inputPath)) {
     throw new IconKernelError({
@@ -156,7 +165,7 @@ async function resolveExistingTaskFile(inputPath: string, extension: RegExp, fie
       field,
     });
   }
-  return { workingRoot, destination, mode: current.mode & 0o777 };
+  return { workingRoot, destination, mode: current.mode & 0o777, size: current.size };
 }
 
 type FileChunk = string | Uint8Array;
@@ -202,6 +211,18 @@ function byteOffsetAt(original: string, codeUnitOffset: number, leadingByteOffse
   return leadingByteOffset + Buffer.byteLength(original.slice(0, codeUnitOffset), "utf8");
 }
 
+function boundedManagedBlock(block: string, indentation: string): string {
+  const published = block.replaceAll("\n", `\n${indentation}`);
+  if (Buffer.byteLength(published, "utf8") > MAX_INLINE_SPRITE_BLOCK_BYTES) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: `inline-into Armorial sprite block must not exceed ${MAX_INLINE_SPRITE_BLOCK_BYTES} bytes.`,
+      field: "inline-into",
+    });
+  }
+  return published;
+}
+
 export async function inlineSpriteIntoHtml(
   inputPath: string,
   sprite: string,
@@ -209,12 +230,37 @@ export async function inlineSpriteIntoHtml(
   resolved?: readonly ResolvedIntent[],
   allowSymbolRemoval = false,
 ): Promise<void> {
-  const { workingRoot, destination, mode } = await resolveExistingTaskFile(inputPath, /\.html?$/i, "inline-into");
-  const originalBytes = await readFile(destination);
-  if (originalBytes.byteLength > MAX_INLINE_HTML_BYTES) {
+  const { workingRoot, destination, mode, size } = await resolveExistingTaskFile(inputPath, /\.html?$/i, "inline-into");
+  if (size > MAX_INLINE_HTML_PHYSICAL_BYTES) {
     throw new IconKernelError({
       code: "INVALID_INPUT",
-      message: `inline-into HTML must not exceed ${MAX_INLINE_HTML_BYTES} bytes.`,
+      message: `inline-into physical HTML must not exceed ${MAX_INLINE_HTML_PHYSICAL_BYTES} bytes.`,
+      field: "inline-into",
+    });
+  }
+  const originalBytes = await readFile(destination);
+  if (originalBytes.byteLength !== size) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: "inline-into HTML changed while it was being admitted; retry with a stable task file.",
+      field: "inline-into",
+    });
+  }
+  const {
+    parseHtmlCarrierStructure,
+    SPRITE_END_MARKER,
+    SPRITE_START_MARKER,
+  } = await import("./html-carrier.js");
+  if (
+    originalBytes.byteLength > MAX_INLINE_HTML_CALLER_BYTES
+    && (
+      !originalBytes.includes(Buffer.from(SPRITE_START_MARKER, "utf8"))
+      || !originalBytes.includes(Buffer.from(SPRITE_END_MARKER, "utf8"))
+    )
+  ) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: `inline-into caller-owned HTML must not exceed ${MAX_INLINE_HTML_CALLER_BYTES} bytes.`,
       field: "inline-into",
     });
   }
@@ -231,22 +277,21 @@ export async function inlineSpriteIntoHtml(
       field: "inline-into",
     });
   }
-  const {
-    parseHtmlCarrierStructure,
-    SPRITE_END_MARKER,
-    SPRITE_START_MARKER,
-  } = await import("./html-carrier.js");
   const structure = await parseHtmlCarrierStructure(original);
 
   const block = `${SPRITE_START_MARKER}\n${sprite}\n${SPRITE_END_MARKER}`;
   let chunks: readonly FileChunk[];
+  let callerOwnedBytes: number;
   if (structure.startMarker !== undefined && structure.endMarker !== undefined) {
     const start = structure.startMarker.startOffset;
     const end = structure.endMarker.endOffset;
-    if (end - start > MAX_EXISTING_SPRITE_BLOCK_CODE_UNITS) {
+    const startByte = byteOffsetAt(original, start, leadingByteOffset);
+    const endByte = startByte + Buffer.byteLength(original.slice(start, end), "utf8");
+    const existingBlockBytes = endByte - startByte;
+    if (existingBlockBytes > MAX_INLINE_SPRITE_BLOCK_BYTES) {
       throw new IconKernelError({
         code: "INVALID_INPUT",
-        message: `inline-into existing Armorial sprite block must not exceed ${MAX_EXISTING_SPRITE_BLOCK_CODE_UNITS} UTF-16 code units.`,
+        message: `inline-into existing Armorial sprite block must not exceed ${MAX_INLINE_SPRITE_BLOCK_BYTES} bytes.`,
         field: "inline-into",
       });
     }
@@ -277,21 +322,50 @@ export async function inlineSpriteIntoHtml(
         field: "inline-into",
       });
     }
-    const startByte = byteOffsetAt(original, start, leadingByteOffset);
-    const endByte = startByte + Buffer.byteLength(original.slice(start, end), "utf8");
+    const bodyContentStartByte = byteOffsetAt(original, structure.bodyContentStart, leadingByteOffset);
+    const canonicalPrefix = Buffer.from(CANONICAL_INLINE_PREFIX, "utf8");
+    const canonicalSuffix = Buffer.from(CANONICAL_INLINE_SUFFIX, "utf8");
+    const hasCanonicalArmorialFraming =
+      startByte === bodyContentStartByte + canonicalPrefix.byteLength
+      && originalBytes.subarray(bodyContentStartByte, startByte).equals(canonicalPrefix)
+      && originalBytes.subarray(endByte, endByte + canonicalSuffix.byteLength).equals(canonicalSuffix);
+    const framingBytes = hasCanonicalArmorialFraming
+      ? canonicalPrefix.byteLength + canonicalSuffix.byteLength
+      : 0;
+    callerOwnedBytes = originalBytes.byteLength - existingBlockBytes - framingBytes;
     chunks = [
       originalBytes.subarray(0, startByte),
-      block.replaceAll("\n", `\n${indentation}`),
+      boundedManagedBlock(block, indentation),
       originalBytes.subarray(endByte),
     ];
   } else {
+    callerOwnedBytes = originalBytes.byteLength;
     const insertion = structure.bodyContentStart;
     const insertionByte = byteOffsetAt(original, insertion, leadingByteOffset);
     chunks = [
       originalBytes.subarray(0, insertionByte),
-      `\n  ${block.replaceAll("\n", "\n  ")}\n`,
+      `${CANONICAL_INLINE_PREFIX}${boundedManagedBlock(block, "  ")}${CANONICAL_INLINE_SUFFIX}`,
       originalBytes.subarray(insertionByte),
     ];
+  }
+
+  if (callerOwnedBytes > MAX_INLINE_HTML_CALLER_BYTES) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: `inline-into caller-owned HTML must not exceed ${MAX_INLINE_HTML_CALLER_BYTES} bytes.`,
+      field: "inline-into",
+    });
+  }
+  const prospectiveBytes = chunks.reduce(
+    (total, chunk) => total + (typeof chunk === "string" ? Buffer.byteLength(chunk, "utf8") : chunk.byteLength),
+    0,
+  );
+  if (prospectiveBytes > MAX_INLINE_HTML_PHYSICAL_BYTES) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: `inline-into published HTML must not exceed ${MAX_INLINE_HTML_PHYSICAL_BYTES} bytes.`,
+      field: "inline-into",
+    });
   }
 
   const publication = await replaceFileAtomically(destination, chunks, mode);

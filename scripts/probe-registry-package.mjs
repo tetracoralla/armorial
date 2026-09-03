@@ -123,7 +123,16 @@ try {
     join(installedPackageRoot, "node_modules", packageJson.name, "dist/adapters/cli-artifact.js"),
   ], { encoding: "utf8" }));
   assert.equal(resourceObservation.status, "ok");
-  assert.equal(resourceObservation.observations.length, 3);
+  assert.equal(resourceObservation.observations.length, 4);
+  const transitionObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-inline-transition.mjs"),
+    "--cli",
+    join(installedPackageRoot, "node_modules", packageJson.name, "dist/adapters/cli.js"),
+  ], { encoding: "utf8" }));
+  assert.equal(transitionObservation.status, "ok");
+  assert.equal(transitionObservation.transition.overLimit, "INVALID_INPUT");
+  assert.ok(transitionObservation.transition.firstBytes > transitionObservation.contract.callerBytes);
+  assert.ok(transitionObservation.transition.replacementBytes > transitionObservation.contract.callerBytes);
   process.stdout.write(`${JSON.stringify({
       status: "ok",
       package: `${packageJson.name}@${packageJson.version}`,
@@ -134,7 +143,7 @@ try {
       warmNpmMcpConnectMs: Math.round(warmConnectMs * 100) / 100,
       invocation: `npx ${packageJson.name}@${packageJson.version} mcp`,
       resolved: "icon-park:local",
-      inlineCarrier: "blocked-invalid+published-valid+bounded-resource",
+      inlineCarrier: "blocked-invalid+published-valid+max-retry-replace+bounded-resource",
     })}\n`);
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });

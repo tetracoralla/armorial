@@ -40,6 +40,10 @@ The inline route replaces the complete marker-bounded managed sprite. If a later
 run would remove symbols, first prove their consumers are gone and then pass
 `--allow-symbol-removal`. Otherwise Armorial closes before mutation. A failed
 consumer patch does not invalidate an unchanged completed sprite; reuse it.
+Caller-owned HTML is bounded to 8 MiB. The managed marker block is separately
+bounded to 512 KiB plus four canonical framing bytes, so every accepted first
+insert remains admissible for an exact retry or replacement; do not strip or
+recreate the markers to work around the carrier limits.
 
 ## Patch and verify consumers
 

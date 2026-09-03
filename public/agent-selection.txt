@@ -45,7 +45,10 @@ Representative requests:
 - Direct MCP search and render operations do not write files. Ordinary CLI
   results use stdout; only explicit batch `--output <relative.svg>` or
   `--inline-into <relative.html>` carriers atomically write or replace that
-  named task-local file after validation. Browser download, clipboard, Figma
+  named task-local file after validation. Inline admission bounds caller-owned
+  HTML to 8 MiB and the Armorial-managed marker block to 512 KiB plus four
+  framing bytes, so an accepted first insert remains retryable and replaceable.
+  Browser download, clipboard, Figma
   insertion, and an explicit human decision are separate user-visible effects.
 - MCP tools do not accept paths, URLs, raw SVG, or source code. The server
   operator may select one policy file at startup.

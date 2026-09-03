@@ -146,14 +146,18 @@ The collection capability declaration is explicit: IconPark uses mixed stroke/fi
   rather than emitting a partial or duplicate sprite. Because an SVG `<symbol>`
   has no final rendered dimensions, sprite routes reject `--size`; the consuming
   `<svg>` owns width and height.
-- Inline HTML admission is explicit and fail-closed: valid UTF-8 up to 8 MiB,
-  one explicit HTML body, parsing within 5 seconds, at most 50,000 structural
+- Inline HTML admission is explicit and fail-closed: caller-owned valid UTF-8
+  up to 8 MiB, one explicit HTML body, an Armorial-managed marker block up to
+  512 KiB, and at most four canonical framing bytes. This makes the physical
+  carrier ceiling 8,912,900 bytes and keeps every accepted first publication
+  admissible for exact retry or replacement. Parsing must finish within 5
+  seconds, with at most 50,000 structural
   nodes and 50,000 attributes, at most 256 simultaneously open elements, at
   most 2 MiB of retained attribute names/values, and no lexical token longer
   than 64 Ki UTF-16 code units. Its single HTML5 structural parse discards
   caller text payloads, retains source offsets, and publishes original byte
   slices around only the generated marker block. A fresh-process build probe
-  measures 1, 4, and 7.5 MiB calls against a 6-second / 256 MiB max-RSS
+  measures 1, 4, 7.5, and 8 MiB calls against a 6-second / 256 MiB max-RSS
   regression boundary; that observation complements rather than replaces the
   runtime admission limits.
 - Sprite documents retain the SVG namespace so same-origin local assets can be

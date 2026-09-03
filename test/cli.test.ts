@@ -210,6 +210,104 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
   assert.doesNotMatch(reduced, /<symbol id="i-search"/);
 });
 
+test("CLI keeps an exact 8 MiB caller carrier admissible after insert, retry, and replacement", async (context) => {
+  const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-inline-maximum-"));
+  context.after(() => rm(scratch, { recursive: true, force: true }));
+  const target = resolve(scratch, "maximum.html");
+  const callerLimit = 8 * 1024 * 1024;
+  const prefix = Buffer.from("<!doctype html><html><head><title>maximum</title></head><body><main>", "utf8");
+  const suffix = Buffer.from("</main></body></html>\n", "utf8");
+  const original = Buffer.concat([
+    prefix,
+    Buffer.alloc(callerLimit - prefix.byteLength - suffix.byteLength, 0x78),
+    suffix,
+  ]);
+  await writeFile(target, original);
+
+  const first = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:search",
+    "--inline-into",
+    "maximum.html",
+    "--format",
+    "json",
+  );
+  assert.equal(first.status, 0, first.stderr);
+  const firstBytes = await readFile(target);
+  assert.ok(firstBytes.byteLength > callerLimit, "the managed block is separately bounded from caller HTML");
+  assert.match(firstBytes.toString("utf8"), /<symbol id="armorial-search"/);
+
+  const retry = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:search",
+    "--inline-into",
+    "maximum.html",
+    "--format",
+    "json",
+  );
+  assert.equal(retry.status, 0, retry.stderr);
+  assert.deepEqual(await readFile(target), firstBytes, "an exact retry must preserve the full physical carrier");
+
+  const replacement = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:user",
+    "--inline-into",
+    "maximum.html",
+    "--format",
+    "json",
+    "--allow-symbol-removal",
+  );
+  assert.equal(replacement.status, 0, replacement.stderr);
+  const replacementBytes = await readFile(target);
+  assert.ok(replacementBytes.byteLength > callerLimit);
+  assert.match(replacementBytes.toString("utf8"), /<symbol id="armorial-user"/);
+  assert.doesNotMatch(replacementBytes.toString("utf8"), /<symbol id="armorial-search"/);
+
+  const oversizedTarget = resolve(scratch, "oversized.html");
+  const oversized = Buffer.concat([original.subarray(0, original.byteLength - suffix.byteLength), Buffer.from("x"), suffix]);
+  await writeFile(oversizedTarget, oversized);
+  const rejected = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:search",
+    "--inline-into",
+    "oversized.html",
+    "--format",
+    "json",
+  );
+  assert.equal(rejected.status, 2, rejected.stderr);
+  assert.equal(rejected.stdout, "");
+  assert.equal(JSON.parse(rejected.stderr).error.code, "INVALID_INPUT");
+  assert.deepEqual(await readFile(oversizedTarget), oversized, "an oversized first insert must fail before mutation");
+
+  const oversizedBlockTarget = resolve(scratch, "oversized-block.html");
+  const oversizedBlock = [
+    "<!doctype html><html><body>",
+    "  <!-- armorial:sprite:start -->",
+    ...Array.from({ length: 3 }, () => `<!--${"界".repeat(60_000)}-->`),
+    "  <!-- armorial:sprite:end -->",
+    "</body></html>",
+  ].join("\n");
+  assert.ok(Buffer.byteLength(oversizedBlock, "utf8") > 512 * 1024);
+  await writeFile(oversizedBlockTarget, oversizedBlock, "utf8");
+  const oversizedBlockResult = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:search",
+    "--inline-into",
+    "oversized-block.html",
+    "--format",
+    "json",
+  );
+  assert.equal(oversizedBlockResult.status, 2, oversizedBlockResult.stderr);
+  assert.equal(oversizedBlockResult.stdout, "");
+  assert.match(oversizedBlockResult.stderr, /sprite block must not exceed 524288 bytes/);
+  assert.equal(await readFile(oversizedBlockTarget, "utf8"), oversizedBlock);
+});
+
 test("CLI inline parser accepts one explicit body and rejects pseudo, missing, or ambiguous bodies without mutation", async (context) => {
   const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-inline-parser-"));
   context.after(() => rm(scratch, { recursive: true, force: true }));
