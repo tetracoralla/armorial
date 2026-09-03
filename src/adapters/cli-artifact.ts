@@ -1,11 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import { chmod, lstat, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import type { DefaultTreeAdapterTypes } from "parse5";
+import type { StartTag } from "parse5-sax-parser";
 import { IconKernelError } from "../core/errors.js";
 
 const MAX_INLINE_HTML_BYTES = 8 * 1024 * 1024;
 const SPRITE_START_MARKER = "<!-- armorial:sprite:start -->";
 const SPRITE_END_MARKER = "<!-- armorial:sprite:end -->";
+const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 
 export type ResolvedIntent = Readonly<{ intent: string; id: string }>;
 
@@ -170,6 +173,137 @@ async function replaceFileAtomically(destination: string, serialized: string, mo
   }
 }
 
+type HtmlCarrierStructure = Readonly<{
+  bodyContentStart: number;
+  bodyContentEnd: number;
+  startMarker?: Readonly<{ startOffset: number; endOffset: number }>;
+  endMarker?: Readonly<{ startOffset: number; endOffset: number }>;
+}>;
+
+async function parseHtmlCarrierStructure(original: string): Promise<HtmlCarrierStructure> {
+  const [{ defaultTreeAdapter, parse }, { SAXParser }] = await Promise.all([
+    import("parse5"),
+    import("parse5-sax-parser"),
+  ]);
+  const isLiveHtmlDescendant = (
+    parent: DefaultTreeAdapterTypes.ParentNode | null,
+    body: DefaultTreeAdapterTypes.Element,
+  ): boolean => {
+    if (
+      parent === null
+      || !defaultTreeAdapter.isElementNode(parent)
+      || parent.namespaceURI !== HTML_NAMESPACE
+    ) return false;
+    let current: DefaultTreeAdapterTypes.ParentNode | null = parent;
+    while (current !== null) {
+      if (current === body) return true;
+      current = defaultTreeAdapter.getParentNode(current);
+    }
+    return false;
+  };
+  const bodyStartTags: StartTag[] = [];
+  const sax = new SAXParser({ sourceCodeLocationInfo: true });
+  sax.on("startTag", (tag) => {
+    if (tag.tagName === "body") bodyStartTags.push(tag);
+  });
+  sax.end(original);
+
+  const document = parse(original, { sourceCodeLocationInfo: true });
+  const bodies: DefaultTreeAdapterTypes.Element[] = [];
+  const comments: DefaultTreeAdapterTypes.CommentNode[] = [];
+  const stack: DefaultTreeAdapterTypes.Node[] = [document];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (
+      defaultTreeAdapter.isElementNode(node)
+      && node.tagName === "body"
+      && node.namespaceURI === HTML_NAMESPACE
+    ) {
+      bodies.push(node);
+    }
+    if (defaultTreeAdapter.isCommentNode(node)) comments.push(node);
+    if ("childNodes" in node) stack.push(...node.childNodes);
+    if ("content" in node) stack.push(node.content);
+  }
+
+  const bodyToken = bodyStartTags[0];
+  const bodyTokenLocation = bodyToken?.sourceCodeLocation;
+  const body = bodies[0];
+  const bodyLocation = body?.sourceCodeLocation;
+  const bodyStartLocation = bodyLocation?.startTag;
+  if (
+    bodyStartTags.length !== 1
+    || bodies.length !== 1
+    || body === undefined
+    || bodyToken?.selfClosing === true
+    || bodyTokenLocation === undefined
+    || bodyTokenLocation === null
+    || bodyLocation === undefined
+    || bodyLocation === null
+    || bodyStartLocation === undefined
+    || bodyStartLocation.startOffset !== bodyTokenLocation.startOffset
+    || bodyStartLocation.endOffset !== bodyTokenLocation.endOffset
+  ) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: "inline-into HTML must contain exactly one explicit, unambiguous body opening tag.",
+      field: "inline-into",
+    });
+  }
+
+  const bodyContentStart = bodyStartLocation.endOffset;
+  const bodyContentEnd = bodyLocation.endTag?.startOffset ?? bodyLocation.endOffset;
+  const markerComments = (marker: string) => comments.filter((comment) => {
+    const location = comment.sourceCodeLocation;
+    return location !== undefined
+      && location !== null
+      && original.slice(location.startOffset, location.endOffset) === marker;
+  });
+  const startMarkers = markerComments(SPRITE_START_MARKER);
+  const endMarkers = markerComments(SPRITE_END_MARKER);
+  if (startMarkers.length !== endMarkers.length || startMarkers.length > 1) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: "inline-into HTML contains an incomplete or duplicate Armorial sprite block.",
+      field: "inline-into",
+    });
+  }
+
+  const startMarkerNode = startMarkers[0];
+  const endMarkerNode = endMarkers[0];
+  const startMarker = startMarkerNode?.sourceCodeLocation ?? undefined;
+  const endMarker = endMarkerNode?.sourceCodeLocation ?? undefined;
+  const markerParent = startMarkerNode?.parentNode ?? null;
+  if (
+    (
+      startMarkerNode !== undefined
+      && endMarkerNode !== undefined
+      && startMarker !== undefined
+      && endMarker !== undefined
+    )
+    && (
+      markerParent !== endMarkerNode.parentNode
+      || !isLiveHtmlDescendant(markerParent, body)
+      || startMarker.startOffset < bodyContentStart
+      || endMarker.endOffset > bodyContentEnd
+      || startMarker.endOffset > endMarker.startOffset
+    )
+  ) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: "inline-into Armorial sprite block must be ordered inside the document body.",
+      field: "inline-into",
+    });
+  }
+
+  return {
+    bodyContentStart,
+    bodyContentEnd,
+    ...(startMarker === undefined ? {} : { startMarker }),
+    ...(endMarker === undefined ? {} : { endMarker }),
+  };
+}
+
 export async function inlineSpriteIntoHtml(
   inputPath: string,
   sprite: string,
@@ -178,30 +312,29 @@ export async function inlineSpriteIntoHtml(
   allowSymbolRemoval = false,
 ): Promise<void> {
   const { workingRoot, destination, mode } = await resolveExistingTaskFile(inputPath, /\.html?$/i, "inline-into");
-  const original = await readFile(destination, "utf8");
-  if (Buffer.byteLength(original) > MAX_INLINE_HTML_BYTES) {
+  const originalBytes = await readFile(destination);
+  if (originalBytes.byteLength > MAX_INLINE_HTML_BYTES) {
     throw new IconKernelError({
       code: "INVALID_INPUT",
       message: `inline-into HTML must not exceed ${MAX_INLINE_HTML_BYTES} bytes.`,
       field: "inline-into",
     });
   }
-
-  const starts = original.split(SPRITE_START_MARKER).length - 1;
-  const ends = original.split(SPRITE_END_MARKER).length - 1;
-  if (starts !== ends || starts > 1) {
+  const original = originalBytes.toString("utf8");
+  if (!Buffer.from(original, "utf8").equals(originalBytes)) {
     throw new IconKernelError({
       code: "INVALID_INPUT",
-      message: "inline-into HTML contains an incomplete or duplicate Armorial sprite block.",
+      message: "inline-into HTML must be valid UTF-8 so existing bytes can be preserved.",
       field: "inline-into",
     });
   }
+  const structure = await parseHtmlCarrierStructure(original);
 
   const block = `${SPRITE_START_MARKER}\n${sprite}\n${SPRITE_END_MARKER}`;
   let serialized: string;
-  if (starts === 1) {
-    const start = original.indexOf(SPRITE_START_MARKER);
-    const end = original.indexOf(SPRITE_END_MARKER, start) + SPRITE_END_MARKER.length;
+  if (structure.startMarker !== undefined && structure.endMarker !== undefined) {
+    const start = structure.startMarker.startOffset;
+    const end = structure.endMarker.endOffset;
     const previousBlock = original.slice(start, end);
     const previousSymbols = [...previousBlock.matchAll(/<symbol id="([^"]+)"/g)].map((match) => match[1]!);
     const nextSymbols = new Set([...sprite.matchAll(/<symbol id="([^"]+)"/g)].map((match) => match[1]!));
@@ -224,15 +357,7 @@ export async function inlineSpriteIntoHtml(
     }
     serialized = `${original.slice(0, start)}${block.replaceAll("\n", `\n${indentation}`)}${original.slice(end)}`;
   } else {
-    const bodyTags = [...original.matchAll(/<body(?:\s[^>]*)?>/gi)];
-    if (bodyTags.length !== 1 || bodyTags[0]?.index === undefined) {
-      throw new IconKernelError({
-        code: "INVALID_INPUT",
-        message: "inline-into HTML must contain exactly one body opening tag.",
-        field: "inline-into",
-      });
-    }
-    const insertion = bodyTags[0].index + bodyTags[0][0].length;
+    const insertion = structure.bodyContentStart;
     serialized = `${original.slice(0, insertion)}\n  ${block.replaceAll("\n", "\n  ")}\n${original.slice(insertion)}`;
   }
 

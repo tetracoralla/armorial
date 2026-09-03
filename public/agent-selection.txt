@@ -42,9 +42,11 @@ Representative requests:
 - Local CLI and MCP rendering need no network after dependencies and build
   artifacts are present. Queries and project policy values are not sent to an
   Armorial service.
-- Direct MCP search and render operations do not write files. The CLI writes
-  only to stdout. Browser download, clipboard, Figma insertion, and an explicit
-  human decision are separate user-visible effects.
+- Direct MCP search and render operations do not write files. Ordinary CLI
+  results use stdout; only explicit batch `--output <relative.svg>` or
+  `--inline-into <relative.html>` carriers atomically write or replace that
+  named task-local file after validation. Browser download, clipboard, Figma
+  insertion, and an explicit human decision are separate user-visible effects.
 - MCP tools do not accept paths, URLs, raw SVG, or source code. The server
   operator may select one policy file at startup.
 - A successful call establishes only the returned deterministic product result;

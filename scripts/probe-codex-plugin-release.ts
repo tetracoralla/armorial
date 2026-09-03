@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
@@ -42,6 +42,38 @@ try {
   assert.equal(cliResolved.status, "ok");
   assert.equal(cliResolved.icon?.id, "icon-park:search");
   assert.match(String(cliResolved.icon?.asset?.svg), /<svg/);
+  const unsafeHtmlPath = join(temporaryRoot, "script-pseudo-body.html");
+  const unsafeHtml = '<!doctype html><html><head><script>const template = "<body>";</script></head></html>\n';
+  writeFileSync(unsafeHtmlPath, unsafeHtml, "utf8");
+  const unsafeInline = spawnSync(process.execPath, [
+    cli,
+    "batch",
+    "icon-park:search",
+    "--inline-into",
+    basename(unsafeHtmlPath),
+  ], { cwd: temporaryRoot, encoding: "utf8" });
+  assert.equal(unsafeInline.status, 2, unsafeInline.stderr);
+  assert.equal(unsafeInline.stdout, "");
+  assert.equal(readFileSync(unsafeHtmlPath, "utf8"), unsafeHtml, "immutable CLI must fail before mutation");
+
+  const validHtmlPath = join(temporaryRoot, "valid-body.html");
+  writeFileSync(validHtmlPath, '<!doctype html><html><body data-fixture="kept"><svg><use href="#armorial-search"></use></svg></body></html>\n', "utf8");
+  const validInline = JSON.parse(execFileSync(process.execPath, [
+    cli,
+    "batch",
+    "icon-park:search",
+    "--inline-into",
+    basename(validHtmlPath),
+  ], { cwd: temporaryRoot, encoding: "utf8" })) as { status?: unknown; kind?: unknown; symbols?: unknown };
+  assert.deepEqual(validInline, {
+    status: "ok",
+    kind: "icon_sprite_inline",
+    output: "valid-body.html",
+    bytes: Buffer.byteLength(readFileSync(validHtmlPath)),
+    sha256: `sha256:${createHash("sha256").update(readFileSync(validHtmlPath)).digest("hex")}`,
+    symbols: 1,
+  });
+  assert.match(readFileSync(validHtmlPath, "utf8"), /<symbol id="armorial-search"/);
   const mcpConfig = JSON.parse(readFileSync(join(pluginDirectory, ".mcp.json"), "utf8")) as {
     mcpServers?: { icon_svg_select?: { command?: unknown; args?: unknown; cwd?: unknown } };
   };
@@ -105,7 +137,7 @@ try {
   } finally {
     await client.close();
   }
-  process.stdout.write(`${JSON.stringify({ status: "ok", archive, sha256: digest, tools: "list+resolve+get+choose", cli: "version+resolve+mcp", resource: "picker" })}\n`);
+  process.stdout.write(`${JSON.stringify({ status: "ok", archive, sha256: digest, tools: "list+resolve+get+choose", cli: "version+resolve+inline+mcp", resource: "picker" })}\n`);
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }

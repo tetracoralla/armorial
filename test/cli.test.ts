@@ -208,6 +208,83 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
   assert.doesNotMatch(reduced, /<symbol id="i-search"/);
 });
 
+test("CLI inline parser accepts one explicit body and rejects pseudo, missing, or ambiguous bodies without mutation", async (context) => {
+  const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-inline-parser-"));
+  context.after(() => rm(scratch, { recursive: true, force: true }));
+
+  const validTarget = resolve(scratch, "valid.html");
+  const validOriginal = [
+    "<!doctype html>",
+    "<HTML><HEAD><!-- template text: <body>; armorial:sprite:start; armorial:sprite:end --><script>",
+    'const fakeBody = "<body>";',
+    'const fakeMarkers = "<!-- armorial:sprite:start --><!-- armorial:sprite:end -->";',
+    "</script></HEAD><BoDy class=\"app\" data-fixture=\"kept\"><main>Keep me</main></BoDy></HTML>",
+    "",
+  ].join("\n");
+  await writeFile(validTarget, validOriginal, "utf8");
+  const valid = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:search",
+    "--format",
+    "sprite",
+    "--inline-into",
+    "valid.html",
+  );
+  assert.equal(valid.status, 0, valid.stderr);
+  const inlined = await readFile(validTarget, "utf8");
+  assert.match(inlined, /^<!doctype html>\n<HTML><HEAD><!-- template text: <body>; armorial:sprite:start; armorial:sprite:end --><script>/);
+  assert.match(inlined, /const fakeBody = "<body>";/);
+  assert.match(inlined, /<BoDy class="app" data-fixture="kept">\n  <!-- armorial:sprite:start -->/);
+  assert.match(inlined, /<symbol id="armorial-search"/);
+  assert.match(inlined, /<!-- armorial:sprite:end -->\n<main>Keep me<\/main>/);
+
+  const repeat = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:search",
+    "--format",
+    "sprite",
+    "--inline-into",
+    "valid.html",
+  );
+  assert.equal(repeat.status, 0, repeat.stderr);
+  assert.equal(await readFile(validTarget, "utf8"), inlined, "script marker text must not create duplicate blocks");
+
+  const invalidFixtures = new Map<string, string | Buffer>([
+    [
+      "script-pseudo-body.html",
+      '<!doctype html><html><head><script>const template = "<body>";</script></head></html>\n',
+    ],
+    ["missing-body.html", "<!doctype html><html><head></head><main>implicit body only</main></html>\n"],
+    ["ambiguous-body.html", "<!doctype html><html><body>first<body data-second>second</body></html>\n"],
+    ["self-closing-body.html", "<!doctype html><html><body/><main>ambiguous body</main></html>\n"],
+    [
+      "inert-marker-block.html",
+      "<!doctype html><html><body><template><!-- armorial:sprite:start --><svg></svg><!-- armorial:sprite:end --></template></body></html>\n",
+    ],
+    ["invalid-utf8.html", Buffer.from([0x3c, 0x62, 0x6f, 0x64, 0x79, 0x3e, 0xff, 0x3c, 0x2f, 0x62, 0x6f, 0x64, 0x79, 0x3e])],
+  ]);
+  for (const [fileName, source] of invalidFixtures) {
+    const target = resolve(scratch, fileName);
+    await writeFile(target, source);
+    const before = await readFile(target);
+    const result = runCliAt(
+      scratch,
+      "batch",
+      "icon-park:search",
+      "--format",
+      "sprite",
+      "--inline-into",
+      fileName,
+    );
+    assert.equal(result.status, 2, `${fileName}\n${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.equal(JSON.parse(result.stderr).error.code, "INVALID_INPUT");
+    assert.deepEqual(await readFile(target), before, `${fileName} must remain byte-identical on failure`);
+  }
+});
+
 test("CLI inline output rejects unsafe paths, conflicting carriers, and malformed HTML", async (context) => {
   const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-inline-safety-"));
   const outside = await mkdtemp(resolve(tmpdir(), "armorial-cli-inline-outside-"));
