@@ -43,14 +43,39 @@ Representative requests:
   artifacts are present. Queries and project policy values are not sent to an
   Armorial service.
 - Direct MCP search and render operations do not write files. Ordinary CLI
-  results use stdout; only explicit batch `--output <relative.svg>` or
-  `--inline-into <relative.html>` carriers atomically write or replace that
-  named task-local file after validation. Inline admission bounds caller-owned
+  results use stdout. An explicit batch `--output <relative.svg>` publishes one
+  new, create-only sprite and reports `protectionLevel:
+  non_overwriting_create`. Replacing an existing SVG requires explicit
+  `--allow-optimistic-overwrite`; it can overwrite a non-cooperating writer in
+  the final check-to-rename window, and every success reports
+  `protectionLevel: optimistic_preflight_only` plus a warning. Passing that
+  replacement-only flag for a new SVG is invalid and creates nothing. The default HTML
+  route uses `--inline-from <source.html> --output
+  <new-candidate.html>` to create a distinct, non-overwriting candidate while
+  leaving the source unchanged; same paths, hard-link aliases, and existing
+  outputs are rejected. Inline admission bounds caller-owned
   HTML to 8 MiB and the Armorial-managed marker block to 512 KiB plus four
   framing bytes, so an accepted first insert remains retryable and replaceable.
-  Before publishing inline output, Armorial revalidates the original file
-  identity, version metadata, and complete bytes; an intervening external save
-  fails without overwriting that newer version or leaving a temporary file.
+  SVG and HTML publication is pinned to the admitted parent-directory inode;
+  replacing that parent path cannot redirect writes through a new symlink.
+  The helper stages and verifies bytes, then waits for a one-use commit from
+  its still-live CLI parent. Parent death or the five-second deadline before
+  that commit leaves no final output and normally removes private staging. If
+  destination-parent permissions prevent cleanup, the surviving CLI preserves
+  the cause and reports bounded publication effect, cleanup, and private `0600`
+  residue metadata. Restore access and inspect/remove that sibling before retry.
+  After commit,
+  an interruption may leave a valid output without a success summary. A
+  surviving CLI reports `PUBLICATION_OUTCOME_UNCERTAIN`; inspect
+  the destination before retrying an interrupted carrier call. A create-only
+  helper crash can also leave a private sibling hard link; verify the intended
+  destination before treating it as stale.
+  Successful candidate JSON reports source and candidate hashes plus
+  `protectionLevel: non_overwriting_candidate`; hashes identify bytes but are
+  not atomic commit credentials. The legacy in-place `--inline-into` route is
+  also available only with `--allow-optimistic-overwrite`. It can overwrite a
+  non-cooperating editor save in the final check-to-rename window, and every
+  success reports `protectionLevel: optimistic_preflight_only` plus a warning.
   Browser download, clipboard, Figma
   insertion, and an explicit human decision are separate user-visible effects.
 - MCP tools do not accept paths, URLs, raw SVG, or source code. The server

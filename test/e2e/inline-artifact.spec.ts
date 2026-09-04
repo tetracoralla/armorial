@@ -11,6 +11,7 @@ test("built CLI preserves executable HTML and publishes resolvable inline symbol
   const scratch = await mkdtemp(resolve(tmpdir(), "armorial-inline-browser-"));
   try {
     const target = resolve(scratch, "index.html");
+    const candidate = resolve(scratch, "index.armorial.html");
     const original = [
       "<!doctype html>",
       "<HTML><HEAD><!-- template body: <body> --><title>Inline fixture</title><script>",
@@ -31,26 +32,31 @@ test("built CLI preserves executable HTML and publishes resolvable inline symbol
       "icon-park:search",
       "--format",
       "sprite",
-      "--inline-into",
+      "--inline-from",
       "index.html",
+      "--output",
+      "index.armorial.html",
     ], { cwd: scratch, encoding: "utf8" });
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).not.toMatch(/<svg|<symbol|<path/);
     expect(JSON.parse(result.stdout)).toMatchObject({
       status: "ok",
-      kind: "icon_sprite_inline",
-      output: "index.html",
+      kind: "icon_sprite_inline_candidate",
+      source: "index.html",
+      output: "index.armorial.html",
+      protectionLevel: "non_overwriting_candidate",
       symbols: 1,
     });
 
-    const serialized = await readFile(target, "utf8");
+    expect(await readFile(target, "utf8")).toBe(original);
+    const serialized = await readFile(candidate, "utf8");
     expect(serialized).toMatch(/^<!doctype html>\n<HTML><HEAD>/);
     expect(serialized).toContain('window.fakeBody = "<body>";');
     expect(serialized).toContain('<BoDy class="app" data-fixture="kept">\n  <!-- armorial:sprite:start -->');
 
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
-    await page.goto(pathToFileURL(target).href);
+    await page.goto(pathToFileURL(candidate).href);
     const runtime = await page.evaluate(() => {
       const use = document.querySelector("use") as SVGGraphicsElement | null;
       const box = use?.getBBox();

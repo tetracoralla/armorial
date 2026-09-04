@@ -5,21 +5,24 @@ import { syncBuiltinESMExports } from "node:module";
 const isPublishHelper = process.argv.some((argument) => String(argument).includes("publish-helper"));
 
 if (isPublishHelper) {
-const target = process.env.ARMORIAL_INLINE_CONFLICT_TARGET;
-const contentBase64 = process.env.ARMORIAL_INLINE_CONFLICT_CONTENT_BASE64;
-const method = process.env.ARMORIAL_INLINE_CONFLICT_METHOD;
+const target = process.env.ARMORIAL_INLINE_FINAL_RACE_TARGET;
+const contentBase64 = process.env.ARMORIAL_INLINE_FINAL_RACE_CONTENT_BASE64;
+const method = process.env.ARMORIAL_INLINE_FINAL_RACE_METHOD;
 
 if (!target || !contentBase64 || !["in-place", "replace"].includes(method ?? "")) {
-  throw new Error("The inline conflict probe requires a target, base64 content, and in-place or replace method.");
+  throw new Error("The inline final-race probe requires a target, base64 content, and in-place or replace method.");
 }
 
 const replacement = Buffer.from(contentBase64, "base64");
-const originalLstat = fs.promises.lstat.bind(fs.promises);
+const originalRename = fs.promises.rename.bind(fs.promises);
 let injected = false;
 
-fs.promises.lstat = async (path, options) => {
-  const result = await originalLstat(path, options);
-  if (!injected && String(path).includes(".armorial-publish-") && String(path).endsWith(".tmp")) {
+fs.promises.rename = async (oldPath, newPath) => {
+  if (
+    !injected
+    && String(oldPath).includes(".armorial-publish-")
+    && String(oldPath).endsWith(".tmp")
+  ) {
     injected = true;
     if (method === "in-place") {
       const descriptor = fs.openSync(target, "r+");
@@ -39,13 +42,13 @@ fs.promises.lstat = async (path, options) => {
       }
     }
   }
-  return result;
+  return originalRename(oldPath, newPath);
 };
 syncBuiltinESMExports();
 
 process.on("exit", () => {
   if (!injected) {
-    process.stderr.write("Armorial inline conflict probe did not reach the publication window.\n");
+    process.stderr.write("Armorial final-race probe did not reach the check-to-rename window.\n");
     process.exitCode = 97;
   }
 });

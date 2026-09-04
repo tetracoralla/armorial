@@ -137,14 +137,50 @@ The collection capability declaration is explicit: IconPark uses mixed stroke/fi
   mappings plus bounded candidates for every unresolved meaning in one failed
   response, fails before mutation if any meaning is ambiguous or missing, deduplicates shared canonical ids,
   and returns only the compact intent/id mapping plus carrier integrity. A same-origin served
-  artifact uses `--output <task-local-relative.svg>`; a single-file or direct
-  `file://` HTML artifact uses `--inline-into <task-local-relative.html>` so SVG
-  payloads never enter model context. Both routes write atomically inside the
-  current working directory and return only a compact path, byte count, hash,
-  and symbol count. Inline replacement is marker-bounded and idempotent. Before
-  publication it revalidates the target's original file identity, version
-  metadata, and complete bytes; an external save causes a stable failure that
-  preserves the external version and removes the unpublished temporary file.
+  artifact uses a new, create-only `--output <task-local-relative.svg>` and
+  reports `protectionLevel: non_overwriting_create`; a
+  single-file or direct
+  `file://` HTML artifact defaults to `--inline-from <source.html> --output
+  <new-candidate.html>`, so SVG payloads never enter model context and the
+  source is never mutated. The candidate is create-only and must not resolve to
+  the source path or a hard-link alias. Its compact result includes source and
+  candidate hashes plus `protectionLevel: non_overwriting_candidate`; hashes
+  identify bytes and are not atomic commit credentials. The caller may review
+  or adopt that candidate using its own file workflow.
+
+  Every SVG or HTML publisher delegates final I/O to the same bounded helper.
+  The child process validates that its OS-resolved working directory has the
+  admitted parent device/inode before any write, then uses relative basenames
+  only. Portable destination basenames contain no backslash and are bounded to
+  255 UTF-8 bytes; the helper uses a
+  short random exclusive temporary name that is independent of the destination
+  and cleans it only after actual creation. A parent path replacement before startup closes; a replacement after
+  startup cannot redirect writes away from the admitted directory object.
+  After staging and readback, the helper sends bounded readiness over IPC and
+  waits for a one-use commit token from its still-live CLI parent. Parent death
+  or the CLI's five-second publication deadline before that authorization
+  creates no final output and normally cleans the private temporary file. If
+  destination-parent permissions prevent unlink, a surviving CLI preserves
+  the original cause and reports `publication.effect: none` plus bounded
+  cleanup/residue state; the pre-commit residue remains `0600`. The token is
+  the commit boundary: an interruption after authorization can leave a valid
+  final output without a success summary, so an interrupted caller must inspect
+  the destination before retrying. A surviving CLI reports that state as
+  `PUBLICATION_OUTCOME_UNCERTAIN`. A create-only helper crash between final
+  hard-link creation and cleanup may also leave the private sibling link.
+  Candidate and default SVG publication remain create-only. A new SVG's `0644`
+  default is narrowed by the caller's umask; replacement preserves the admitted
+  target mode. A new SVG rejects the replacement-only flag before publication.
+  Replacing an
+  existing SVG or using optimistic HTML requires
+  `--allow-optimistic-overwrite`; both targets must still match their admitted
+  file identity before replacement, and every success discloses
+  `protectionLevel: optimistic_preflight_only` plus the final-window warning.
+
+  The legacy in-place `--inline-into <task-local-relative.html>` route also
+  revalidates complete bytes before rename. A non-cooperating writer can still
+  save in either optimistic route's final check-to-rename window and be
+  overwritten. Neither route is the default Agent or human route.
   Sprite generation preserves exact
   provider geometry, input order, and stable canonical symbol ids; it closes
   rather than emitting a partial or duplicate sprite. Because an SVG `<symbol>`
@@ -166,7 +202,8 @@ The collection capability declaration is explicit: IconPark uses mixed stroke/fi
   runtime admission limits.
 - Sprite documents retain the SVG namespace so same-origin local assets can be
   referenced as `<use href="relative.svg#symbol-id">`; the direct CLI owns
-  mechanical inline insertion for single-file and `file://` consumers.
+  mechanical, non-overwriting HTML candidate generation for single-file and
+  `file://` consumers.
 - Explicit visual decision: one `choose_icon` call, then one human decision message; ordinary resolution never opens the picker implicitly.
 
 The weakest intended client is a general MCP Agent that can select a tool from its name, first description sentence, and JSON schema. English and Simplified Chinese icon wording are supported by package metadata and compact aliases.

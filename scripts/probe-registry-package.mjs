@@ -26,8 +26,11 @@ try {
   const paths = new Set(packed[0].files.map((file) => file.path));
   for (const required of [
     "package.json",
+    "CHANGELOG.md",
     "server.json",
     "dist/adapters/cli.js",
+    "dist/adapters/publication-contract.js",
+    "dist/adapters/publish-helper.js",
     "dist/adapters/mcp.js",
     "dist/mcp-app/index.html",
     "skills/icon-svg-select/SKILL.md",
@@ -86,6 +89,7 @@ try {
       "icon-park:search",
       "--inline-into",
       fileName,
+      "--allow-optimistic-overwrite",
     ], { cwd: temporaryRoot, env: npmEnvironment, encoding: "utf8" });
     assert.equal(unsafeInline.status, 2, unsafeInline.stderr);
     assert.equal(unsafeInline.stdout, "");
@@ -94,7 +98,9 @@ try {
   }
 
   const validHtmlPath = join(temporaryRoot, "valid-body.html");
-  writeFileSync(validHtmlPath, '<!doctype html><html><body><svg><use href="#armorial-search"></use></svg></body></html>\n', "utf8");
+  const validCandidatePath = join(temporaryRoot, "valid-body.armorial.html");
+  const validSource = '<!doctype html><html><body><svg><use href="#armorial-search"></use></svg></body></html>\n';
+  writeFileSync(validHtmlPath, validSource, "utf8");
   const validInline = JSON.parse(execFileSync("npm", [
     "exec",
     "--yes",
@@ -103,13 +109,17 @@ try {
     packageJson.name,
     "batch",
     "icon-park:search",
-    "--inline-into",
+    "--inline-from",
     "valid-body.html",
+    "--output",
+    "valid-body.armorial.html",
   ], { cwd: temporaryRoot, env: npmEnvironment, encoding: "utf8" }));
   assert.equal(validInline.status, "ok");
-  assert.equal(validInline.kind, "icon_sprite_inline");
+  assert.equal(validInline.kind, "icon_sprite_inline_candidate");
+  assert.equal(validInline.protectionLevel, "non_overwriting_candidate");
   assert.equal(validInline.symbols, 1);
-  assert.match(readFileSync(validHtmlPath, "utf8"), /<symbol id="armorial-search"/);
+  assert.equal(readFileSync(validHtmlPath, "utf8"), validSource);
+  assert.match(readFileSync(validCandidatePath, "utf8"), /<symbol id="armorial-search"/);
   const installedPackageRoot = join(temporaryRoot, "installed-package");
   mkdirSync(installedPackageRoot);
   execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", archive], {
@@ -124,6 +134,55 @@ try {
   ], { encoding: "utf8" }));
   assert.equal(resourceObservation.status, "ok");
   assert.equal(resourceObservation.observations.length, 4);
+  const candidateObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-inline-candidate.mjs"),
+    "--cli",
+    join(installedPackageRoot, "node_modules", packageJson.name, "dist/adapters/cli.js"),
+  ], { encoding: "utf8" }));
+  assert.equal(candidateObservation.status, "ok");
+  assert.equal(candidateObservation.outputRace, "INVALID_INPUT+competing-output-preserved");
+  assert.equal(candidateObservation.hardLinkRace, "INVALID_INPUT+source-alias-preserved");
+  assert.equal(candidateObservation.optimistic.length, 2);
+  const pinObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-pinned-publication.mjs"),
+    "--cli",
+    join(installedPackageRoot, "node_modules", packageJson.name, "dist/adapters/cli.js"),
+  ], { encoding: "utf8" }));
+  assert.equal(pinObservation.status, "ok");
+  assert.equal(pinObservation.swaps.length, 6);
+  assert.equal(pinObservation.helperFailures.length, 8);
+  assert.equal(pinObservation.publicationSuccesses.length, 4);
+  assert.equal(pinObservation.postCommitCleanupWarnings.length, 2);
+  assert.equal(pinObservation.postCommitInterruptions.length, 8);
+  assert.deepEqual(pinObservation.svgOverwrite, {
+    unnecessary: "absent-output-rejected",
+    default: "existing-output-preserved",
+    explicit: "optimistic-window-reproduced-and-disclosed",
+  });
+  assert.equal(pinObservation.restrictiveUmask, "0600-new-svg");
+  assert.equal(pinObservation.productionTestHooks, "legacy-test-environment-ignored");
+  const basenameObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-publication-basename.mjs"),
+    "--cli",
+    join(installedPackageRoot, "node_modules", packageJson.name, "dist/adapters/cli.js"),
+  ], { encoding: "utf8" }));
+  assert.equal(basenameObservation.status, "ok");
+  assert.equal(basenameObservation.observations.length, 24);
+  const cancellationObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-publish-parent-cancellation.mjs"),
+    "--cli",
+    join(installedPackageRoot, "node_modules", packageJson.name, "dist/adapters/cli.js"),
+    "--deadline",
+  ], { encoding: "utf8" }));
+  assert.equal(cancellationObservation.status, "ok");
+  assert.equal(cancellationObservation.cancellation.length, 4);
+  assert.equal(cancellationObservation.deadline, "bounded-before-commit+no-final-effect");
+  assert.deepEqual(cancellationObservation.cleanupRevocation, {
+    status: "deadline-cause+cleanup-failure+private-complete-residue",
+    effect: "none",
+    cleanup: "failed",
+    mode: "0600",
+  });
   const transitionObservation = JSON.parse(execFileSync(process.execPath, [
     join(workspace, "scripts/probe-inline-transition.mjs"),
     "--cli",
@@ -153,7 +212,7 @@ try {
       warmNpmMcpConnectMs: Math.round(warmConnectMs * 100) / 100,
       invocation: `npx ${packageJson.name}@${packageJson.version} mcp`,
       resolved: "icon-park:local",
-      inlineCarrier: "blocked-invalid+published-valid+max-retry-replace+conflict-preserved+bounded-resource",
+      inlineCarrier: "safe-candidate+pinned-parent+precommit-cancellation+output-race-preserved+optimistic-window-disclosed+blocked-invalid+max-retry-replace+bounded-resource",
     })}\n`);
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });

@@ -23,7 +23,15 @@ const PAGE_SIZE = MAX_UI_CATALOG_ITEMS;
 type LoadBasis = {
   query: string;
   category: string | null;
+  context: string | null;
 };
+
+function loadBasisMatches(left: LoadBasis | null, right: LoadBasis): boolean {
+  return left !== null
+    && left.query === right.query
+    && left.category === right.category
+    && left.context === right.context;
+}
 
 function renderOverrideKey(value: RenderStyleOverride | null): string {
   return JSON.stringify(value);
@@ -44,6 +52,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
     initial === null ? null : runtime.session?.render ?? null,
   );
   const [loading, setLoading] = useState(initial === null);
+  const [replacementLoading, setReplacementLoading] = useState(initial === null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionState, setActionState] = useState<ActionState>("idle");
@@ -57,7 +66,15 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   const lastFigmaReceiptId = useRef<string | null>(null);
   const lastFigmaError = useRef<string | null>(null);
   const [figmaHydrated, setFigmaHydrated] = useState(!isFigmaPickerRuntime(runtime));
-  const lastLoadBasis = useRef<LoadBasis | null>(null);
+  const initialBasis = initial === null
+    ? null
+    : {
+        query: initial.query ?? "",
+        category: initial.category ?? null,
+        context: initial.context ?? null,
+      };
+  const lastLoadBasis = useRef<LoadBasis | null>(initialBasis);
+  const [settledBasis, setSettledBasis] = useState<LoadBasis | null>(initialBasis);
 
   // Optimistic display style: the loaded catalog reports the context-resolved
   // policy with the previous override applied; the pending override leads so
@@ -81,29 +98,39 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
     };
   }, [catalog?.policy, styleOverride]);
 
-  const sessionIntent = useMemo(
-    () => hostSession?.intent ?? (query.trim() || selected?.name || "selected icon"),
-    [query, hostSession?.intent, selected?.name],
+  const requestedBasis = useMemo<LoadBasis>(
+    () => ({ query: query.trim(), category, context: hostSession?.context ?? null }),
+    [category, hostSession?.context, query],
   );
   const allIconCount = useMemo(
     () => catalog?.categories.reduce((sum, item) => sum + item.count, 0) ?? 0,
     [catalog?.categories],
   );
   const renderPending = renderOverrideKey(styleOverride) !== renderOverrideKey(appliedStyleOverride);
+  const selectionCommitReady = selected !== null
+    && catalog !== null
+    && !replacementLoading
+    && loadBasisMatches(settledBasis, requestedBasis);
 
   async function loadCatalog(input: BrowseIconsInput, append = false): Promise<void> {
     const sequence = ++requestSequence.current;
     setLoading(true);
+    if (!append) setReplacementLoading(true);
     setError(null);
     try {
       const output = await runtime.browse(input);
       if (sequence !== requestSequence.current) return;
       if (output.status !== "ok") throw new Error(output.error.message);
-      lastLoadBasis.current = { query: input.query ?? "", category: input.category ?? null };
+      lastLoadBasis.current = {
+        query: output.query,
+        category: output.category,
+        context: output.context,
+      };
       setCatalog(output);
       setAppliedStyleOverride(input.render ?? null);
       setItems((current) => append ? [...current, ...output.items] : output.items);
       if (!append) {
+        setSettledBasis(lastLoadBasis.current);
         setSelected((current) => output.items.find((item) => item.id === current?.id) ?? output.items[0] ?? null);
       }
     } catch (loadError) {
@@ -119,7 +146,10 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
         setStyleOverride(appliedStyleOverride);
       }
     } finally {
-      if (sequence === requestSequence.current) setLoading(false);
+      if (sequence === requestSequence.current) {
+        setLoading(false);
+        if (!append) setReplacementLoading(false);
+      }
     }
   }
 
@@ -139,7 +169,15 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
         setItems(nextCatalog.items);
         setCategory(nextCatalog.category);
         setSelected(nextCatalog.items[0] ?? null);
+        const basis = {
+          query: nextCatalog.query ?? "",
+          category: nextCatalog.category ?? null,
+          context: nextCatalog.context ?? null,
+        };
+        lastLoadBasis.current = basis;
+        setSettledBasis(basis);
         setLoading(false);
+        setReplacementLoading(false);
       }
     });
   }, [runtime]);
@@ -228,7 +266,9 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   const resetOverride = useCallback(() => setStyleOverride(null), []);
 
   async function selectionMessage() {
-    if (selected === null || catalog === null) throw new Error(t("selectAnIconFirst"));
+    if (!selectionCommitReady || selected === null || catalog === null || settledBasis === null) {
+      throw new Error(t("selectAnIconFirst"));
+    }
     const render: RenderStyle = {
       theme: catalog.policy.theme,
       size: catalog.policy.size,
@@ -240,7 +280,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
     const decision = await createIconSelectionDecision({
       ...(hostSession?.requestId === undefined ? {} : { requestId: hostSession.requestId }),
       iconId: selected.id,
-      intent: sessionIntent,
+      intent: hostSession?.intent ?? (settledBasis.query || selected.name),
       context: catalog.context,
       render,
       assetSha256: selected.asset.sha256,
@@ -263,15 +303,15 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   // Stable identity keeps the memoized icon cells from re-encoding their SVG
   // data URIs on every state change in the Figma build.
   const handleFigmaDragEnd = useCallback((event: DragEvent, item: CatalogItem) => {
-    if (isFigmaPickerRuntime(runtime)) runtime.dragIcon(event, item);
-  }, [runtime]);
+    if (selectionCommitReady && isFigmaPickerRuntime(runtime)) runtime.dragIcon(event, item);
+  }, [runtime, selectionCommitReady]);
 
   const loadMore = async () => {
-    const basis = lastLoadBasis.current ?? { query: query.trim(), category };
+    const basis = lastLoadBasis.current ?? requestedBasis;
     await loadCatalog({
       query: basis.query,
       ...(basis.category === null ? {} : { category: basis.category }),
-      ...(hostSession?.context === undefined ? {} : { context: hostSession.context }),
+      ...(basis.context === null ? {} : { context: basis.context }),
       offset: items.length,
       limit: PAGE_SIZE,
       // Appended pages must match the pages they extend: the applied override,
@@ -322,12 +362,12 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
             items={items}
             total={catalog?.total ?? items.length}
             selectedId={selected?.id ?? null}
-            hasMore={error === null && (catalog?.truncated ?? false)}
+            hasMore={error === null && selectionCommitReady && (catalog?.truncated ?? false)}
             loading={loading}
             onSelect={setSelected}
             onLoadMore={() => void loadMore()}
             onDragEnd={isFigmaPickerRuntime(runtime) ? handleFigmaDragEnd : undefined}
-            dragDisabled={isFigmaPickerRuntime(runtime) && renderPending}
+            dragDisabled={renderPending || !selectionCommitReady}
           />
         </main>
         {isFigmaPickerRuntime(runtime) ? (
@@ -336,12 +376,13 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
             style={displayStyle}
             hasOverride={styleOverride !== null}
             renderPending={renderPending}
+            selectionReady={selectionCommitReady}
             runtime={runtime}
             actionState={actionState}
             onAppearanceChange={applyOverride}
             onAppearanceReset={resetOverride}
             onInsert={() => withAction("inserting", async () => {
-              if (selected === null) throw new Error(t("selectAnIconFirst"));
+              if (!selectionCommitReady || selected === null) throw new Error(t("selectAnIconFirst"));
               await runtime.insertIcon(selected);
             }, runtime.figmaState.settings.createComponent ? t("componentInserted") : t("iconInserted"))}
           />
@@ -352,6 +393,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
           context={catalog?.context ?? null}
           hasOverride={styleOverride !== null}
           renderPending={renderPending}
+          selectionReady={selectionCommitReady}
           runtime={runtime}
           actionState={actionState}
           onAppearanceChange={applyOverride}

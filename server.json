@@ -3,7 +3,7 @@
   "name": "io.github.tetracoralla/armorial",
   "title": "Armorial",
   "description": "Deterministic, project-aware IconPark SVG selection and rendering over local MCP.",
-  "version": "0.6.13",
+  "version": "0.7.0",
   "repository": {
     "url": "https://github.com/tetracoralla/armorial",
     "source": "github"
@@ -13,7 +13,7 @@
     {
       "registryType": "npm",
       "identifier": "armorial",
-      "version": "0.6.13",
+      "version": "0.7.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

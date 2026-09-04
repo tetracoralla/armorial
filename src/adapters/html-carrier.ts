@@ -28,13 +28,15 @@ export type HtmlCarrierStructure = Readonly<{
   endMarker?: Readonly<{ startOffset: number; endOffset: number }>;
 }>;
 
-function invalidCarrier(message: string): IconKernelError {
-  return new IconKernelError({ code: "INVALID_INPUT", message, field: "inline-into" });
+type InlineCarrierField = "inline-from" | "inline-into";
+
+function invalidCarrier(message: string, field: InlineCarrierField): IconKernelError {
+  return new IconKernelError({ code: "INVALID_INPUT", message, field });
 }
 
-function assertLexicalStringBound(...values: readonly (string | null | undefined)[]): void {
+function assertLexicalStringBound(field: InlineCarrierField, ...values: readonly (string | null | undefined)[]): void {
   if (values.some((value) => (value?.length ?? 0) > MAX_TOKEN_CODE_UNITS)) {
-    throw invalidCarrier(`inline-into HTML tokens must not exceed ${MAX_TOKEN_CODE_UNITS} UTF-16 code units.`);
+    throw invalidCarrier(`${field} HTML tokens must not exceed ${MAX_TOKEN_CODE_UNITS} UTF-16 code units.`, field);
   }
 }
 
@@ -44,10 +46,16 @@ class CarrierLimits {
   private retainedAttributeCodeUnits = 0;
   private readonly deadline = performance.now() + PARSE_DEADLINE_MS;
 
+  constructor(readonly field: InlineCarrierField) {}
+
+  fail(message: string): IconKernelError {
+    return invalidCarrier(message, this.field);
+  }
+
   addNode<T>(value: T): T {
     this.nodes += 1;
     if (this.nodes > MAX_CARRIER_NODES) {
-      throw invalidCarrier(`inline-into HTML must not exceed ${MAX_CARRIER_NODES} structural nodes.`);
+      throw this.fail(`${this.field} HTML must not exceed ${MAX_CARRIER_NODES} structural nodes.`);
     }
     return value;
   }
@@ -59,20 +67,20 @@ class CarrierLimits {
   addAttributes(attributes: readonly { name: string; value: string }[]): void {
     this.attributes += attributes.length;
     for (const attribute of attributes) {
-      assertLexicalStringBound(attribute.name, attribute.value);
+      assertLexicalStringBound(this.field, attribute.name, attribute.value);
       this.retainedAttributeCodeUnits += attribute.name.length + attribute.value.length;
     }
     if (
       this.attributes > MAX_CARRIER_ATTRIBUTES
       || this.retainedAttributeCodeUnits > MAX_RETAINED_ATTRIBUTE_CODE_UNITS
     ) {
-      throw invalidCarrier("inline-into HTML attributes exceed the supported structural budget.");
+      throw this.fail(`${this.field} HTML attributes exceed the supported structural budget.`);
     }
   }
 
   checkDeadline(): void {
     if (performance.now() > this.deadline) {
-      throw invalidCarrier(`inline-into HTML parsing must complete within ${PARSE_DEADLINE_MS} milliseconds.`);
+      throw this.fail(`${this.field} HTML parsing must complete within ${PARSE_DEADLINE_MS} milliseconds.`);
     }
   }
 }
@@ -87,7 +95,7 @@ function createCarrierTreeAdapter(limits: CarrierLimits): TreeAdapter<DefaultTre
       return limits.addNode(defaultTreeAdapter.createDocumentFragment());
     },
     createElement(tagName, namespaceURI, attributes) {
-      assertLexicalStringBound(tagName);
+      assertLexicalStringBound(limits.field, tagName);
       limits.addAttributes(attributes);
       return limits.addNode(defaultTreeAdapter.createElement(tagName, namespaceURI, attributes));
     },
@@ -98,7 +106,7 @@ function createCarrierTreeAdapter(limits: CarrierLimits): TreeAdapter<DefaultTre
     createCommentNode(data) {
       // Marker identity is recovered from source offsets. Retaining arbitrary
       // comment payloads would duplicate caller-owned HTML in the parse tree.
-      assertLexicalStringBound(data);
+      assertLexicalStringBound(limits.field, data);
       return limits.addNode(defaultTreeAdapter.createCommentNode(""));
     },
     createTextNode() {
@@ -120,7 +128,7 @@ function createCarrierTreeAdapter(limits: CarrierLimits): TreeAdapter<DefaultTre
       }
     },
     setDocumentType(document, name, publicId, systemId) {
-      assertLexicalStringBound(name, publicId, systemId);
+      assertLexicalStringBound(limits.field, name, publicId, systemId);
       if (!document.childNodes.some((node) => defaultTreeAdapter.isDocumentTypeNode(node))) {
         limits.recordNode();
       }
@@ -147,8 +155,9 @@ type GuardedTokenizer = {
   preprocessor: { dropParsedChunk(): void };
 };
 
-function assertTokenizerTokenBound(tokenizer: GuardedTokenizer): void {
+function assertTokenizerTokenBound(tokenizer: GuardedTokenizer, limits: CarrierLimits): void {
   assertLexicalStringBound(
+    limits.field,
     tokenizer.currentAttr?.name,
     tokenizer.currentAttr?.value,
     tokenizer.currentToken?.data,
@@ -186,7 +195,7 @@ function installTokenizerGuards(parser: CarrierParser, limits: CarrierLimits): v
     processedSinceCheck += 1;
     if (processedSinceCheck >= WATCHDOG_INTERVAL) {
       processedSinceCheck = 0;
-      assertTokenizerTokenBound(this);
+      assertTokenizerTokenBound(this, limits);
       limits.checkDeadline();
     }
   };
@@ -207,16 +216,16 @@ class CarrierParser extends Parser<DefaultTreeAdapterMap> {
   override onItemPush(node: DefaultTreeAdapterTypes.ParentNode, tagId: number, isTop: boolean): void {
     super.onItemPush(node, tagId, isTop);
     if (this.openElements.stackTop + 1 > MAX_OPEN_ELEMENTS) {
-      throw invalidCarrier(`inline-into HTML must not exceed ${MAX_OPEN_ELEMENTS} open elements.`);
+      throw this.limits.fail(`${this.limits.field} HTML must not exceed ${MAX_OPEN_ELEMENTS} open elements.`);
     }
     this.limits.checkDeadline();
   }
 
   override onStartTag(token: Token.TagToken): void {
-    assertLexicalStringBound(token.tagName);
+    assertLexicalStringBound(this.limits.field, token.tagName);
     if (token.tagName === "body") {
       if (this.bodyStartTags.length > 0) {
-        throw invalidCarrier("inline-into HTML must contain exactly one explicit, unambiguous body opening tag.");
+        throw this.limits.fail(`${this.limits.field} HTML must contain exactly one explicit, unambiguous body opening tag.`);
       }
       this.bodyStartTags.push({ selfClosing: token.selfClosing, location: token.location });
     }
@@ -224,13 +233,16 @@ class CarrierParser extends Parser<DefaultTreeAdapterMap> {
   }
 
   override onEndTag(token: Token.TagToken): void {
-    assertLexicalStringBound(token.tagName);
+    assertLexicalStringBound(this.limits.field, token.tagName);
     super.onEndTag(token);
   }
 }
 
-export function parseHtmlCarrierStructure(original: string): HtmlCarrierStructure {
-  const limits = new CarrierLimits();
+export function parseHtmlCarrierStructure(
+  original: string,
+  field: InlineCarrierField = "inline-into",
+): HtmlCarrierStructure {
+  const limits = new CarrierLimits(field);
   const treeAdapter = createCarrierTreeAdapter(limits);
   const parser = new CarrierParser(treeAdapter, limits);
   installTokenizerGuards(parser, limits);
@@ -272,7 +284,7 @@ export function parseHtmlCarrierStructure(original: string): HtmlCarrierStructur
     || bodyStartLocation.startOffset !== bodyTokenLocation.startOffset
     || bodyStartLocation.endOffset !== bodyTokenLocation.endOffset
   ) {
-    throw invalidCarrier("inline-into HTML must contain exactly one explicit, unambiguous body opening tag.");
+    throw limits.fail(`${field} HTML must contain exactly one explicit, unambiguous body opening tag.`);
   }
 
   const bodyContentStart = bodyStartLocation.endOffset;
@@ -286,7 +298,7 @@ export function parseHtmlCarrierStructure(original: string): HtmlCarrierStructur
   const startMarkers = markerComments(SPRITE_START_MARKER);
   const endMarkers = markerComments(SPRITE_END_MARKER);
   if (startMarkers.length !== endMarkers.length || startMarkers.length > 1) {
-    throw invalidCarrier("inline-into HTML contains an incomplete or duplicate Armorial sprite block.");
+    throw limits.fail(`${field} HTML contains an incomplete or duplicate Armorial sprite block.`);
   }
 
   const startMarkerNode = startMarkers[0];
@@ -320,7 +332,7 @@ export function parseHtmlCarrierStructure(original: string): HtmlCarrierStructur
       || startMarker.endOffset > endMarker.startOffset
     )
   ) {
-    throw invalidCarrier("inline-into Armorial sprite block must be ordered inside the document body.");
+    throw limits.fail(`${field} Armorial sprite block must be ordered inside the document body.`);
   }
 
   return {

@@ -16,6 +16,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
+import { analyzeThirdPartyPayload, IMMUTABLE_NODE_RUNTIME_CONDITIONS } from "./third-party-runtime-payload.js";
 
 const workspace = resolve(import.meta.dirname, "..");
 const outputDirectory = resolve(process.env.ARMORIAL_RELEASE_DIRECTORY ?? join(workspace, ".release"));
@@ -25,6 +26,8 @@ const requiredRuntimeFiles = [
   ".mcp.json",
   "skills/icon-svg-select/SKILL.md",
   "dist/adapters/cli.js",
+  "dist/adapters/publication-contract.js",
+  "dist/adapters/publish-helper.js",
   "dist/adapters/mcp.js",
   "dist/adapters/main-module.js",
   "dist/adapters/policy-file.js",
@@ -72,6 +75,23 @@ function listTree(directory: string): string[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .sort();
+}
+
+function summarizeRuntimeTree(directory: string) {
+  const entries = listTree(directory);
+  return {
+    entries: entries.length,
+    unpackedBytes: entries.reduce((sum, entry) => sum + lstatSync(join(directory, entry.slice(2))).size, 0),
+    ...analyzeThirdPartyPayload(directory, entries),
+  };
+}
+
+function pruneThirdPartyDevelopmentPayload(directory: string): void {
+  const analysis = analyzeThirdPartyPayload(directory, listTree(directory));
+  for (const entry of analysis.removableDevelopmentPaths) {
+    remove(join(directory, entry.slice(2)), join(directory, "node_modules"));
+  }
+  removeEmptyDirectories(join(directory, "node_modules"));
 }
 
 function writeRuntimePackageJson(directory: string): void {
@@ -162,9 +182,10 @@ function pruneToPluginRuntime(directory: string): void {
   for (const name of ["package-lock.json", ".npmrc"]) remove(join(directory, name), directory);
   remove(join(directory, "node_modules", ".bin"), join(directory, "node_modules"));
   remove(join(directory, "node_modules", ".package-lock.json"), join(directory, "node_modules"));
+  pruneThirdPartyDevelopmentPayload(directory);
   removeEmptyDirectories(join(directory, "node_modules"));
   for (const entry of listTree(directory)) {
-    if (entry.endsWith(".d.ts") || entry.endsWith(".map")) {
+    if (/\.d\.(?:ts|cts|mts)$/.test(entry) || entry.endsWith(".map")) {
       remove(join(directory, entry.slice(2)), directory);
     }
   }
@@ -184,7 +205,11 @@ function assertMinimalPluginTree(directory: string): void {
     .filter(Boolean);
   if (emptyDirectories.length > 0) throw new Error(`Empty omitted-dependency directories escaped pruning: ${emptyDirectories.join(", ")}`);
   for (const entry of listTree(directory)) {
-    if (entry.endsWith(".d.ts") || entry.endsWith(".map")) throw new Error(`Development residue escaped plugin pruning: ${entry}`);
+    if (/\.d\.(?:ts|cts|mts)$/.test(entry) || entry.endsWith(".map")) throw new Error(`Development residue escaped plugin pruning: ${entry}`);
+  }
+  const summary = summarizeRuntimeTree(directory);
+  if (summary.thirdPartyRemovableDevelopmentEntries !== 0) {
+    throw new Error(`Third-party development payload escaped plugin pruning: ${JSON.stringify(summary)}`);
   }
   const dependencyTree = JSON.parse(run("npm", ["ls", "--omit=dev", "--all", "--json"], directory)) as { problems?: string[] };
   if ((dependencyTree.problems ?? []).length > 0) throw new Error(`Invalid production dependency tree: ${dependencyTree.problems?.join(", ")}`);
@@ -239,8 +264,13 @@ try {
   writeSbom(pluginDirectory);
   copyFileSync(runtimeGuide, join(pluginDirectory, "RUNTIME.md"));
   writePluginNotices(pluginDirectory);
+  const beforePruning = summarizeRuntimeTree(pluginDirectory);
   pruneToPluginRuntime(pluginDirectory);
   assertMinimalPluginTree(pluginDirectory);
+  const runtimeTree = summarizeRuntimeTree(pluginDirectory);
+  if (JSON.stringify(runtimeTree.runtimeTargetPaths) !== JSON.stringify(beforePruning.runtimeTargetPaths)) {
+    throw new Error("Third-party package runtime targets changed during immutable payload pruning.");
+  }
 
   const archiveBaseName = `armorial-${packageJson.version}-codex-plugin-macos-arm64`;
   const temporaryArchive = join(temporaryRoot, `${archiveBaseName}.tar.gz`);
@@ -265,6 +295,29 @@ try {
     package: `${packageJson.name}@${packageJson.version}`,
     target: "macos-arm64",
     runtime: "Agent Host-provided node",
+    packageReport: {
+      archiveBytes: artifactSize,
+      entries: runtimeTree.entries,
+      unpackedBytes: runtimeTree.unpackedBytes,
+      thirdPartyEntries: runtimeTree.thirdPartyEntries,
+      thirdPartyDeclarationEntries: runtimeTree.thirdPartyDeclarationEntries,
+      thirdPartyTypeScriptSourceEntries: runtimeTree.thirdPartyTypeScriptSourceEntries,
+      thirdPartyTestSuiteEntries: runtimeTree.thirdPartyTestSuiteEntries,
+      thirdPartyProtectedDevelopmentEntries: runtimeTree.thirdPartyProtectedDevelopmentEntries,
+      thirdPartyProtectedDevelopmentPaths: runtimeTree.thirdPartyProtectedDevelopmentPaths,
+      thirdPartyRemovableDevelopmentEntries: runtimeTree.thirdPartyRemovableDevelopmentEntries,
+      thirdPartyRuntimeTargetEntries: runtimeTree.runtimeTargetPaths.length,
+      thirdPartyRuntimeConditions: IMMUTABLE_NODE_RUNTIME_CONDITIONS,
+      thirdPartyTestingHelperEntries: runtimeTree.thirdPartyTestingHelperEntries,
+      thirdPartyTestingHelperPaths: runtimeTree.thirdPartyTestingHelperPaths,
+      prunedThirdPartyDeclarationEntries: beforePruning.thirdPartyDeclarationEntries - runtimeTree.thirdPartyDeclarationEntries,
+      prunedThirdPartyTypeScriptSourceEntries: beforePruning.thirdPartyTypeScriptSourceEntries - runtimeTree.thirdPartyTypeScriptSourceEntries,
+      prunedThirdPartyTestSuiteEntries: beforePruning.thirdPartyTestSuiteEntries - runtimeTree.thirdPartyTestSuiteEntries,
+      prunedThirdPartyDevelopmentEntries: beforePruning.thirdPartyRemovableDevelopmentEntries - runtimeTree.thirdPartyRemovableDevelopmentEntries,
+      firstPartySourceEntries: 0,
+      firstPartyTestEntries: 0,
+      productionTestHooks: 0,
+    },
   })}\n`);
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });

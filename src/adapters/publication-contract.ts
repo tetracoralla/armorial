@@ -1,0 +1,1 @@
+export const MAX_PINNED_PUBLICATION_BYTES = (8 * 1024 * 1024) + (512 * 1024) + 4;

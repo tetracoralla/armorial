@@ -49,6 +49,12 @@ Do not invent a context key from prose.
 - Alternatives: `scripts/armorial search <compact-query> --limit 8 --format json`.
 - Exact asset: `scripts/armorial get <icon-id> --format json` or `--format svg`.
 - Known id batch: `scripts/armorial batch <icon-id...> --format json`.
+- New sprite carrier: `scripts/armorial batch <icon-id...> --format json
+  --output <new-relative.svg>`. Existing SVG output is never replaced by
+  default.
+- Safe HTML candidate: `scripts/armorial batch <icon-id...> --format json
+  --inline-from <source.html> --output <new-candidate.html>`. The source is
+  unchanged and an existing output is never replaced.
 
 For an explicit appearance request on the managed CLI route, append the typed
 flags `--theme`, `--size`, `--stroke-width`, `--stroke-linecap`,
@@ -62,8 +68,39 @@ size while patching its markup or stylesheet.
 Interpret CLI status, ambiguity, candidates, policy metadata, and assets exactly
 like the matching MCP result. Exit status `2` is a closed input, ambiguity,
 not-found, or policy failure; inspect its bounded JSON and do not retry with
-longer prose. Add accessibility labels and interaction semantics at the
+longer prose. Exit status `1` is internal unless its bounded error is
+`PUBLICATION_OUTCOME_UNCERTAIN`, which requires destination inspection rather
+than a blind retry. Add accessibility labels and interaction semantics at the
 consumer, never by editing returned geometry.
+
+Never use `--allow-optimistic-overwrite` by default. It is required to replace
+an existing SVG or use in-place `--inline-into`, because a non-cooperating
+writer can save in the final check-to-rename window and be overwritten. Every
+such success reports `protectionLevel: optimistic_preflight_only` and a
+`concurrencyWarning`; repeat both when reporting the result. HTML candidates
+remain create-only even when that flag is present. Candidate hashes identify
+source/output bytes but are not atomic commit credentials.
+New SVG creation respects the caller's umask; explicit replacement preserves
+the admitted target mode. Passing the replacement-only flag for a new SVG is
+invalid and creates nothing. Every output basename must be portable, contain no
+backslash, and fit within 255 UTF-8 bytes; choose a simpler task-local name when
+the CLI returns `INVALID_INPUT`.
+The publication helper stages and verifies bytes before the live CLI parent
+authorizes the final-path change. Cancellation or timeout before that commit
+creates no final output. Private staging is normally removed, but lost unlink
+permission on the destination parent can make cleanup fail. A surviving CLI
+preserves the original cause and returns bounded `publication.effect`, cleanup,
+and private-residue fields; restore access and inspect/remove the reported
+`0600` sibling before retrying. Once authorized, a process interruption may leave a
+valid output without a success response. After any interrupted or explicitly
+uncertain carrier call—including `PUBLICATION_OUTCOME_UNCERTAIN`—inspect the
+intended destination before retrying; never
+retry blindly from the absence of stdout. A create-only helper crash can also
+leave a sibling `.armorial-publish-*.tmp` hard link; verify the destination
+before treating it as stale, and do not use that private name as a candidate.
+A successful result that includes `cleanupWarning` is still committed: preserve
+the reported hash and protection level, report the warning, and do not describe
+the final output as failed or absent.
 
 ## Continue from a human selection
 

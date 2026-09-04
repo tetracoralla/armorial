@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const args = process.argv.slice(2);
 const cliIndex = args.indexOf("--cli");
@@ -18,6 +19,7 @@ const cli = resolve(args[cliIndex + 1] ?? "");
 assert.equal(isAbsolute(cli), true);
 
 const injector = resolve(import.meta.dirname, "inject-inline-conflict.mjs");
+const injectorNodeOptions = [process.env.NODE_OPTIONS, `--import=${pathToFileURL(injector).href}`].filter(Boolean).join(" ");
 const original = Buffer.from("<!doctype html><html><body><main>ORIGINAL-01</main></body></html>\n", "utf8");
 const external = Buffer.from("<!doctype html><html><body><main>EXTERNAL-01</main></body></html>\n", "utf8");
 assert.equal(external.byteLength, original.byteLength);
@@ -30,13 +32,12 @@ for (const method of ["in-place", "replace"]) {
     writeFileSync(target, original);
     const before = statSync(target, { bigint: true });
     const result = spawnSync(process.execPath, [
-      "--import",
-      injector,
       cli,
       "batch",
       "icon-park:search",
       "--inline-into",
       basename(target),
+      "--allow-optimistic-overwrite",
       "--format",
       "json",
     ], {
@@ -47,6 +48,7 @@ for (const method of ["in-place", "replace"]) {
         ARMORIAL_INLINE_CONFLICT_TARGET: target,
         ARMORIAL_INLINE_CONFLICT_CONTENT_BASE64: external.toString("base64"),
         ARMORIAL_INLINE_CONFLICT_METHOD: method,
+        NODE_OPTIONS: injectorNodeOptions,
       },
     });
     assert.equal(result.status, 2, result.stderr);
@@ -57,6 +59,10 @@ for (const method of ["in-place", "replace"]) {
         code: "INVALID_INPUT",
         message: "inline-into HTML changed after Armorial read it; the external version was preserved. Retry with a stable task file.",
         field: "inline-into",
+        publication: {
+          effect: "none",
+          cleanup: { status: "complete" },
+        },
       },
     });
     assert.deepEqual(readFileSync(target), external);

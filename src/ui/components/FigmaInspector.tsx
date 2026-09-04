@@ -16,6 +16,7 @@ type Props = {
   style: RenderStyle | null;
   hasOverride: boolean;
   renderPending: boolean;
+  selectionReady: boolean;
   runtime: FigmaPickerRuntime;
   actionState: ActionState;
   onAppearanceChange: (patch: RenderStyleOverride) => void;
@@ -59,7 +60,7 @@ export function FigmaInspector(props: Props) {
         <button
           className="primary-action"
           type="button"
-          disabled={props.renderPending || props.actionState !== "idle"}
+          disabled={!props.selectionReady || props.renderPending || props.actionState !== "idle"}
           onClick={() => void props.onInsert()}
         >
           {props.actionState === "inserting"

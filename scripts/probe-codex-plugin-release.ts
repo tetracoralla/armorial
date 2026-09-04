@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { analyzeThirdPartyPayload, IMMUTABLE_NODE_RUNTIME_CONDITIONS } from "./third-party-runtime-payload.js";
 
 const workspace = resolve(import.meta.dirname, "..");
 const packageJson = JSON.parse(readFileSync(join(workspace, "package.json"), "utf8")) as { version: string };
@@ -33,6 +34,12 @@ try {
   assert.equal(packageManifest.version, packageJson.version);
   assert.equal(packageManifest.scripts, undefined);
   assert.equal(packageManifest.bin, undefined);
+  assert.equal(existsSync(join(pluginDirectory, "dist/adapters/publication-contract.js")), true);
+  assert.equal(existsSync(join(pluginDirectory, "dist/adapters/publish-helper.js")), true);
+  for (const runtimeFile of ["dist/adapters/cli-artifact.js", "dist/adapters/publish-helper.js"]) {
+    const runtimeSource = readFileSync(join(pluginDirectory, runtimeFile), "utf8");
+    assert.doesNotMatch(runtimeSource, /ARMORIAL_PUBLISH_HELPER_TEST_(?:IMPORT|FAILURE)/);
+  }
   const cli = join(pluginDirectory, "dist/adapters/cli.js");
   assert.equal(execFileSync(process.execPath, [cli, "--version"], { cwd: pluginDirectory, encoding: "utf8" }).trim(), packageJson.version);
   const cliResolved = JSON.parse(execFileSync(process.execPath, [cli, "resolve", "search", "--format", "json"], {
@@ -50,6 +57,55 @@ try {
   assert.equal(conflictObservation.status, "ok");
   assert.equal(conflictObservation.observations?.length, 2);
   assert.equal(conflictObservation.observations?.every(({ code, residue }) => code === "INVALID_INPUT" && residue === 0), true);
+  const candidateObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-inline-candidate.mjs"),
+    "--cli",
+    cli,
+  ], { encoding: "utf8" })) as { status?: unknown; outputRace?: unknown; hardLinkRace?: unknown; optimistic?: unknown[] };
+  assert.equal(candidateObservation.status, "ok");
+  assert.equal(candidateObservation.outputRace, "INVALID_INPUT+competing-output-preserved");
+  assert.equal(candidateObservation.hardLinkRace, "INVALID_INPUT+source-alias-preserved");
+  assert.equal(candidateObservation.optimistic?.length, 2);
+  const pinObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-pinned-publication.mjs"),
+    "--cli",
+    cli,
+  ], { encoding: "utf8" })) as { status?: unknown; swaps?: unknown[]; helperFailures?: unknown[]; publicationSuccesses?: unknown[]; postCommitCleanupWarnings?: unknown[]; postCommitInterruptions?: unknown[]; svgOverwrite?: unknown; restrictiveUmask?: unknown; productionTestHooks?: unknown };
+  assert.equal(pinObservation.status, "ok");
+  assert.equal(pinObservation.swaps?.length, 6);
+  assert.equal(pinObservation.helperFailures?.length, 8);
+  assert.equal(pinObservation.publicationSuccesses?.length, 4);
+  assert.equal(pinObservation.postCommitCleanupWarnings?.length, 2);
+  assert.equal(pinObservation.postCommitInterruptions?.length, 8);
+  assert.deepEqual(pinObservation.svgOverwrite, {
+    unnecessary: "absent-output-rejected",
+    default: "existing-output-preserved",
+    explicit: "optimistic-window-reproduced-and-disclosed",
+  });
+  assert.equal(pinObservation.restrictiveUmask, "0600-new-svg");
+  assert.equal(pinObservation.productionTestHooks, "legacy-test-environment-ignored");
+  const basenameObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-publication-basename.mjs"),
+    "--cli",
+    cli,
+  ], { encoding: "utf8" })) as { status?: unknown; observations?: unknown[] };
+  assert.equal(basenameObservation.status, "ok");
+  assert.equal(basenameObservation.observations?.length, 24);
+  const cancellationObservation = JSON.parse(execFileSync(process.execPath, [
+    join(workspace, "scripts/probe-publish-parent-cancellation.mjs"),
+    "--cli",
+    cli,
+    "--deadline",
+  ], { encoding: "utf8" })) as { status?: unknown; cancellation?: unknown[]; deadline?: unknown; cleanupRevocation?: unknown };
+  assert.equal(cancellationObservation.status, "ok");
+  assert.equal(cancellationObservation.cancellation?.length, 4);
+  assert.equal(cancellationObservation.deadline, "bounded-before-commit+no-final-effect");
+  assert.deepEqual(cancellationObservation.cleanupRevocation, {
+    status: "deadline-cause+cleanup-failure+private-complete-residue",
+    effect: "none",
+    cleanup: "failed",
+    mode: "0600",
+  });
   for (const [fileName, unsafeHtml] of new Map([
     ["script-pseudo-body.html", '<!doctype html><html><head><script>const template = "<body>";</script></head></html>\n'],
     ["head-marker-block.html", "<!doctype html><html><head><!-- armorial:sprite:start --><!-- armorial:sprite:end --></head><body><main>keep</main></body></html>\n"],
@@ -62,6 +118,7 @@ try {
       "icon-park:search",
       "--inline-into",
       basename(unsafeHtmlPath),
+      "--allow-optimistic-overwrite",
     ], { cwd: temporaryRoot, encoding: "utf8" });
     assert.equal(unsafeInline.status, 2, unsafeInline.stderr);
     assert.equal(unsafeInline.stdout, "");
@@ -70,23 +127,33 @@ try {
   }
 
   const validHtmlPath = join(temporaryRoot, "valid-body.html");
-  writeFileSync(validHtmlPath, '<!doctype html><html><body data-fixture="kept"><svg><use href="#armorial-search"></use></svg></body></html>\n', "utf8");
+  const validCandidatePath = join(temporaryRoot, "valid-body.armorial.html");
+  const validSource = '<!doctype html><html><body data-fixture="kept"><svg><use href="#armorial-search"></use></svg></body></html>\n';
+  writeFileSync(validHtmlPath, validSource, "utf8");
   const validInline = JSON.parse(execFileSync(process.execPath, [
     cli,
     "batch",
     "icon-park:search",
-    "--inline-into",
+    "--inline-from",
     basename(validHtmlPath),
-  ], { cwd: temporaryRoot, encoding: "utf8" })) as { status?: unknown; kind?: unknown; symbols?: unknown };
-  assert.deepEqual(validInline, {
-    status: "ok",
-    kind: "icon_sprite_inline",
-    output: "valid-body.html",
-    bytes: Buffer.byteLength(readFileSync(validHtmlPath)),
-    sha256: `sha256:${createHash("sha256").update(readFileSync(validHtmlPath)).digest("hex")}`,
-    symbols: 1,
-  });
-  assert.match(readFileSync(validHtmlPath, "utf8"), /<symbol id="armorial-search"/);
+    "--output",
+    basename(validCandidatePath),
+  ], { cwd: temporaryRoot, encoding: "utf8" })) as {
+    status?: unknown;
+    kind?: unknown;
+    symbols?: unknown;
+    sourceSha256?: unknown;
+    candidateSha256?: unknown;
+    protectionLevel?: unknown;
+  };
+  assert.equal(validInline.status, "ok");
+  assert.equal(validInline.kind, "icon_sprite_inline_candidate");
+  assert.equal(validInline.symbols, 1);
+  assert.equal(validInline.sourceSha256, `sha256:${createHash("sha256").update(validSource).digest("hex")}`);
+  assert.equal(validInline.candidateSha256, `sha256:${createHash("sha256").update(readFileSync(validCandidatePath)).digest("hex")}`);
+  assert.equal(validInline.protectionLevel, "non_overwriting_candidate");
+  assert.equal(readFileSync(validHtmlPath, "utf8"), validSource);
+  assert.match(readFileSync(validCandidatePath, "utf8"), /<symbol id="armorial-search"/);
   const resourceObservation = JSON.parse(execFileSync(process.execPath, [
     join(workspace, "scripts/probe-inline-resource.mjs"),
     "--module",
@@ -120,6 +187,25 @@ try {
   for (const forbidden of ["src", "test", "figma-plugin", "dist/web", "README.md", "package-lock.json", "node_modules/.bin", "node_modules/.package-lock.json"]) {
     assert.equal(existsSync(join(pluginDirectory, forbidden)), false, `artifact must omit ${forbidden}`);
   }
+  const runtimeEntries = execFileSync("find", [".", "-type", "f", "-o", "-type", "l"], {
+    cwd: pluginDirectory,
+    encoding: "utf8",
+  }).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const payload = analyzeThirdPartyPayload(pluginDirectory, runtimeEntries);
+  assert.equal(payload.thirdPartyDeclarationEntries, 0);
+  assert.equal(payload.thirdPartyTypeScriptSourceEntries, 0);
+  assert.equal(payload.thirdPartyRemovableDevelopmentEntries, 0);
+  assert.ok(payload.thirdPartyTestSuiteEntries > 0, "runtime exports with test-like names must be reported rather than hidden");
+  assert.ok(
+    payload.thirdPartyProtectedDevelopmentPaths.includes("./node_modules/react-dom/test-utils.js"),
+    "React's public test-utils runtime export must survive test-suite pruning",
+  );
+  assert.ok(payload.thirdPartyTestingHelperEntries > 0, "public third-party helper/testing runtime exports must not be pruned by name alone");
+  assert.ok(
+    payload.thirdPartyTestingHelperPaths.every((entry) => /\.(?:js|cjs|mjs)$/.test(entry)),
+    "retained helper/testing paths must be runtime code rather than declarations",
+  );
+  assert.equal(existsSync(join(pluginDirectory, "node_modules/@standard-schema/spec/dist/index.js")), true);
   const sbom = JSON.parse(readFileSync(join(pluginDirectory, "SBOM.spdx.json"), "utf8")) as { spdxVersion?: unknown; packages?: unknown[] };
   assert.equal(sbom.spdxVersion, "SPDX-2.3");
   assert.ok((sbom.packages?.length ?? 0) > 0);
@@ -174,7 +260,32 @@ try {
   } finally {
     await client.close();
   }
-  process.stdout.write(`${JSON.stringify({ status: "ok", archive, sha256: digest, tools: "list+resolve+get+choose", cli: "version+resolve+inline-conflict+mcp", resource: "picker" })}\n`);
+  process.stdout.write(`${JSON.stringify({
+    status: "ok",
+    archive,
+    sha256: digest,
+    tools: "list+resolve+get+choose",
+    cli: "version+resolve+inline-candidate+pinned-parent+precommit-cancellation+basename-boundary+inline-conflict+mcp",
+    resource: "picker",
+    packageReport: {
+      archiveBytes: statSync(archive).size,
+      entries: runtimeEntries.length,
+      thirdPartyEntries: payload.thirdPartyEntries,
+      thirdPartyDeclarationEntries: payload.thirdPartyDeclarationEntries,
+      thirdPartyTypeScriptSourceEntries: payload.thirdPartyTypeScriptSourceEntries,
+      thirdPartyTestSuiteEntries: payload.thirdPartyTestSuiteEntries,
+      thirdPartyProtectedDevelopmentEntries: payload.thirdPartyProtectedDevelopmentEntries,
+      thirdPartyProtectedDevelopmentPaths: payload.thirdPartyProtectedDevelopmentPaths,
+      thirdPartyRemovableDevelopmentEntries: payload.thirdPartyRemovableDevelopmentEntries,
+      thirdPartyRuntimeTargetEntries: payload.runtimeTargetPaths.length,
+      thirdPartyRuntimeConditions: IMMUTABLE_NODE_RUNTIME_CONDITIONS,
+      thirdPartyTestingHelperEntries: payload.thirdPartyTestingHelperEntries,
+      thirdPartyTestingHelperPaths: payload.thirdPartyTestingHelperPaths,
+      firstPartySourceEntries: 0,
+      firstPartyTestEntries: 0,
+      productionTestHooks: 0,
+    },
+  })}\n`);
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }

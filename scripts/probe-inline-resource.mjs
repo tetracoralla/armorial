@@ -66,7 +66,7 @@ if (process.argv.includes("--worker")) {
     closeSync(handle);
   }
 
-  const { inlineSpriteIntoHtml } = await import(pathToFileURL(modulePath).href);
+  const { writeInlineSpriteCandidate } = await import(pathToFileURL(modulePath).href);
   const sprite = '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"><symbol id="armorial-search" viewBox="0 0 48 48"><path d="M1 1"/></symbol></svg>';
   const output = [];
   const originalWrite = process.stdout.write.bind(process.stdout);
@@ -75,10 +75,11 @@ if (process.argv.includes("--worker")) {
     return true;
   };
   let elapsedMs;
+  let publication;
   try {
     process.chdir(temporaryRoot);
     const startedAt = performance.now();
-    await inlineSpriteIntoHtml("large.html", sprite, 1);
+    publication = await writeInlineSpriteCandidate("large.html", "large.armorial.html", sprite, 1);
     elapsedMs = performance.now() - startedAt;
   } finally {
     process.chdir(previousCwd);
@@ -86,11 +87,13 @@ if (process.argv.includes("--worker")) {
   }
 
   const summary = JSON.parse(output.join(""));
-  const result = readFileSync(target);
+  const result = readFileSync(join(temporaryRoot, "large.armorial.html"));
   assert.equal(summary.status, "ok");
-  assert.equal(summary.kind, "icon_sprite_inline");
+  assert.equal(summary.kind, "icon_sprite_inline_candidate");
+  assert.equal(summary.protectionLevel, "non_overwriting_candidate");
   assert.equal(summary.symbols, 1);
   assert.equal(summary.bytes, result.byteLength);
+  assert.equal(readFileSync(target).byteLength, targetBytes);
   const expectedInsertion = Buffer.from(`\n  <!-- armorial:sprite:start -->\n  ${sprite}\n  <!-- armorial:sprite:end -->\n`, "utf8");
   assert.equal(result.subarray(0, insertionPrefix.byteLength).equals(insertionPrefix), true);
   assert.equal(
@@ -106,9 +109,18 @@ if (process.argv.includes("--worker")) {
     true,
   );
   assert.equal(result.subarray(-suffix.byteLength).equals(suffix), true);
-  const maxRssBytes = process.resourceUsage().maxRSS * 1024;
+  const parentMaxRssBytes = process.resourceUsage().maxRSS * 1024;
+  const publisherMaxRssBytes = publication.publisherMaxRssBytes;
+  const aggregateMaxRssUpperBoundBytes = parentMaxRssBytes + publisherMaxRssBytes;
   rmSync(temporaryRoot, { recursive: true, force: true });
-  originalWrite(`${JSON.stringify({ targetBytes, elapsedMs, maxRssBytes, outputBytes: result.byteLength })}\n`);
+  originalWrite(`${JSON.stringify({
+    targetBytes,
+    elapsedMs,
+    parentMaxRssBytes,
+    publisherMaxRssBytes,
+    aggregateMaxRssUpperBoundBytes,
+    outputBytes: result.byteLength,
+  })}\n`);
 } else {
   const modulePath = resolve(argument("--module") ?? defaultModule);
   const observations = sizes.map((targetBytes) => {
@@ -127,8 +139,8 @@ if (process.argv.includes("--worker")) {
       `${targetBytes}-byte inline call took ${observation.elapsedMs} ms (limit ${MAX_CALL_MS} ms)`,
     );
     assert.ok(
-      observation.maxRssBytes <= MAX_RSS_BYTES,
-      `${targetBytes}-byte inline call used ${observation.maxRssBytes} bytes max RSS (limit ${MAX_RSS_BYTES})`,
+      observation.aggregateMaxRssUpperBoundBytes <= MAX_RSS_BYTES,
+      `${targetBytes}-byte inline call used at most ${observation.aggregateMaxRssUpperBoundBytes} aggregate max-RSS upper-bound bytes (limit ${MAX_RSS_BYTES})`,
     );
     return observation;
   });

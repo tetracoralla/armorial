@@ -9,6 +9,7 @@ import { IconKernelError, toKernelError, zodIssuesToKernelError } from "../core/
 import {
   inlineSpriteIntoHtml,
   type ResolvedIntent,
+  writeInlineSpriteCandidate,
   writeSpriteFile,
 } from "./cli-artifact.js";
 import { isMainModule } from "./main-module.js";
@@ -31,9 +32,11 @@ Usage:
   armorial search <query...> [--limit 8] [--format text|json] [--policy file]
   armorial resolve <intent...> [--context name] [render options] [--alternatives 3] [--format json|text|svg] [--policy file]
   armorial get <icon-id> [--context name] [render options] [--format json|svg] [--policy file]
-  armorial batch <icon-id...> [--context name] [render options] [--format json|text|sprite] [--symbol-prefix text] [--output relative.svg | --inline-into relative.html] [--allow-symbol-removal] [--policy file]
+  armorial batch <icon-id...> [--context name] [render options] [--format json|text|sprite] [--symbol-prefix text] [--output relative.svg] [--allow-optimistic-overwrite] [--policy file]
+  armorial batch <icon-id...> [--context name] [render options] [--format json|sprite] [--symbol-prefix text] --inline-from source.html --output candidate.html [--allow-symbol-removal] [--policy file]
+  armorial batch <icon-id...> [--context name] [render options] [--format json|sprite] [--symbol-prefix text] --inline-into relative.html --allow-optimistic-overwrite [--allow-symbol-removal] [--policy file]
   armorial batch <intent...> --resolve-intents [--context name] [render options] [--format json|text] [--policy file]
-  armorial batch <intent...> --resolve-intents [--context name] [render options] [--format json|sprite] [--symbol-prefix text] (--output relative.svg | --inline-into relative.html) [--allow-symbol-removal] [--policy file]
+  armorial batch <intent...> --resolve-intents [--context name] [render options] [--format json|sprite] [--symbol-prefix text] (--output relative.svg [--allow-optimistic-overwrite] | --inline-from source.html --output candidate.html | --inline-into relative.html --allow-optimistic-overwrite) [--allow-symbol-removal] [--policy file]
   armorial policy validate <file>
   armorial policy schema
 
@@ -42,7 +45,8 @@ Render options: --theme, --size, --stroke-width, --stroke-linecap, --stroke-line
 
 Policy resolution order: --policy file, $ICON_SVG_SELECT_POLICY, ./icon-policy.json, built-in default.
 
-With --output or --inline-into, omit --format or use --format json|sprite: the carrier receives a sprite and stdout receives a compact JSON summary.`;
+With a carrier, omit --format or use --format json|sprite: the carrier receives a sprite and stdout receives a compact JSON summary.
+New SVG and --inline-from outputs are create-only and reject --allow-optimistic-overwrite. Replacing an existing SVG or using --inline-into requires that flag because the final check-to-rename window cannot exclude a non-cooperating writer.`;
 
 const RENDER_OPTIONS = {
   theme: { type: "string" },
@@ -240,9 +244,11 @@ async function runBatch(args: string[]): Promise<void> {
       format: { type: "string" },
       "symbol-prefix": { type: "string" },
       output: { type: "string" },
+      "inline-from": { type: "string" },
       "inline-into": { type: "string" },
       "resolve-intents": { type: "boolean" },
       "allow-symbol-removal": { type: "boolean" },
+      "allow-optimistic-overwrite": { type: "boolean" },
       help: { type: "boolean", short: "h" },
       policy: { type: "string" },
       ...RENDER_OPTIONS,
@@ -252,6 +258,7 @@ async function runBatch(args: string[]): Promise<void> {
     writeText(HELP);
     return;
   }
+  const hasInlineCandidate = parsed.values["inline-from"] !== undefined;
   const hasSpriteCarrier = parsed.values.output !== undefined || parsed.values["inline-into"] !== undefined;
   const requestedFormat = parsed.values.format;
   const format = hasSpriteCarrier && (requestedFormat === undefined || requestedFormat === "json")
@@ -295,11 +302,50 @@ async function runBatch(args: string[]): Promise<void> {
       field: "inline-into",
     });
   }
-  if (parsed.values["allow-symbol-removal"] === true && parsed.values["inline-into"] === undefined) {
+  if (hasInlineCandidate && parsed.values.output === undefined) {
     throw new IconKernelError({
       code: "INVALID_INPUT",
-      message: "allow-symbol-removal is only valid with --inline-into.",
+      message: "inline-from requires one new --output .html candidate path.",
+      field: "inline-from",
+    });
+  }
+  if (parsed.values.output !== undefined && !hasInlineCandidate && !/\.svg$/i.test(parsed.values.output)) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: "output must end in .svg unless --inline-from selects a new HTML candidate.",
+      field: "output",
+    });
+  }
+  if (hasInlineCandidate && parsed.values["inline-into"] !== undefined) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: "Use either --inline-from with --output or --inline-into, not both.",
+      field: "inline-from",
+    });
+  }
+  if (parsed.values["allow-symbol-removal"] === true && !hasInlineCandidate && parsed.values["inline-into"] === undefined) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: "allow-symbol-removal is only valid with an inline HTML carrier.",
       field: "allow-symbol-removal",
+    });
+  }
+  if (parsed.values["inline-into"] !== undefined && parsed.values["allow-optimistic-overwrite"] !== true) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: "inline-into can overwrite a non-cooperating editor save in the final check-to-rename window. Use --inline-from with a new --output candidate, or explicitly pass --allow-optimistic-overwrite.",
+      field: "inline-into",
+    });
+  }
+  if (
+    parsed.values["allow-optimistic-overwrite"] === true
+    && parsed.values["inline-into"] === undefined
+    && (parsed.values.output === undefined || hasInlineCandidate)
+  ) {
+    throw new IconKernelError({
+      code: "INVALID_INPUT",
+      message: "allow-optimistic-overwrite is valid only for an existing SVG --output or --inline-into; HTML candidates remain create-only.",
+      field: "allow-optimistic-overwrite",
     });
   }
   if (format === "sprite" && render?.size !== undefined) {
@@ -312,7 +358,7 @@ async function runBatch(args: string[]): Promise<void> {
   if (resolveIntents && format === "sprite" && !hasSpriteCarrier) {
     throw new IconKernelError({
       code: "INVALID_INPUT",
-      message: "resolve-intents with sprite format requires exactly one --output or --inline-into carrier.",
+      message: "resolve-intents with sprite format requires one output carrier.",
       field: "resolve-intents",
     });
   }
@@ -406,8 +452,23 @@ async function runBatch(args: string[]): Promise<void> {
   if (format === "sprite" && output.status === "ok" && output.summary.failed === 0) {
     const { presentSprite } = await import("./presentation.js");
     const sprite = presentSprite(output, symbolPrefix);
-    if (parsed.values.output !== undefined) {
-      await writeSpriteFile(parsed.values.output, sprite, output.summary.rendered, resolved);
+    if (hasInlineCandidate && parsed.values.output !== undefined) {
+      await writeInlineSpriteCandidate(
+        parsed.values["inline-from"]!,
+        parsed.values.output,
+        sprite,
+        output.summary.rendered,
+        resolved,
+        parsed.values["allow-symbol-removal"] === true,
+      );
+    } else if (parsed.values.output !== undefined) {
+      await writeSpriteFile(
+        parsed.values.output,
+        sprite,
+        output.summary.rendered,
+        resolved,
+        parsed.values["allow-optimistic-overwrite"] === true,
+      );
     } else if (parsed.values["inline-into"] !== undefined) {
       await inlineSpriteIntoHtml(
         parsed.values["inline-into"],
@@ -491,6 +552,9 @@ if (isMainModule(import.meta.url, process.argv[1])) {
   main().catch((error: unknown) => {
     const kernelError = toKernelError(error);
     process.stderr.write(`${JSON.stringify({ status: "error", error: kernelError }, null, 2)}\n`);
-    process.exitCode = error instanceof IconKernelError ? 2 : 1;
+    process.exitCode = error instanceof IconKernelError
+      && !["PUBLICATION_OUTCOME_UNCERTAIN", "INTERNAL_ERROR"].includes(error.error.code)
+      ? 2
+      : 1;
   });
 }

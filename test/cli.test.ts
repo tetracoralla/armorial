@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmod, mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, link, mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { test } from "node:test";
 
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const tsxImport = import.meta.resolve("tsx");
 const inlineConflictInjector = resolve(workspace, "scripts/inject-inline-conflict.mjs");
+
+function testNodeOptions(modulePath: string): string {
+  const option = `--import=${pathToFileURL(modulePath).href}`;
+  return process.env.NODE_OPTIONS === undefined ? option : `${process.env.NODE_OPTIONS} ${option}`;
+}
 
 function runCliAt(cwd: string, ...args: string[]) {
   return spawnSync(process.execPath, ["--import", tsxImport, resolve(workspace, "src/adapters/cli.ts"), ...args], {
@@ -29,14 +34,13 @@ function runInlineConflictCli(
 ) {
   return spawnSync(process.execPath, [
     "--import",
-    inlineConflictInjector,
-    "--import",
     tsxImport,
     resolve(workspace, "src/adapters/cli.ts"),
     "batch",
     "icon-park:search",
     "--inline-into",
     "index.html",
+    "--allow-optimistic-overwrite",
     "--format",
     "json",
   ], {
@@ -47,6 +51,7 @@ function runInlineConflictCli(
       ARMORIAL_INLINE_CONFLICT_TARGET: target,
       ARMORIAL_INLINE_CONFLICT_CONTENT_BASE64: externalContent.toString("base64"),
       ARMORIAL_INLINE_CONFLICT_METHOD: method,
+      NODE_OPTIONS: testNodeOptions(inlineConflictInjector),
     },
   });
 }
@@ -95,7 +100,7 @@ test("CLI emits a deterministic exact-id sprite for direct automation", () => {
   assert.equal(spriteGeometry, singleGeometry, "sprite generation must preserve provider geometry byte-for-byte");
 });
 
-test("CLI writes a sprite atomically and returns only a compact integrity summary", async (context) => {
+test("CLI creates a sprite exclusively and discloses an explicit optimistic replacement", async (context) => {
   const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-output-"));
   context.after(() => rm(scratch, { recursive: true, force: true }));
   await mkdir(resolve(scratch, "generated"));
@@ -122,6 +127,7 @@ test("CLI writes a sprite atomically and returns only a compact integrity summar
     output: string;
     bytes: number;
     sha256: string;
+    protectionLevel: string;
     symbols: number;
   };
   assert.deepEqual({ status: summary.status, kind: summary.kind, output: summary.output, symbols: summary.symbols }, {
@@ -131,6 +137,8 @@ test("CLI writes a sprite atomically and returns only a compact integrity summar
     symbols: 2,
   });
   assert.match(summary.sha256, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(summary.protectionLevel, "non_overwriting_create");
+  assert.equal((await stat(resolve(scratch, "generated/icons.svg"))).mode & 0o777, 0o644 & ~process.umask());
   const sprite = await readFile(resolve(scratch, "generated/icons.svg"), "utf8");
   assert.equal(Buffer.byteLength(sprite), summary.bytes);
   assert.match(sprite, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="0" height="0"/);
@@ -139,15 +147,38 @@ test("CLI writes a sprite atomically and returns only a compact integrity summar
 
   await writeFile(resolve(scratch, "generated/icons.svg"), "stale", "utf8");
   await chmod(resolve(scratch, "generated/icons.svg"), 0o640);
-  const replacement = spawnSync(process.execPath, [
+  const deniedReplacement = spawnSync(process.execPath, [
     "--import", tsxImport, script, "batch", "user", "--format", "sprite", "--output", "generated/icons.svg",
   ], { cwd: scratch, encoding: "utf8" });
+  assert.equal(deniedReplacement.status, 2, deniedReplacement.stderr);
+  assert.match(deniedReplacement.stderr, /allow-optimistic-overwrite/);
+  assert.equal(await readFile(resolve(scratch, "generated/icons.svg"), "utf8"), "stale");
+
+  const replacement = spawnSync(process.execPath, [
+    "--import", tsxImport, script, "batch", "user", "--format", "sprite", "--output", "generated/icons.svg",
+    "--allow-optimistic-overwrite",
+  ], { cwd: scratch, encoding: "utf8" });
   assert.equal(replacement.status, 0, replacement.stderr);
+  const replacementSummary = JSON.parse(replacement.stdout) as Record<string, unknown>;
+  assert.equal(replacementSummary["protectionLevel"], "optimistic_preflight_only");
+  assert.match(String(replacementSummary["concurrencyWarning"]), /final check and before atomic rename/);
   assert.doesNotMatch(await readFile(resolve(scratch, "generated/icons.svg"), "utf8"), /stale/);
   assert.equal((await stat(resolve(scratch, "generated/icons.svg"))).mode & 0o777, 0o640);
+
+  const unicodeName = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:search",
+    "--format",
+    "sprite",
+    "--output",
+    "generated/图标.svg",
+  );
+  assert.equal(unicodeName.status, 0, unicodeName.stderr);
+  assert.match(await readFile(resolve(scratch, "generated/图标.svg"), "utf8"), /<symbol id="armorial-search"/);
 });
 
-test("CLI atomically inlines an opaque sprite into a single-file HTML artifact", async (context) => {
+test("CLI explicit optimistic mode inlines an opaque sprite with the final race disclosed", async (context) => {
   const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-inline-"));
   context.after(() => rm(scratch, { recursive: true, force: true }));
   const target = resolve(scratch, "index.html");
@@ -165,6 +196,7 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
     "i-",
     "--inline-into",
     "index.html",
+    "--allow-optimistic-overwrite",
   ];
   const first = runCliAt(scratch, ...args);
   assert.equal(first.status, 0, first.stderr);
@@ -175,6 +207,10 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
     output: string;
     bytes: number;
     sha256: string;
+    sourceSha256: string;
+    candidateSha256: string;
+    protectionLevel: string;
+    concurrencyWarning: string;
     symbols: number;
   };
   assert.deepEqual({
@@ -192,6 +228,10 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
   assert.match(inlined, /^\uFEFF<!doctype html>/, "a leading UTF-8 BOM must remain byte-aligned around the splice");
   assert.equal(Buffer.byteLength(inlined), firstSummary.bytes);
   assert.match(firstSummary.sha256, /^sha256:[a-f0-9]{64}$/);
+  assert.match(firstSummary.sourceSha256, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(firstSummary.candidateSha256, firstSummary.sha256);
+  assert.equal(firstSummary.protectionLevel, "optimistic_preflight_only");
+  assert.match(firstSummary.concurrencyWarning, /final check and before atomic rename/);
   assert.match(inlined, /<body class="app">\n  <!-- armorial:sprite:start -->/);
   assert.match(inlined, /<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
   assert.match(inlined, /<symbol id="i-user"/);
@@ -217,6 +257,7 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
     "i-",
     "--inline-into",
     "index.html",
+    "--allow-optimistic-overwrite",
   );
   assert.equal(accidentalSubset.status, 2, accidentalSubset.stderr);
   assert.equal(JSON.parse(accidentalSubset.stderr).error.code, "INVALID_INPUT");
@@ -233,12 +274,162 @@ test("CLI atomically inlines an opaque sprite into a single-file HTML artifact",
     "i-",
     "--inline-into",
     "index.html",
+    "--allow-optimistic-overwrite",
     "--allow-symbol-removal",
   );
   assert.equal(intentionalSubset.status, 0, intentionalSubset.stderr);
   const reduced = await readFile(target, "utf8");
   assert.match(reduced, /<symbol id="i-user"/);
   assert.doesNotMatch(reduced, /<symbol id="i-search"/);
+});
+
+test("CLI defaults to a create-only inline candidate and preserves source and existing outputs", async (context) => {
+  const scratch = await mkdtemp(resolve(tmpdir(), "armorial-cli-inline-candidate-"));
+  context.after(() => rm(scratch, { recursive: true, force: true }));
+  const source = resolve(scratch, "index.html");
+  const original = Buffer.from("<!doctype html><html><body><main>Keep me</main></body></html>\n", "utf8");
+  await writeFile(source, original);
+  await chmod(source, 0o600);
+
+  const candidate = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:search",
+    "--inline-from",
+    "index.html",
+    "--output",
+    "index.armorial.html",
+    "--format",
+    "json",
+  );
+  assert.equal(candidate.status, 0, candidate.stderr);
+  assert.deepEqual(await readFile(source), original, "candidate generation must never mutate its source");
+  const candidateBytes = await readFile(resolve(scratch, "index.armorial.html"));
+  assert.equal((await stat(resolve(scratch, "index.armorial.html"))).mode & 0o777, 0o600);
+  assert.match(candidateBytes.toString("utf8"), /<symbol id="armorial-search"/);
+  const summary = JSON.parse(candidate.stdout) as Record<string, unknown>;
+  assert.equal(summary["kind"], "icon_sprite_inline_candidate");
+  assert.equal(summary["source"], "index.html");
+  assert.equal(summary["output"], "index.armorial.html");
+  assert.equal(summary["protectionLevel"], "non_overwriting_candidate");
+  assert.match(String(summary["sourceSha256"]), /^sha256:[a-f0-9]{64}$/);
+  assert.match(String(summary["candidateSha256"]), /^sha256:[a-f0-9]{64}$/);
+  assert.doesNotMatch(candidate.stdout, /<svg|<symbol|<path/);
+
+  const optimisticDenied = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:user",
+    "--inline-into",
+    "index.html",
+    "--format",
+    "json",
+  );
+  assert.equal(optimisticDenied.status, 2);
+  assert.match(optimisticDenied.stderr, /allow-optimistic-overwrite/);
+  assert.deepEqual(await readFile(source), original);
+
+  const candidateOptimisticDenied = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:user",
+    "--inline-from",
+    "index.html",
+    "--output",
+    "candidate-with-optimistic-flag.html",
+    "--allow-optimistic-overwrite",
+  );
+  assert.equal(candidateOptimisticDenied.status, 2);
+  assert.match(candidateOptimisticDenied.stderr, /HTML candidates remain create-only/);
+  assert.deepEqual(await readFile(source), original);
+  await assert.rejects(() => readFile(resolve(scratch, "candidate-with-optimistic-flag.html")), { code: "ENOENT" });
+
+  const existing = Buffer.from("EXISTING-CANDIDATE\n", "utf8");
+  await writeFile(resolve(scratch, "existing.html"), existing);
+  const existingDenied = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:user",
+    "--inline-from",
+    "index.html",
+    "--output",
+    "existing.html",
+  );
+  assert.equal(existingDenied.status, 2);
+  assert.deepEqual(await readFile(source), original);
+  assert.deepEqual(await readFile(resolve(scratch, "existing.html")), existing);
+
+  const samePath = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:user",
+    "--inline-from",
+    "index.html",
+    "--output",
+    "index.html",
+  );
+  assert.equal(samePath.status, 2);
+  assert.match(samePath.stderr, /different from its source/);
+  assert.deepEqual(await readFile(source), original);
+
+  await link(source, resolve(scratch, "alias.html"));
+  const hardLinkAlias = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:user",
+    "--inline-from",
+    "index.html",
+    "--output",
+    "alias.html",
+  );
+  assert.equal(hardLinkAlias.status, 2);
+  assert.match(hardLinkAlias.stderr, /hard-link alias/);
+  assert.deepEqual(await readFile(source), original);
+  assert.deepEqual(await readFile(resolve(scratch, "alias.html")), original);
+
+  const invalidSource = resolve(scratch, "invalid.html");
+  const invalidBytes = Buffer.from("<main>missing explicit body</main>\n", "utf8");
+  await writeFile(invalidSource, invalidBytes);
+  const failedCandidate = runCliAt(
+    scratch,
+    "batch",
+    "icon-park:user",
+    "--inline-from",
+    "invalid.html",
+    "--output",
+    "never-created.html",
+  );
+  assert.equal(failedCandidate.status, 2);
+  const failedCandidateError = JSON.parse(failedCandidate.stderr) as { error?: { field?: unknown; message?: unknown } };
+  assert.equal(failedCandidateError.error?.field, "inline-from");
+  assert.match(String(failedCandidateError.error?.message), /^inline-from HTML/);
+  assert.deepEqual(await readFile(invalidSource), invalidBytes);
+  await assert.rejects(() => readFile(resolve(scratch, "never-created.html")), { code: "ENOENT" });
+});
+
+test("CLI pins publication to the admitted parent inode across directory replacement", () => {
+  const result = spawnSync(process.execPath, [
+    resolve(workspace, "scripts/probe-pinned-publication.mjs"),
+    "--cli",
+    resolve(workspace, "src/adapters/cli.ts"),
+  ], { cwd: workspace, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  const observation = JSON.parse(result.stdout) as {
+    status?: unknown;
+    swaps?: Array<{ status?: unknown }>;
+    helperFailures?: Array<{ status?: unknown }>;
+    publicationSuccesses?: Array<{ status?: unknown }>;
+    postCommitCleanupWarnings?: Array<{ status?: unknown }>;
+    postCommitInterruptions?: Array<{ status?: unknown }>;
+  };
+  assert.equal(observation.status, "ok");
+  assert.equal(observation.swaps?.length, 6);
+  assert.equal(observation.swaps?.every(({ status }) => ["closed-before-write", "published-to-pinned-inode"].includes(String(status))), true);
+  assert.equal(observation.helperFailures?.length, 8);
+  assert.equal(observation.helperFailures?.every(({ status }) => status === "closed-without-final-effect"), true);
+  assert.equal(observation.publicationSuccesses?.every(({ status }) => status === "published-with-truthful-summary"), true);
+  assert.equal(observation.postCommitCleanupWarnings?.every(({ status }) => status === "published-with-cleanup-warning"), true);
+  assert.equal(observation.postCommitInterruptions?.every(({ status }) => status === "published-without-summary+uncertain-error"), true);
 });
 
 test("CLI preserves same-size external HTML saves before inline publication", async (context) => {
@@ -258,7 +449,12 @@ test("CLI preserves same-size external HTML saves before inline publication", as
     assert.equal(result.stdout, "");
     const failure = JSON.parse(result.stderr) as {
       status?: unknown;
-      error?: { code?: unknown; message?: unknown; field?: unknown };
+      error?: {
+        code?: unknown;
+        message?: unknown;
+        field?: unknown;
+        publication?: unknown;
+      };
     };
     assert.deepEqual(failure, {
       status: "error",
@@ -266,6 +462,10 @@ test("CLI preserves same-size external HTML saves before inline publication", as
         code: "INVALID_INPUT",
         message: "inline-into HTML changed after Armorial read it; the external version was preserved. Retry with a stable task file.",
         field: "inline-into",
+        publication: {
+          effect: "none",
+          cleanup: { status: "complete" },
+        },
       },
     });
     assert.deepEqual(await readFile(target), external, `${method} external content must survive`);
@@ -300,6 +500,7 @@ test("CLI keeps an exact 8 MiB caller carrier admissible after insert, retry, an
     "icon-park:search",
     "--inline-into",
     "maximum.html",
+    "--allow-optimistic-overwrite",
     "--format",
     "json",
   );
@@ -314,6 +515,7 @@ test("CLI keeps an exact 8 MiB caller carrier admissible after insert, retry, an
     "icon-park:search",
     "--inline-into",
     "maximum.html",
+    "--allow-optimistic-overwrite",
     "--format",
     "json",
   );
@@ -326,6 +528,7 @@ test("CLI keeps an exact 8 MiB caller carrier admissible after insert, retry, an
     "icon-park:user",
     "--inline-into",
     "maximum.html",
+    "--allow-optimistic-overwrite",
     "--format",
     "json",
     "--allow-symbol-removal",
@@ -345,6 +548,7 @@ test("CLI keeps an exact 8 MiB caller carrier admissible after insert, retry, an
     "icon-park:search",
     "--inline-into",
     "oversized.html",
+    "--allow-optimistic-overwrite",
     "--format",
     "json",
   );
@@ -369,6 +573,7 @@ test("CLI keeps an exact 8 MiB caller carrier admissible after insert, retry, an
     "icon-park:search",
     "--inline-into",
     "oversized-block.html",
+    "--allow-optimistic-overwrite",
     "--format",
     "json",
   );
@@ -400,6 +605,7 @@ test("CLI inline parser accepts one explicit body and rejects pseudo, missing, o
     "sprite",
     "--inline-into",
     "valid.html",
+    "--allow-optimistic-overwrite",
   );
   assert.equal(valid.status, 0, valid.stderr);
   const inlined = await readFile(validTarget, "utf8");
@@ -417,6 +623,7 @@ test("CLI inline parser accepts one explicit body and rejects pseudo, missing, o
     "sprite",
     "--inline-into",
     "valid.html",
+    "--allow-optimistic-overwrite",
   );
   assert.equal(repeat.status, 0, repeat.stderr);
   assert.equal(await readFile(validTarget, "utf8"), inlined, "script marker text must not create duplicate blocks");
@@ -460,6 +667,7 @@ test("CLI inline parser accepts one explicit body and rejects pseudo, missing, o
       "sprite",
       "--inline-into",
       fileName,
+      "--allow-optimistic-overwrite",
     );
     assert.equal(result.status, 2, `${fileName}\n${result.stderr}`);
     assert.equal(result.stdout, "");
@@ -492,7 +700,15 @@ test("CLI inline output rejects unsafe paths, conflicting carriers, and malforme
     ["--output", "icons.svg", "--allow-symbol-removal"],
   ];
   for (const extra of cases) {
-    const result = runCliAt(scratch, "batch", "user", "--format", "sprite", ...extra);
+    const result = runCliAt(
+      scratch,
+      "batch",
+      "user",
+      "--format",
+      "sprite",
+      ...extra,
+      ...(extra[0] === "--inline-into" ? ["--allow-optimistic-overwrite"] : []),
+    );
     assert.equal(result.status, 2, `${extra.join(" ")}\n${result.stderr}`);
     assert.equal(result.stdout, "");
     assert.equal(JSON.parse(result.stderr).error.code, "INVALID_INPUT");
@@ -508,7 +724,7 @@ test("CLI sprite file output rejects absolute, non-SVG, and symlink escape paths
   });
   await symlink(outside, resolve(scratch, "escape"));
   const script = resolve(workspace, "src/adapters/cli.ts");
-  for (const output of [resolve(scratch, "absolute.svg"), "icons.html", "missing/icons.svg", "escape/icons.svg"]) {
+  for (const output of [resolve(scratch, "absolute.svg"), "icons.html", "missing/icons.svg", "escape/icons.svg", "portable\\icons.svg"]) {
     const result = spawnSync(process.execPath, [
       "--import", tsxImport, script, "batch", "user", "--format", "sprite", "--output", output,
     ], { cwd: scratch, encoding: "utf8" });
@@ -541,7 +757,14 @@ test("CLI batch carriers infer sprite format and batch help avoids kernel work",
   assert.equal(JSON.parse(output.stdout).kind, "icon_sprite_file");
   assert.match(await readFile(resolve(scratch, "icons.svg"), "utf8"), /<symbol id="armorial-user"/);
 
-  const inline = runCliAt(scratch, "batch", "user", "--inline-into", "index.html");
+  const inline = runCliAt(
+    scratch,
+    "batch",
+    "user",
+    "--inline-into",
+    "index.html",
+    "--allow-optimistic-overwrite",
+  );
   assert.equal(inline.status, 0, inline.stderr);
   assert.equal(JSON.parse(inline.stdout).kind, "icon_sprite_inline");
 
@@ -570,6 +793,7 @@ test("CLI accepts a JSON summary request with an unambiguous sprite carrier", as
     "ui-",
     "--inline-into",
     "index.html",
+    "--allow-optimistic-overwrite",
   );
   assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stdout, /<svg|<symbol|<path/);
@@ -598,6 +822,7 @@ test("CLI accepts a JSON summary request with an unambiguous sprite carrier", as
     "text",
     "--inline-into",
     "index.html",
+    "--allow-optimistic-overwrite",
   );
   assert.equal(incompatible.status, 2, incompatible.stderr);
   assert.equal(JSON.parse(incompatible.stderr).error.code, "INVALID_INPUT");
@@ -708,6 +933,7 @@ test("CLI resolves a bounded intent set and writes one compact sprite carrier at
     "i-",
     "--inline-into",
     "index.html",
+    "--allow-optimistic-overwrite",
   );
   assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stdout, /<svg|<symbol|<path/);
@@ -773,6 +999,7 @@ test("CLI intent batch fails before mutation on ambiguity, misses, or an unbound
     "--resolve-intents",
     "--inline-into",
     "index.html",
+    "--allow-optimistic-overwrite",
   );
   assert.equal(unresolved.status, 2, unresolved.stderr);
   assert.equal(unresolved.stdout, "");

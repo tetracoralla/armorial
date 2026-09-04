@@ -74,7 +74,9 @@ test("GitHub Pages is the official static human workbench", async () => {
   assert.match(agentSelection, /Do not install Agent Host for one direct Armorial call/);
   assert.match(agentSelection, /Ordinary CLI\s+results use stdout/);
   assert.match(agentSelection, /--output <relative\.svg>/);
-  assert.match(agentSelection, /--inline-into <relative\.html>/);
+  assert.match(agentSelection, /--inline-from <source\.html> --output/);
+  assert.match(agentSelection, /non_overwriting_candidate/);
+  assert.match(agentSelection, /optimistic_preflight_only/);
   assert.doesNotMatch(agentSelection, /CLI writes\s+only to stdout/);
   assert.match(readme, /Agent discovery and selection/);
   assert.match(agentSelectionHtml, /rel="canonical" href="https:\/\/tetracoralla\.github\.io\/armorial\/agent-selection\.html"/);
@@ -82,7 +84,8 @@ test("GitHub Pages is the official static human workbench", async () => {
   assert.match(agentSelectionHtml, /Deployment-pinned source probe/);
   assert.match(agentSelectionHtml, /Ordinary CLI results use stdout/);
   assert.match(agentSelectionHtml, /--output &lt;relative\.svg&gt;/);
-  assert.match(agentSelectionHtml, /--inline-into &lt;relative\.html&gt;/);
+  assert.match(agentSelectionHtml, /--inline-from &lt;source\.html&gt; --output/);
+  assert.match(agentSelectionHtml, /optimistic_preflight_only/);
   await assert.rejects(access(new URL("../public/robots.txt", import.meta.url)));
   assert.match(sitemap, /https:\/\/tetracoralla\.github\.io\/armorial\/agent-selection\.html/);
   assert.match(sitemap, /https:\/\/tetracoralla\.github\.io\/armorial\/agent-selection\.txt/);

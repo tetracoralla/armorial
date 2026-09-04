@@ -286,13 +286,31 @@ export const ErrorCodeSchema = z.enum([
   "RESPONSE_TOO_LARGE",
   "POLICY_FILE_TOO_LARGE",
   "POLICY_FILE_READ_FAILED",
+  "PUBLICATION_OUTCOME_UNCERTAIN",
   "INTERNAL_ERROR",
 ]);
+
+export const PublicationFailureStateSchema = z.strictObject({
+  effect: z.enum(["none", "unknown"]),
+  cleanup: z.strictObject({
+    status: z.enum(["not_needed", "complete", "failed", "unknown"]),
+    reason: z.string().max(64).optional(),
+    residue: z.strictObject({
+      kind: z.literal("private_temporary"),
+      location: z.literal("destination_parent"),
+      basename: z.string().regex(/^\.armorial-publish-[a-f0-9]{24}\.tmp$/),
+      mode: z.string().regex(/^[0-7]{4}$/),
+      bytes: z.number().int().nonnegative(),
+      complete: z.boolean(),
+    }).optional(),
+  }),
+});
 
 export const ErrorSchema = z.strictObject({
   code: ErrorCodeSchema,
   message: z.string(),
   field: z.string().optional(),
+  publication: PublicationFailureStateSchema.optional(),
 }).meta({ id: "Error" });
 
 export const SearchSuccessSchema = z.strictObject({
@@ -434,6 +452,7 @@ export type GetIconsOutput = z.infer<typeof GetIconsOutputSchema>;
 export type BrowseIconsOutput = z.infer<typeof BrowseIconsOutputSchema>;
 export type IconResult = z.infer<typeof IconResultSchema>;
 export type KernelError = z.infer<typeof ErrorSchema>;
+export type PublicationFailureState = z.infer<typeof PublicationFailureStateSchema>;
 export type CatalogItem = z.infer<typeof CatalogItemSchema>;
 export type IconSelectionDecision = z.infer<typeof IconSelectionDecisionSchema>;
 export type IconSelectionDecisionInput = z.infer<typeof IconSelectionDecisionInputSchema>;
