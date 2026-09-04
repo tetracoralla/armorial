@@ -208,7 +208,8 @@ test("language selection localizes navigation, identity details, and the documen
     window.localStorage.setItem("armorial.preferences.v1", JSON.stringify({ version: 1, locale: "en" }));
   });
   await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  // Locale persistence is a functional assertion, not a 5-second startup SLO.
+  await expect(page.locator("html")).toHaveAttribute("lang", "en", { timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Abstract 121", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "a-cane", exact: true })).toBeVisible();
 
@@ -256,6 +257,88 @@ test("a failed appearance redraw returns to the last usable render and can be re
   await size.press("Enter");
   await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2248%22/);
   await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeEnabled();
+});
+
+test("a failed search cannot publish a stale pagination route", async ({ page }) => {
+  const browseBodies: Array<Record<string, unknown>> = [];
+  await page.route("**/api/browse", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    browseBodies.push(body);
+    if (body.query === "injected failure") {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "injected search failure" }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto("/");
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+
+  await page.getByPlaceholder("Search icons", { exact: true }).fill("injected failure");
+  await expect(page.locator(".error-banner")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Load more", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Copy for Agent", exact: true })).toBeDisabled();
+  const staleOption = page.getByRole("option", { name: "a-cane", exact: true });
+  await expect(staleOption).toHaveAttribute("draggable", "false");
+  expect(await staleOption.evaluate((element) => {
+    const transfer = new DataTransfer();
+    element.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
+    return [...transfer.types];
+  })).toEqual([]);
+  expect(browseBodies.some((body) => body.query === "injected failure" && body.offset === 60)).toBe(false);
+
+  await page.getByPlaceholder("Search icons", { exact: true }).fill("");
+  await expect(page.locator(".error-banner")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Load more", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Load more", exact: true }).click();
+  await expect.poll(() => browseBodies.some((body) => body.query === "" && body.offset === 60)).toBe(true);
+});
+
+test("selection decisions stay disabled until the current query has a settled result", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:4178" });
+  let releasePending: (() => void) | undefined;
+  const pending = new Promise<void>((resolve) => {
+    releasePending = resolve;
+  });
+  await page.route("**/api/browse", async (route) => {
+    const body = route.request().postDataJSON() as { query?: string };
+    if (body.query === "notification") await pending;
+    await route.continue();
+  });
+  await page.goto("/");
+  await expect(page.getByText("2,658 icons", { exact: true })).toBeVisible();
+  await expect(page.locator(".preview-meta code")).toHaveText("icon-park:a-cane");
+
+  const copyForAgent = page.getByRole("button", { name: "Copy for Agent", exact: true });
+  const copySvg = page.getByRole("button", { name: "Copy SVG", exact: true });
+  const downloadSvg = page.getByRole("button", { name: "Download", exact: true });
+  const staleOption = page.getByRole("option", { name: "a-cane", exact: true });
+  await page.getByPlaceholder("Search icons", { exact: true }).fill("notification");
+  await expect(copyForAgent).toBeDisabled();
+  await expect(copySvg).toBeDisabled();
+  await expect(downloadSvg).toBeDisabled();
+  await expect(staleOption).toHaveAttribute("draggable", "false");
+  expect(await staleOption.evaluate((element) => {
+    const transfer = new DataTransfer();
+    element.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
+    return [...transfer.types];
+  })).toEqual([]);
+  releasePending?.();
+  await expect(page.getByRole("option", { name: "remind", exact: true })).toBeVisible();
+  await expect(page.getByRole("option", { name: "remind", exact: true })).toHaveAttribute("draggable", "true");
+  await expect(copyForAgent).toBeEnabled();
+  await copyForAgent.click();
+  const decision = await page.evaluate(() => navigator.clipboard.readText());
+  expect(decision).toContain('"intent": "notification"');
+  expect(decision).toContain('"iconId": "icon-park:remind"');
+
+  await page.getByPlaceholder("Search icons", { exact: true }).fill("zzzxxyyqqq");
+  await expect(page.getByText("No matching icons", { exact: true })).toBeVisible();
+  await expect(copyForAgent).toHaveCount(0);
+  await expect(page.getByRole("option")).toHaveCount(0);
 });
 
 test("focus and blur without an edit leaves appearance unmodified", async ({ page }) => {
@@ -383,4 +466,137 @@ test("icon listbox supports roving focus and grid keyboard navigation", async ({
   await expect(options.last()).toBeFocused();
   await expect(options.last()).toHaveAttribute("aria-selected", "true");
   expect(await page.locator('[role="option"][tabindex="0"]').count()).toBe(1);
+});
+
+test("a deeply loaded catalog keeps the rendered grid bounded and preserves exact keyboard position", async ({ page }) => {
+  await page.goto("/");
+  const listbox = page.getByRole("listbox", { name: "Icon results" });
+  const loadMore = page.getByRole("button", { name: "Load more", exact: true });
+  for (const expectedLoaded of [120, 180, 240, 300]) {
+    await loadMore.scrollIntoViewIfNeeded();
+    await loadMore.click();
+    await expect(listbox).toHaveAttribute("data-loaded-count", String(expectedLoaded));
+    await expect(listbox).toHaveAttribute("aria-busy", "false");
+    await expect(listbox.getByRole("option").first()).toHaveAttribute("aria-posinset", expectedLoaded === 120 ? "1" : /\d+/);
+  }
+
+  const renderedOptions = listbox.getByRole("option");
+  const renderedCount = await renderedOptions.count();
+  expect(renderedCount).toBeLessThanOrEqual(160);
+  await expect(renderedOptions.first()).toHaveAttribute("aria-setsize", "2658");
+
+  // Focus a currently painted option, then send the key to the active element.
+  // Re-resolving `.first()` after focus can target a different virtualized
+  // element if the browser scrolls an overscan row into view.
+  await renderedOptions.nth(Math.floor(renderedCount / 2)).focus();
+  await page.keyboard.press("End");
+  const lastLoaded = listbox.locator('[role="option"][aria-posinset="300"]');
+  await expect(lastLoaded).toBeFocused();
+  await expect(lastLoaded).toHaveAttribute("aria-selected", "true");
+  expect(await page.locator(".catalog-scroll").evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(await page.locator('[role="option"][tabindex="0"]').count()).toBe(1);
+});
+
+test("repeated full-catalog loading stays virtualized and End reaches the exact tail", async ({ page }, testInfo) => {
+  // This is a two-cycle baseline, not a product SLO. Keep enough runner time
+  // to record loaded-count/latency/DOM/depth/heap/tail measurements under a
+  // busy local host.
+  testInfo.setTimeout(120_000);
+  type CatalogRuntimeSample = Readonly<{
+    loadedCount: number;
+    appendMs: number;
+    renderedOptions: number;
+    domElements: number;
+    gridDepth: number;
+    usedJSHeapBytes: number;
+  }>;
+  const baselines: Array<Record<string, number>> = [];
+  const trends: CatalogRuntimeSample[][] = [];
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Performance.enable");
+  for (let cycle = 1; cycle <= 2; cycle += 1) {
+    await page.goto("/");
+    const listbox = page.getByRole("listbox", { name: "Icon results" });
+    await expect(listbox).toHaveAttribute("data-loaded-count", "60");
+    const observeRuntime = async (loadedCount: number, appendMs: number): Promise<CatalogRuntimeSample> => {
+      const [runtime, metrics] = await Promise.all([
+        page.evaluate(({ loadedCount: count, appendMs: elapsed }) => {
+          let gridDepth = 0;
+          let node: Element | null = document.querySelector('[role="option"]');
+          while (node !== null) {
+            gridDepth += 1;
+            node = node.parentElement;
+          }
+          return {
+            loadedCount: count,
+            appendMs: elapsed,
+            renderedOptions: document.querySelectorAll('[role="option"]').length,
+            domElements: document.querySelectorAll("*").length,
+            gridDepth,
+          };
+        }, { loadedCount, appendMs }),
+        cdp.send("Performance.getMetrics"),
+      ]);
+      return {
+        ...runtime,
+        usedJSHeapBytes: metrics.metrics.find(({ name }) => name === "JSHeapUsedSize")?.value ?? -1,
+      };
+    };
+    const trend: CatalogRuntimeSample[] = [await observeRuntime(60, 0)];
+    const startedAt = Date.now();
+    while (await page.getByRole("button", { name: "Load more", exact: true }).count() > 0) {
+      const before = Number(await listbox.getAttribute("data-loaded-count"));
+      const loadMore = page.getByRole("button", { name: "Load more", exact: true });
+      await loadMore.scrollIntoViewIfNeeded();
+      const appendStartedAt = Date.now();
+      await loadMore.click();
+      await expect.poll(async () => Number(await listbox.getAttribute("data-loaded-count"))).toBeGreaterThan(before);
+      await expect(listbox).toHaveAttribute("aria-busy", "false");
+      const loadedCount = Number(await listbox.getAttribute("data-loaded-count"));
+      trend.push(await observeRuntime(loadedCount, Date.now() - appendStartedAt));
+    }
+    await expect(listbox).toHaveAttribute("data-loaded-count", "2658");
+    const rendered = listbox.getByRole("option");
+    const renderedCount = await rendered.count();
+    expect(renderedCount).toBeLessThanOrEqual(160);
+    await expect(rendered.first()).toHaveAttribute("aria-setsize", "2658");
+
+    await rendered.nth(Math.floor(renderedCount / 2)).focus();
+    await page.keyboard.press("End");
+    const last = listbox.locator('[role="option"][aria-posinset="2658"]');
+    await expect(last).toBeFocused();
+    await expect(last).toHaveAttribute("aria-selected", "true");
+    expect(await page.locator('[role="option"][tabindex="0"]').count()).toBe(1);
+
+    const scrollHeight = await page.locator(".catalog-scroll").evaluate((element) => (element as HTMLElement).scrollHeight);
+    const appendLatencies = trend.slice(1).map(({ appendMs }) => appendMs).sort((left, right) => left - right);
+    const heaps = trend.map(({ usedJSHeapBytes }) => usedJSHeapBytes).filter((value) => value >= 0);
+    const finalRuntime = trend.at(-1)!;
+    baselines.push({
+      cycle,
+      loadMs: Date.now() - startedAt,
+      renderedOptions: renderedCount,
+      domElements: finalRuntime.domElements,
+      gridDepth: finalRuntime.gridDepth,
+      scrollHeight,
+      appends: appendLatencies.length,
+      p50AppendMs: appendLatencies[Math.floor(appendLatencies.length * 0.5)] ?? -1,
+      p95AppendMs: appendLatencies[Math.floor(appendLatencies.length * 0.95)] ?? -1,
+      maxAppendMs: Math.max(...appendLatencies),
+      initialHeapBytes: heaps[0] ?? -1,
+      finalHeapBytes: heaps.at(-1) ?? -1,
+      peakHeapBytes: heaps.length === 0 ? -1 : Math.max(...heaps),
+      heapDeltaBytes: heaps.length === 0 ? -1 : heaps.at(-1)! - heaps[0]!,
+      minDomElements: Math.min(...trend.map(({ domElements }) => domElements)),
+      maxDomElements: Math.max(...trend.map(({ domElements }) => domElements)),
+      minGridDepth: Math.min(...trend.map(({ gridDepth }) => gridDepth)),
+      maxGridDepth: Math.max(...trend.map(({ gridDepth }) => gridDepth)),
+    });
+    trends.push(trend);
+  }
+  await testInfo.attach("full-catalog-baseline.json", {
+    body: Buffer.from(JSON.stringify({ summary: baselines, trends }, null, 2)),
+    contentType: "application/json",
+  });
+  console.log(`full-catalog-baseline ${JSON.stringify(baselines)}`);
 });

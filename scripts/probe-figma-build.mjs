@@ -19,7 +19,7 @@ assert.equal(manifest.main, "dist/main.js");
 assert.equal(manifest.ui, "dist/ui.html");
 
 const [uiStat, mainStat] = await Promise.all([stat(uiPath), stat(mainPath)]);
-assert.ok(uiStat.size <= 5 * 1024 * 1024, `Figma UI bundle is ${uiStat.size} bytes`);
+assert.ok(uiStat.size <= 1280 * 1024, `Figma UI bundle is ${uiStat.size} bytes`);
 assert.ok(mainStat.size <= 256 * 1024, `Figma main bundle is ${mainStat.size} bytes`);
 
 const browser = await chromium.launch({ headless: true });

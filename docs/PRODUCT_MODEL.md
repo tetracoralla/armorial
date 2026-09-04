@@ -12,7 +12,9 @@ Brand identity is not the protocol contract. The descriptive Skill name,
 `[icon-selection:vN]` carrier family and deterministic SVG id prefixes remain stable; v3 is current and the Skill retains guarded v1/v2 reproduction paths.
 The package exposes `armorial`, `armorial-mcp`, and `armorial-ui` as the primary
 commands while retaining the earlier descriptive commands as compatibility
-aliases.
+aliases. `armorial mcp` deliberately reaches the same stdio server through the
+package-default executable; MCP Registry npm metadata uses that subcommand so
+clients do not need to select a secondary bin.
 
 ## Users and tasks
 
@@ -29,6 +31,9 @@ The optional connected flow exists for one reason: when an Agent's prior icon ch
 - Copy-to-chat fallback: select -> copy a bounded `icon_selection` message carrying the final render style -> paste it into any Agent conversation.
 - Agent-hosted handoff: an Agent opens the picker with an intent and an optional starting render style -> human selects and may adjust appearance -> explicitly attach the decision or send `Select & continue` -> the Agent verifies the exact icon and continues the already-authorized task.
 - Agent dominant path: `resolve_icon(intent, context?, render?)` once.
+- Agent inactive-provider path: load the product Skill, then invoke its
+  version-locked direct launcher without adding the MCP schemas to every turn;
+  typed CLI flags carry the same explicit appearance override when requested.
 - Agent inspection path: `search_icons(query)` -> `get_icon(id, render?)`.
 - Agent human-decision path: `choose_icon(intent, context?, requestId?, render?)` once, then wait for the UI's explicit decision message.
 - Agent batch path: `get_icons(ids, render?)` once, preserving input order and per-item failures.
@@ -121,7 +126,84 @@ The collection capability declaration is explicit: IconPark uses mixed stroke/fi
 - Exact inspection: one `get_icon` call when the canonical id is already known.
 - Genuine semantic ambiguity: one `resolve_icon` response listing the decision candidates; a semantic selection in project policy removes repeat ambiguity.
 - Invalid input: one stable error response, without retries or generic SVG generation.
-- Batch: one call, at most 20 ids.
+- Batch needed in the current Agent turn: one call, at most 8 ids, with the
+  complete MCP envelope bounded to 80 KiB. Structured automation and durable
+  HTML batches use one CLI `batch --resolve-intents` call for up to 20 compact
+  meanings, or one exact-id batch when selection is already settled. A
+  selection-only request for two or more semantic meanings uses that same
+  command without an output carrier; it returns one ordered, indexed intent/id
+  mapping and does not render SVG. A durable intent batch resolves and renders
+  inside one process, reports all resolved
+  mappings plus bounded candidates for every unresolved meaning in one failed
+  response, fails before mutation if any meaning is ambiguous or missing, deduplicates shared canonical ids,
+  and returns only the compact intent/id mapping plus carrier integrity. A same-origin served
+  artifact uses a new, create-only `--output <task-local-relative.svg>` and
+  reports `protectionLevel: non_overwriting_create`; a
+  single-file or direct
+  `file://` HTML artifact defaults to `--inline-from <source.html> --output
+  <new-candidate.html>`, so SVG payloads never enter model context and the
+  source is never mutated. The candidate is create-only and must not resolve to
+  the source path or a hard-link alias. Its compact result includes source and
+  candidate hashes plus `protectionLevel: non_overwriting_candidate`; hashes
+  identify bytes and are not atomic commit credentials. The caller may review
+  or adopt that candidate using its own file workflow.
+
+  Every SVG or HTML publisher delegates final I/O to the same bounded helper.
+  The child process validates that its OS-resolved working directory has the
+  admitted parent device/inode before any write, then uses relative basenames
+  only. Portable destination basenames contain no backslash and are bounded to
+  255 UTF-8 bytes; the helper uses a
+  short random exclusive temporary name that is independent of the destination
+  and cleans it only after actual creation. A parent path replacement before startup closes; a replacement after
+  startup cannot redirect writes away from the admitted directory object.
+  After staging and readback, the helper sends bounded readiness over IPC and
+  waits for a one-use commit token from its still-live CLI parent. Parent death
+  or the CLI's five-second publication deadline before that authorization
+  creates no final output and normally cleans the private temporary file. If
+  destination-parent permissions prevent unlink, a surviving CLI preserves
+  the original cause and reports `publication.effect: none` plus bounded
+  cleanup/residue state; the pre-commit residue remains `0600`. The token is
+  the commit boundary: an interruption after authorization can leave a valid
+  final output without a success summary, so an interrupted caller must inspect
+  the destination before retrying. A surviving CLI reports that state as
+  `PUBLICATION_OUTCOME_UNCERTAIN`. A create-only helper crash between final
+  hard-link creation and cleanup may also leave the private sibling link.
+  Candidate and default SVG publication remain create-only. A new SVG's `0644`
+  default is narrowed by the caller's umask; replacement preserves the admitted
+  target mode. A new SVG rejects the replacement-only flag before publication.
+  Replacing an
+  existing SVG or using optimistic HTML requires
+  `--allow-optimistic-overwrite`; both targets must still match their admitted
+  file identity before replacement, and every success discloses
+  `protectionLevel: optimistic_preflight_only` plus the final-window warning.
+
+  The legacy in-place `--inline-into <task-local-relative.html>` route also
+  revalidates complete bytes before rename. A non-cooperating writer can still
+  save in either optimistic route's final check-to-rename window and be
+  overwritten. Neither route is the default Agent or human route.
+  Sprite generation preserves exact
+  provider geometry, input order, and stable canonical symbol ids; it closes
+  rather than emitting a partial or duplicate sprite. Because an SVG `<symbol>`
+  has no final rendered dimensions, sprite routes reject `--size`; the consuming
+  `<svg>` owns width and height.
+- Inline HTML admission is explicit and fail-closed: caller-owned valid UTF-8
+  up to 8 MiB, one explicit HTML body, an Armorial-managed marker block up to
+  512 KiB, and at most four canonical framing bytes. This makes the physical
+  carrier ceiling 8,912,900 bytes and keeps every accepted first publication
+  admissible for exact retry or replacement. Parsing must finish within 5
+  seconds, with at most 50,000 structural
+  nodes and 50,000 attributes, at most 256 simultaneously open elements, at
+  most 2 MiB of retained attribute names/values, and no lexical token longer
+  than 64 Ki UTF-16 code units. Its single HTML5 structural parse discards
+  caller text payloads, retains source offsets, and publishes original byte
+  slices around only the generated marker block. A fresh-process build probe
+  measures 1, 4, 7.5, and 8 MiB calls against a 6-second / 256 MiB max-RSS
+  regression boundary; that observation complements rather than replaces the
+  runtime admission limits.
+- Sprite documents retain the SVG namespace so same-origin local assets can be
+  referenced as `<use href="relative.svg#symbol-id">`; the direct CLI owns
+  mechanical, non-overwriting HTML candidate generation for single-file and
+  `file://` consumers.
 - Explicit visual decision: one `choose_icon` call, then one human decision message; ordinary resolution never opens the picker implicitly.
 
 The weakest intended client is a general MCP Agent that can select a tool from its name, first description sentence, and JSON schema. English and Simplified Chinese icon wording are supported by package metadata and compact aliases.
@@ -130,6 +212,9 @@ The weakest intended client is a general MCP Agent that can select a tool from i
 
 - The same built UI supports a standalone local browser and an MCP App host.
 - The Figma build reuses the same React workbench and browser-safe kernel behind an offline manifest. Its main sandbox validates the strict UI message, SVG envelope, and asset hash before invoking Figma-native insertion or geometry APIs.
+- The npm carrier includes the library, CLI, local web UI, MCP server/App,
+  product Skill, and Registry metadata. The Figma development plugin is built
+  and distributed separately because Figma does not install it from npm.
 - Standalone mode owns direct human export. An Agent host may add decision-delivery actions according to its declared capabilities; the picker exposes no account-connection or authorization state.
 - HTML drag exposes SVG and text transfer types, but actual drop acceptance remains the destination application's behavior. Copy and download are the guaranteed carriers.
 - The UI exposes appearance controls over the same typed render override that Agents pass as `render`; the decision message carries the final effective style, so any adjusted asset remains exactly reproducible through `get_icon`. The UI still does not edit the project policy file, present MCP names, schemas, or protocol state.

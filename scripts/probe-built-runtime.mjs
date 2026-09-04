@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { tmpdir } from "node:os";
@@ -35,14 +35,14 @@ function iconParkStrokeWeight(icon) {
 
 const hotKernel = new IconKernel();
 hotKernel.search({ query: "我要新增图标", limit: 8 });
-const searchIterations = 10;
+const searchIterations = 100;
 const searchStartedAt = performance.now();
 for (let index = 0; index < searchIterations; index += 1) {
   hotKernel.search({ query: "我要新增图标", limit: 8 });
 }
 const hotSearchMilliseconds = performance.now() - searchStartedAt;
 assert.ok(
-  hotSearchMilliseconds < 1000,
+  hotSearchMilliseconds < 100,
   `${searchIterations} hot semantic searches took ${hotSearchMilliseconds.toFixed(1)}ms.`,
 );
 
@@ -276,6 +276,19 @@ try {
   pickerResourceBytes = Buffer.byteLength(pickerHtml, "utf8");
   assert.ok(pickerResourceBytes > 100_000);
   assert.equal(pickerResource.contents[0]?.mimeType, "text/html;profile=mcp-app");
+  assert.doesNotMatch(pickerHtml, /agent-selection|llms\.txt|sitemap\.xml|rel="canonical"/);
+  for (const embeddedPath of [
+    "dist/mcp-app/agent-selection.html",
+    "dist/mcp-app/agent-selection.txt",
+    "dist/mcp-app/llms.txt",
+    "dist/mcp-app/sitemap.xml",
+    "figma-plugin/dist/agent-selection.html",
+    "figma-plugin/dist/agent-selection.txt",
+    "figma-plugin/dist/llms.txt",
+    "figma-plugin/dist/sitemap.xml",
+  ]) {
+    assert.equal(existsSync(resolve(workspace, embeddedPath)), false, `${embeddedPath} must stay out of embedded distributions`);
+  }
 } finally {
   await client.close();
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   DEFAULT_POLICY,
+  MAX_BATCH_RESPONSE_BYTES,
   MAX_BATCH_SIZE,
   MAX_QUERY_LENGTH,
   MAX_UI_CATALOG_ITEMS,
@@ -23,6 +24,25 @@ test("loads every pinned IconPark metadata entry and renderer", () => {
   const kernel = new IconKernel();
   assert.equal(kernel.provider.records.length, 2658);
   assert.equal(new Set(kernel.provider.records.map((record) => record.name)).size, 2658);
+});
+
+test("exact, controlled-alias, and unfiltered routes defer semantic search preparation until it is needed", () => {
+  const kernel = new IconKernel();
+  assert.equal(kernel.searchIndex, undefined);
+  assert.equal(kernel.getIcon({ id: "search" }).status, "ok");
+  assert.equal(kernel.browse({ query: "", offset: 0, limit: 8 }).status, "ok");
+  assert.equal(kernel.resolve({ intent: "Search", alternatives: 0 }).status, "ok");
+  assert.equal(kernel.resolve({ intent: "settings icon", alternatives: 0 }).status, "ok");
+  assert.equal(kernel.resolve({ intent: "我要新增图标", alternatives: 0 }).status, "ok");
+  assert.equal(kernel.searchIndex, undefined);
+
+  const ambiguousTitle = kernel.resolve({ intent: "关闭", alternatives: 0 });
+  assert.equal(ambiguousTitle.status, "ambiguous");
+  assert.ok((kernel.searchIndex as unknown) instanceof IconSearchIndex);
+
+  kernel.searchIndex = undefined;
+  assert.equal(kernel.search({ query: "settings", limit: 5 }).status, "ok");
+  assert.ok((kernel.searchIndex as unknown) instanceof IconSearchIndex);
 });
 
 test("search ranks an English plural as the exact singular icon name", () => {
@@ -423,13 +443,25 @@ test("rendering is byte-for-byte deterministic for icons with internal ids", () 
 
 test("all pinned icons render within the safety and response boundary", () => {
   const kernel = new IconKernel();
+  const renderedSizes: Array<{ id: string; bytes: number }> = [];
   for (const record of kernel.provider.records) {
     const output = kernel.getIcon({ id: record.canonicalId });
     assert.equal(output.status, "ok", record.canonicalId);
     if (output.status !== "ok") continue;
     assert.ok(output.icon.asset.bytes > 0, record.canonicalId);
+    renderedSizes.push({ id: record.canonicalId, bytes: output.icon.asset.bytes });
     assert.doesNotMatch(output.icon.asset.svg, /<script\b|<foreignObject\b|\son[a-z]+\s*=|<animate\b|<set\b|@import\b|<image\b/i, record.canonicalId);
   }
+  const largestIds = [...renderedSizes]
+    .sort((left, right) => right.bytes - left.bytes)
+    .slice(0, MAX_BATCH_SIZE)
+    .map(({ id }) => id);
+  const largestBatch = kernel.getIcons({ ids: largestIds });
+  assert.equal(largestBatch.status, "ok", "the largest current 20-icon batch must fit the Agent response budget");
+  assert.ok(
+    Buffer.byteLength(JSON.stringify(largestBatch), "utf8") <= MAX_BATCH_RESPONSE_BYTES,
+    "the complete largest current batch must stay inside the serialized response budget",
+  );
 });
 
 test("batch preserves input order and reports per-item failure", () => {

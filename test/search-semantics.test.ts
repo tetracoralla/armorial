@@ -62,9 +62,17 @@ test("shared semantic terms stay tied so the deterministic core does not invent 
 test("reviewed production semantics improve conventional UI searches without hiding ambiguity", () => {
   const kernel = new IconKernel();
 
+  const location = kernel.resolve({ intent: "location", alternatives: 3 });
+  assert.equal(location.status, "ok");
+  if (location.status === "ok") assert.equal(location.icon.id, "icon-park:local");
+
   const external = kernel.resolve({ intent: "open in new tab", alternatives: 3 });
   assert.equal(external.status, "ok");
   if (external.status === "ok") assert.equal(external.icon.id, "icon-park:external-transmission");
+
+  const sparkle = kernel.resolve({ intent: "sparkle", alternatives: 0 });
+  assert.equal(sparkle.status, "ok");
+  if (sparkle.status === "ok") assert.equal(sparkle.icon.id, "icon-park:magic");
 
   const previous = kernel.resolve({ intent: "previous", alternatives: 3 });
   assert.equal(previous.status, "ambiguous");

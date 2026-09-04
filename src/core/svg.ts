@@ -18,33 +18,48 @@ const FORBIDDEN_SVG_PATTERNS = [
 ] as const;
 
 const SVG_VIEWBOX_PATTERN = /\bviewBox="([^"]+)"/;
+const UTF8_ENCODER = typeof TextEncoder === "undefined" ? undefined : new TextEncoder();
 
-function utf8Bytes(value: string): Uint8Array {
-  const bytes: number[] = [];
+function portableUtf8Bytes(value: string): Uint8Array {
+  const bytes = new Uint8Array(value.length * 3);
+  let offset = 0;
+
   for (let index = 0; index < value.length; index += 1) {
-    const codePoint = value.codePointAt(index);
-    if (codePoint === undefined) continue;
-    if (codePoint > 0xffff) index += 1;
+    let codePoint = value.charCodeAt(index);
+    if (codePoint >= 0xd800 && codePoint <= 0xdbff) {
+      const trailing = value.charCodeAt(index + 1);
+      if (trailing >= 0xdc00 && trailing <= 0xdfff) {
+        codePoint = 0x10000 + ((codePoint - 0xd800) << 10) + (trailing - 0xdc00);
+        index += 1;
+      } else {
+        codePoint = 0xfffd;
+      }
+    } else if (codePoint >= 0xdc00 && codePoint <= 0xdfff) {
+      codePoint = 0xfffd;
+    }
+
     if (codePoint <= 0x7f) {
-      bytes.push(codePoint);
+      bytes[offset++] = codePoint;
     } else if (codePoint <= 0x7ff) {
-      bytes.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
+      bytes[offset++] = 0xc0 | (codePoint >> 6);
+      bytes[offset++] = 0x80 | (codePoint & 0x3f);
     } else if (codePoint <= 0xffff) {
-      bytes.push(
-        0xe0 | (codePoint >> 12),
-        0x80 | ((codePoint >> 6) & 0x3f),
-        0x80 | (codePoint & 0x3f),
-      );
+      bytes[offset++] = 0xe0 | (codePoint >> 12);
+      bytes[offset++] = 0x80 | ((codePoint >> 6) & 0x3f);
+      bytes[offset++] = 0x80 | (codePoint & 0x3f);
     } else {
-      bytes.push(
-        0xf0 | (codePoint >> 18),
-        0x80 | ((codePoint >> 12) & 0x3f),
-        0x80 | ((codePoint >> 6) & 0x3f),
-        0x80 | (codePoint & 0x3f),
-      );
+      bytes[offset++] = 0xf0 | (codePoint >> 18);
+      bytes[offset++] = 0x80 | ((codePoint >> 12) & 0x3f);
+      bytes[offset++] = 0x80 | ((codePoint >> 6) & 0x3f);
+      bytes[offset++] = 0x80 | (codePoint & 0x3f);
     }
   }
-  return Uint8Array.from(bytes);
+
+  return bytes.subarray(0, offset);
+}
+
+function utf8Bytes(value: string): Uint8Array {
+  return UTF8_ENCODER?.encode(value) ?? portableUtf8Bytes(value);
 }
 
 export type ParsedSvgViewBox = {
@@ -98,7 +113,7 @@ export function fillForStyle(style: RenderStyle): string | string[] {
   }
 }
 
-export function assertSafeSvgEnvelope(slug: string, svg: string): ParsedSvgViewBox {
+function assertSafeSvgEnvelopeWithBytes(slug: string, svg: string, bytes: number): ParsedSvgViewBox {
   for (const pattern of FORBIDDEN_SVG_PATTERNS) {
     if (pattern.test(svg)) {
       throw new IconKernelError({
@@ -116,7 +131,6 @@ export function assertSafeSvgEnvelope(slug: string, svg: string): ParsedSvgViewB
     });
   }
 
-  const bytes = utf8ByteLength(svg);
   if (bytes > MAX_SVG_BYTES) {
     throw new IconKernelError({
       code: "RESPONSE_TOO_LARGE",
@@ -126,19 +140,24 @@ export function assertSafeSvgEnvelope(slug: string, svg: string): ParsedSvgViewB
   return viewBox;
 }
 
+export function assertSafeSvgEnvelope(slug: string, svg: string): ParsedSvgViewBox {
+  return assertSafeSvgEnvelopeWithBytes(slug, svg, utf8ByteLength(svg));
+}
+
 export function finalizeSvg(slug: string, rawSvg: string, style: RenderStyle): RenderedAsset {
   const renderKey = JSON.stringify({ slug, style });
   const stableId = `icon-svg-select-${slug}-${sha256Hex(renderKey).slice(0, 12)}`;
   const svg = rawSvg.replace(RANDOM_ICON_ID_PATTERN, stableId);
 
-  const viewBox = assertSafeSvgEnvelope(slug, svg);
-  const bytes = utf8ByteLength(svg);
+  const encodedSvg = utf8Bytes(svg);
+  const bytes = encodedSvg.byteLength;
+  const viewBox = assertSafeSvgEnvelopeWithBytes(slug, svg, bytes);
 
   return {
     mediaType: "image/svg+xml",
     viewBox: viewBox.value,
     svg,
     bytes,
-    sha256: sha256Hex(svg),
+    sha256: bytesToHex(sha256(encodedSvg)),
   };
 }

@@ -6,6 +6,8 @@ import {
   BrowseIconsOutputSchema,
   DEFAULT_POLICY,
   ICON_PICKER_SESSION_META_KEY,
+  MAX_MCP_BATCH_SIZE,
+  MAX_MCP_MODEL_RESPONSE_BYTES,
   MAX_MCP_TOOL_CATALOG_BYTES,
 } from "../src/core/contracts.js";
 import { IconKernel } from "../src/core/kernel.js";
@@ -56,8 +58,9 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
     assert.match(resolveTool?.description ?? "", /never prose; omit when unknown/);
     assert.match(resolveTool?.description ?? "", /do not follow with get_icon/);
     const resolveProperties = resolveTool?.inputSchema.properties as
-      | Record<string, { description?: string }>
+      | Record<string, { default?: unknown; description?: string }>
       | undefined;
+    assert.equal(resolveProperties?.alternatives?.default, 0);
     assert.match(resolveProperties?.context?.description ?? "", /omit prose or unknown/);
     const renderSchema = JSON.stringify(resolveProperties?.render);
     assert.match(renderSchema, /RenderColor/);
@@ -68,6 +71,16 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
     );
     assert.match(renderColorDefinition, /maxLength/);
     assert.match(renderColorDefinition, /64/);
+    const batchTool = listed.tools.find((tool) => tool.name === "get_icons");
+    const batchProperties = batchTool?.inputSchema.properties as
+      | Record<string, { maxItems?: number }>
+      | undefined;
+    assert.equal(batchProperties?.ids?.maxItems, MAX_MCP_BATCH_SIZE);
+    for (const tool of listed.tools.filter((entry) => (PUBLIC_TOOL_NAMES as readonly string[]).includes(entry.name))) {
+      const outputJson = JSON.stringify(tool.outputSchema);
+      assert.match(outputJson, /"status"/, `${tool.name} must advertise terminal status`);
+      assert.ok(outputJson.length <= 700, `${tool.name} output projection is ${outputJson.length} bytes`);
+    }
     const browseTool = listed.tools.find((tool) => tool.name === APP_ONLY_TOOL_NAMES[0]);
     assert.deepEqual((browseTool?._meta?.ui as { visibility?: string[] } | undefined)?.visibility, ["app"]);
     assert.deepEqual(browseTool?.inputSchema.additionalProperties, {});
@@ -104,11 +117,30 @@ test("MCP resolve, ambiguity, validation, and batch partial failure use structur
     selections: { settings: "icon-park:setting-two" },
   };
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createMcpServer(new IconKernel(policy), async () => "<!doctype html>");
+  const kernel = new IconKernel(policy);
+  const server = createMcpServer(kernel, async () => "<!doctype html>");
   const client = new Client({ name: "armorial-test", version: "1.0.0" });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
   try {
+    const defaultResolution = await client.callTool({
+      name: "resolve_icon",
+      arguments: { intent: "settings" },
+    });
+    assert.equal(defaultResolution.isError, undefined);
+    const defaultContent = structured(structured(defaultResolution.structuredContent).result);
+    assert.deepEqual(defaultContent.alternatives, []);
+    assert.equal(kernel.searchIndex, undefined, "a pinned zero-alternative MCP resolution must stay on the exact cold path");
+
+    const controlledAlias = await client.callTool({
+      name: "resolve_icon",
+      arguments: { intent: "我要新增图标" },
+    });
+    assert.equal(controlledAlias.isError, undefined);
+    const controlledAliasContent = structured(structured(controlledAlias.structuredContent).result);
+    assert.equal((controlledAliasContent.icon as { id?: string } | undefined)?.id, "icon-park:add");
+    assert.equal(kernel.searchIndex, undefined, "a zero-alternative controlled alias must avoid the semantic index");
+
     const resolved = await client.callTool({
       name: "resolve_icon",
       arguments: { intent: "settings", alternatives: 2 },
@@ -156,9 +188,19 @@ test("MCP resolve, ambiguity, validation, and batch partial failure use structur
       arguments: { ids: ["search", "not-a-real-icon"] },
     });
     assert.equal(batch.isError, undefined);
+    assert.ok(
+      Buffer.byteLength(JSON.stringify(batch), "utf8") <= MAX_MCP_MODEL_RESPONSE_BYTES,
+      "the complete MCP batch envelope must stay inside the model response budget",
+    );
     const batchContent = structured(structured(batch.structuredContent).result);
     assert.equal(batchContent.status, "ok");
     assert.deepEqual(batchContent.summary, { requested: 2, rendered: 1, failed: 1 });
+
+    const oversizedModelBatch = await client.callTool({
+      name: "get_icons",
+      arguments: { ids: Array.from({ length: MAX_MCP_BATCH_SIZE + 1 }, () => "search") },
+    });
+    assert.equal(oversizedModelBatch.isError, true);
 
     const picker = await client.callTool({
       name: "choose_icon",

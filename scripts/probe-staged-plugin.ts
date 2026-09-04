@@ -31,13 +31,19 @@ assert.deepEqual(mcpConfig.mcpServers.icon_svg_select.env_vars, ["ICON_SVG_SELEC
 assert.equal(existsSync(join(pluginDirectory, ".armorial-generated")), true);
 assert.equal(existsSync(join(pluginDirectory, "package-lock.json")), false);
 assert.equal(existsSync(join(pluginDirectory, "node_modules", "typescript")), false);
+assert.equal(existsSync(join(pluginDirectory, "dist", "adapters", "publication-contract.js")), true);
+assert.equal(existsSync(join(pluginDirectory, "dist", "adapters", "publish-helper.js")), true);
 assert.equal(packageJson.author, "openAdam");
 assert.equal(packageJson.license, "Apache-2.0");
-for (const fileName of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "figma-plugin/THIRD_PARTY_NOTICES.txt"]) {
+for (const fileName of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]) {
   assert.equal(existsSync(join(pluginDirectory, fileName)), true, `${fileName} must ship in the staged package`);
 }
+assert.equal(
+  existsSync(join(pluginDirectory, "figma-plugin")),
+  false,
+  "the npm/Codex package must not ship the separately distributed Figma development plugin",
+);
 const rootNotices = readFileSync(join(pluginDirectory, "THIRD_PARTY_NOTICES.md"), "utf8");
-const figmaNotices = readFileSync(join(pluginDirectory, "figma-plugin/THIRD_PARTY_NOTICES.txt"), "utf8");
 for (const dependency of [
   "@icon-park/svg@1.4.2",
   "@modelcontextprotocol/ext-apps@1.7.5",
@@ -46,28 +52,6 @@ for (const dependency of [
   "zod-to-json-schema@3.25.2",
 ]) {
   assert.match(rootNotices, new RegExp(`^## ${dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
-}
-// The Figma distribution's notices stay exact to its two bundles: everything
-// the plugin embeds is attributed, and server-side packages are not.
-for (const dependency of [
-  "@icon-park/svg@1.4.2",
-  "@noble/hashes@2.3.0",
-  "react@19.1.1",
-  "react-dom@19.1.1",
-  "zod@4.4.3",
-]) {
-  assert.match(figmaNotices, new RegExp(`^## ${dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
-}
-for (const serverOnly of [
-  "@modelcontextprotocol/ext-apps@",
-  "@modelcontextprotocol/sdk@",
-  "zod-to-json-schema@",
-]) {
-  assert.doesNotMatch(
-    figmaNotices,
-    new RegExp(`^## ${serverOnly.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "m"),
-    `the Figma notices must not attribute ${serverOnly}* — it must not be bundled`,
-  );
 }
 // License manifests are scan-build intermediates; they must never ship inside
 // publishable dist output.
@@ -116,6 +100,63 @@ writeFileSync(policyPath, JSON.stringify({
 
 const cleanEnvironment = { ...process.env, ICON_SVG_SELECT_POLICY: policyPath };
 const entry = join(pluginDirectory, "dist", "adapters", "mcp.js");
+const candidateObservation = JSON.parse(execFileSync(process.execPath, [
+  join(workspace, "scripts/probe-inline-candidate.mjs"),
+  "--cli",
+  join(pluginDirectory, "dist", "adapters", "cli.js"),
+], { encoding: "utf8" })) as { status?: unknown; outputRace?: unknown; hardLinkRace?: unknown; optimistic?: unknown[] };
+assert.equal(candidateObservation.status, "ok");
+assert.equal(candidateObservation.outputRace, "INVALID_INPUT+competing-output-preserved");
+assert.equal(candidateObservation.hardLinkRace, "INVALID_INPUT+source-alias-preserved");
+assert.equal(candidateObservation.optimistic?.length, 2);
+const pinObservation = JSON.parse(execFileSync(process.execPath, [
+  join(workspace, "scripts/probe-pinned-publication.mjs"),
+  "--cli",
+  join(pluginDirectory, "dist", "adapters", "cli.js"),
+], { encoding: "utf8" })) as { status?: unknown; swaps?: unknown[]; helperFailures?: unknown[]; publicationSuccesses?: unknown[]; postCommitCleanupWarnings?: unknown[]; postCommitInterruptions?: unknown[]; svgOverwrite?: unknown; restrictiveUmask?: unknown; productionTestHooks?: unknown };
+assert.equal(pinObservation.status, "ok");
+assert.equal(pinObservation.swaps?.length, 6);
+assert.equal(pinObservation.helperFailures?.length, 8);
+assert.equal(pinObservation.publicationSuccesses?.length, 4);
+assert.equal(pinObservation.postCommitCleanupWarnings?.length, 2);
+assert.equal(pinObservation.postCommitInterruptions?.length, 8);
+assert.deepEqual(pinObservation.svgOverwrite, {
+  unnecessary: "absent-output-rejected",
+  default: "existing-output-preserved",
+  explicit: "optimistic-window-reproduced-and-disclosed",
+});
+assert.equal(pinObservation.restrictiveUmask, "0600-new-svg");
+assert.equal(pinObservation.productionTestHooks, "legacy-test-environment-ignored");
+const basenameObservation = JSON.parse(execFileSync(process.execPath, [
+  join(workspace, "scripts/probe-publication-basename.mjs"),
+  "--cli",
+  join(pluginDirectory, "dist", "adapters", "cli.js"),
+], { encoding: "utf8" })) as { status?: unknown; observations?: unknown[] };
+assert.equal(basenameObservation.status, "ok");
+assert.equal(basenameObservation.observations?.length, 24);
+const cancellationObservation = JSON.parse(execFileSync(process.execPath, [
+  join(workspace, "scripts/probe-publish-parent-cancellation.mjs"),
+  "--cli",
+  join(pluginDirectory, "dist", "adapters", "cli.js"),
+  "--deadline",
+], { encoding: "utf8" })) as { status?: unknown; cancellation?: unknown[]; deadline?: unknown; cleanupRevocation?: unknown };
+assert.equal(cancellationObservation.status, "ok");
+assert.equal(cancellationObservation.cancellation?.length, 4);
+assert.equal(cancellationObservation.deadline, "bounded-before-commit+no-final-effect");
+assert.deepEqual(cancellationObservation.cleanupRevocation, {
+  status: "deadline-cause+cleanup-failure+private-complete-residue",
+  effect: "none",
+  cleanup: "failed",
+  mode: "0600",
+});
+const conflictObservation = JSON.parse(execFileSync(process.execPath, [
+  join(workspace, "scripts/probe-inline-conflict.mjs"),
+  "--cli",
+  join(pluginDirectory, "dist", "adapters", "cli.js"),
+], { encoding: "utf8" })) as { status?: unknown; observations?: Array<{ code?: unknown; residue?: unknown }> };
+assert.equal(conflictObservation.status, "ok");
+assert.equal(conflictObservation.observations?.length, 2);
+assert.equal(conflictObservation.observations?.every(({ code, residue }) => code === "INVALID_INPUT" && residue === 0), true);
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [entry],
@@ -267,5 +308,5 @@ process.stdout.write(`${JSON.stringify({
   policyIcon: "icon-park:setting-two",
   compoundIntent: "ambiguous",
   lazyRenderers: 2,
-  routes: ["resolve", "search", "get", "batch", "choose", "browse", "resource"],
+  routes: ["resolve", "search", "get", "batch", "inline-candidate", "inline-conflict", "choose", "browse", "resource"],
 })}\n`);

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="index,follow" />
+    <meta name="description" content="Determine when to use Armorial for deterministic local IconPark SVG search and policy rendering, then run a deployment-pinned source probe." />
+    <link rel="canonical" href="https://tetracoralla.github.io/armorial/agent-selection.html" />
+    <link rel="alternate" type="text/plain" href="./agent-selection.txt" title="Plain-text Markdown representation" />
+    <link rel="describedby" href="./llms.txt" type="text/markdown" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='11' height='11' rx='2' fill='%232F88FF'/%3E%3Crect x='18' y='3' width='11' height='11' rx='2' fill='%2343CCF8'/%3E%3Crect x='3' y='18' width='11' height='11' rx='2' fill='%2343CCF8'/%3E%3Crect x='18' y='18' width='11' height='11' rx='2' fill='%232F88FF'/%3E%3C/svg%3E" />
+    <title>Select and render project-aware IconPark SVGs locally — Armorial</title>
+    <style>
+      :root { color-scheme: light dark; font: 16px/1.55 system-ui, sans-serif; }
+      body { max-width: 780px; margin: 0 auto; padding: 40px 24px 64px; }
+      h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.05; letter-spacing: -.03em; }
+      h2 { margin-top: 2.3rem; }
+      a { color: #2f88ff; }
+      pre { overflow-x: auto; padding: 16px; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius: 8px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 10px; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); text-align: left; vertical-align: top; }
+      .boundary { padding: 16px 18px; border-left: 4px solid #2f88ff; background: color-mix(in srgb, #2f88ff 8%, transparent); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p><a href="./">Open the visual workbench</a></p>
+      <h1>Select and render project-aware IconPark SVGs locally</h1>
+      <p>Armorial deterministically searches the pinned IconPark collection, applies one explicit project icon policy, reports unresolved ambiguity, and returns bounded structured results and SVG.</p>
+
+      <h2>Use Armorial for</h2>
+      <ul>
+        <li>finding an existing IconPark icon from English or Simplified Chinese intent;</li>
+        <li>applying project theme, color, size, stroke, cap, and join defaults;</li>
+        <li>rendering a known <code>icon-park:*</code> id reproducibly;</li>
+        <li>returning compact alternatives or asking a human to make a visual choice.</li>
+      </ul>
+
+      <h2>Do not use Armorial for</h2>
+      <ul>
+        <li>drawing logos, illustrations, or new icon geometry;</li>
+        <li>editing arbitrary SVG paths or searching a different collection;</li>
+        <li>automatically making a subjective aesthetic or design-approval decision;</li>
+        <li>treating an unconfigured natural-language surface description as policy.</li>
+      </ul>
+
+      <h2>Cheapest correct route</h2>
+      <table>
+        <thead><tr><th>Task</th><th>Route</th></tr></thead>
+        <tbody>
+          <tr><td>Ordinary semantic request</td><td><code>resolve_icon</code> once</td></tr>
+          <tr><td>Known id</td><td><code>get_icon</code> once</td></tr>
+          <tr><td>Alternatives requested</td><td><code>search_icons</code>, then render only the selected id</td></tr>
+          <tr><td>Known ids needed in the Agent turn</td><td><code>get_icons</code>, at most 8</td></tr>
+          <tr><td>Structured batch automation</td><td>CLI/library direct route; keep SVG payloads out of model context</td></tr>
+          <tr><td>Subjective visual choice</td><td><code>choose_icon</code>, then wait for the human decision</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Execution boundary</h2>
+      <p class="boundary">Search and rendering are local after dependencies and build artifacts are present. Direct MCP tools do not write files or accept paths, URLs, raw SVG, or source code. Ordinary CLI results use stdout. An explicit batch <code>--output &lt;relative.svg&gt;</code> publishes one new, create-only sprite and reports <code>protectionLevel: non_overwriting_create</code>. Replacing an existing SVG requires <code>--allow-optimistic-overwrite</code>, can overwrite a non-cooperating writer in the final check-to-rename window, and reports <code>protectionLevel: optimistic_preflight_only</code> plus a warning. Passing that replacement-only flag for a new SVG is invalid and creates nothing. The default HTML route uses <code>--inline-from &lt;source.html&gt; --output &lt;new-candidate.html&gt;</code> to create a distinct, non-overwriting candidate while leaving the source unchanged; same paths, hard-link aliases, and existing outputs are rejected. SVG and HTML publication is pinned to the admitted parent-directory inode, so replacing that parent path cannot redirect writes through a new symlink. The helper stages and verifies private <code>0600</code> bytes before its still-live CLI parent returns a one-use commit token. Parent death or the five-second deadline before commit creates no final output and normally removes private staging. If destination-parent permissions prevent cleanup, a surviving CLI preserves the cause and reports bounded publication effect, cleanup, and residue metadata. Restore access and inspect/remove that sibling before retrying. After commit, an interruption may leave a valid output without a success summary. A surviving CLI reports <code>PUBLICATION_OUTCOME_UNCERTAIN</code>; inspect the destination before retrying an interrupted carrier call. A create-only helper crash can also leave a private sibling hard link; verify the intended destination before treating it as stale. Candidate JSON reports source and candidate hashes plus <code>protectionLevel: non_overwriting_candidate</code>; hashes identify bytes but are not atomic commit credentials. The legacy in-place <code>--inline-into</code> route also requires <code>--allow-optimistic-overwrite</code> and carries the same disclosed final window. A successful result does not establish design approval or task success.</p>
+
+      <h2>Deployment-pinned source probe</h2>
+      <p>Requires Git, curl, and Node.js 22 or newer. The deployment publishes the exact Git commit it was built from; the probe checks out that commit rather than mutable <code>main</code>.</p>
+      <pre><code>ARMORIAL_COMMIT="$(curl -fsSL https://tetracoralla.github.io/armorial/source-commit.txt)"
+printf '%s\n' "$ARMORIAL_COMMIT" | grep -Eq '^[0-9a-f]{40}$'
+git clone https://github.com/tetracoralla/armorial.git
+cd armorial
+git checkout --detach "$ARMORIAL_COMMIT"
+test "$(git rev-parse HEAD)" = "$ARMORIAL_COMMIT"
+node -e 'if (Number(process.versions.node.split(".")[0]) &lt; 22) process.exit(1)'
+npm ci --ignore-scripts
+npm run build:node
+node dist/adapters/cli.js resolve settings</code></pre>
+      <p>The final command must return one JSON result with <code>status</code> equal to <code>ok</code> or <code>ambiguous</code>. It must never invent fallback geometry.</p>
+
+      <h2>Authoritative details</h2>
+      <ul>
+        <li><a href="./agent-selection.txt">Complete plain-text task and integration guide</a></li>
+        <li><a href="https://github.com/tetracoralla/armorial">Source repository and README</a></li>
+        <li><a href="https://github.com/tetracoralla/armorial/blob/main/icon-policy.schema.json">Executable policy schema</a></li>
+        <li><a href="https://github.com/tetracoralla/armorial/blob/main/docs/PRODUCT_MODEL.md">Product model</a></li>
+        <li><a href="https://github.com/tetracoralla/armorial/blob/main/docs/REVIEW_CONTRACT.md">Review boundary</a></li>
+      </ul>
+    </main>
+  </body>
+</html>

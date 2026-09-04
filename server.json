@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.tetracoralla/armorial",
+  "title": "Armorial",
+  "description": "Deterministic, project-aware IconPark SVG selection and rendering over local MCP.",
+  "version": "0.7.0",
+  "repository": {
+    "url": "https://github.com/tetracoralla/armorial",
+    "source": "github"
+  },
+  "websiteUrl": "https://tetracoralla.github.io/armorial/",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "armorial",
+      "version": "0.7.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
+    }
+  ]
+}

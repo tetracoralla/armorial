@@ -23,6 +23,7 @@
     "src/ui/**/*.tsx",
     "src/figma/runtime.ts",
     "src/figma/browser-provider.ts",
+    "src/figma/virtual-modules.d.ts",
     "src/figma/protocol.ts",
     "src/figma/ui-main.tsx"
   ]

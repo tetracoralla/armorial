@@ -8,6 +8,36 @@ Armorial is a local-first, design-system-aware icon workbench and deterministic 
 
 It does not ask a model to draw SVG. It also does not pretend arbitrary filled icon libraries can be normalized by changing `stroke-width`.
 
+## Agent discovery and selection
+
+Use Armorial when the task is to find and render an existing IconPark icon,
+apply a project's explicit icon policy, compare deterministic candidates, or
+hand a genuine visual choice to a person. Do not use it to draw logos or
+illustrations, edit arbitrary SVG paths, search other icon collections, or make
+an aesthetic decision automatically.
+
+The public [task and integration guide](https://tetracoralla.github.io/armorial/agent-selection.html)
+gives an Agent the supported intents, rejection cases, privacy and effect
+boundaries, deployment-pinned source installation route, a repeatable probe, and
+the point at which Agent Host becomes useful. The path-scoped
+[`llms.txt`](https://tetracoralla.github.io/armorial/llms.txt) is a small map to
+that guide and the authoritative repository documents; it is not a tool
+manifest or a quality claim.
+
+The project deployment intentionally contains no `/armorial/robots.txt`.
+Crawler policy is an origin-level responsibility; when the organization wants
+to advertise this Sitemap from robots, `https://tetracoralla.github.io/robots.txt`
+must be owned and published by the root site. In the absence of a root policy,
+the workbench and task guide carry explicit per-page indexing metadata.
+
+Armorial does not currently publish an npm package or official MCP Registry
+entry. The repository now carries version-aligned `server.json` and npm
+`mcpName` metadata, and the package-default `armorial mcp` route has passed the
+official publisher's online validation plus an isolated packaged-runtime probe.
+Publication remains a separate owner action after the npm package is released;
+the checked-in metadata does not claim that external installation already
+works.
+
 ## What is working
 
 - Validated local index over all 2,658 icons in `@icon-park/svg@1.4.2`.
@@ -80,6 +110,11 @@ In the Figma desktop app, choose **Plugins -> Development -> Import plugin from 
 
 The checked-in manifest points at generated files under `figma-plugin/dist/`; those files are intentionally Git-ignored. Run the build before importing from a fresh clone. `npm run figma:probe` validates the manifest, offline declaration, bundle budgets, local catalog UI, and drag envelope without touching a Figma document.
 
+The Figma development plugin remains a source/release artifact and is not
+carried inside the npm package. Figma does not install this adapter through
+npm, so including it would increase every CLI/MCP installation without making
+the Figma flow more installable.
+
 ## CLI
 
 ```sh
@@ -94,11 +129,125 @@ node dist/adapters/cli.js resolve 设置 \
 # Pure SVG on stdout
 node dist/adapters/cli.js get icon-park:search --format svg
 
+# The same typed appearance override as MCP/Web/Figma
+node dist/adapters/cli.js get icon-park:search --format json \
+  --theme two-tone --size 32 --stroke-width 2 \
+  --primary '#0f172a' --secondary '#2f88ff'
+
+# Compact semantic discovery followed by one model-context-free sprite file
+node dist/adapters/cli.js resolve shopping-bag --format text
+node dist/adapters/cli.js batch icon-park:user icon-park:shopping-bag \
+  --format json --symbol-prefix ui- --output generated/armorial-sprite.svg
+
 # Validate a project policy
 node dist/adapters/cli.js policy validate icon-policy.example.json
+
+# Start the same MCP server through the package-default executable
+node dist/adapters/cli.js mcp --policy icon-policy.example.json
 ```
 
-The CLI never writes SVG files. Pipe or redirect stdout when a human deliberately chooses a destination. The CLI resolves its policy the same way as the MCP server: `--policy`, then `ICON_SVG_SELECT_POLICY`, then `./icon-policy.json` in the working directory, then the built-in default.
+The CLI writes an SVG file only when `batch` receives an explicit relative
+`.svg` `--output` inside the current working directory. That SVG path is
+create-only by default. Replacing an existing SVG requires
+`--allow-optimistic-overwrite`; a successful replacement reports
+`protectionLevel: "optimistic_preflight_only"` and a `concurrencyWarning`
+because a non-cooperating writer can still save in the final check-to-rename
+window. Passing that replacement-only flag for a new SVG is invalid and creates
+nothing. A successful new SVG reports `protectionLevel:
+"non_overwriting_create"`; its `0644` default is narrowed by the caller's
+umask, and an explicit replacement preserves the admitted target mode. For HTML, the default
+safe route reads `--inline-from <source.html>` and publishes a distinct,
+create-only `--output <candidate.html>` without modifying the source or an
+existing output. `--format json` is accepted as the compact stdout summary
+request, while the older `--format sprite` spelling remains supported. The
+route returns only compact paths, byte counts, hashes, symbol counts, and its
+declared protection level. `resolve --format text` keeps
+successful semantic discovery compact. The typed appearance flags map to the
+same core render override used by MCP, Web, and Figma. A sprite rejects
+`--size` because a `<symbol>` has no final rendered size; set width/height on
+each consuming `<svg>` instead. Sprite batching accepts
+exact ids only, preserves input order, emits no partial sprite, and gives each symbol the stable id
+`<symbol-prefix><canonical-slug>` so durable HTML automation does not replay SVG
+paths through model context. The CLI resolves its policy the same way as the MCP
+server: `--policy`, then `ICON_SVG_SELECT_POLICY`, then `./icon-policy.json` in
+the working directory, then the built-in default.
+
+Inline HTML input is a bounded artifact carrier, not an unrestricted document
+rewriter. The fail-closed default is:
+
+```text
+armorial batch icon-park:user --format json \
+  --inline-from page.html --output page.armorial.html
+```
+
+The candidate path must be new, inside the current working directory, and
+physically distinct from the source; exact paths and hard-link aliases are
+rejected. A failure before publication authorization leaves both the source
+and any pre-existing output byte-identical. Successful JSON reports `sourceSha256`,
+`candidateSha256`, and `protectionLevel: "non_overwriting_candidate"`. Those
+hashes identify bytes; they are not atomic commit credentials.
+
+SVG, candidate, and explicit optimistic HTML publication run in a bundled,
+bounded helper whose working directory is pinned to the admitted parent
+directory inode. Replacing that parent path before helper startup closes before
+any write; replacing it after startup cannot redirect temporary or final bytes
+through the replacement path. The helper uses only relative basenames inside
+that pinned directory. A portable destination basename may contain no
+backslash and at most 255 UTF-8 bytes; invalid names close as `INVALID_INPUT`
+before publication. Its short,
+random, exclusively created temporary name is independent of the destination,
+so a legal 255-byte basename does not become too long during staging. The
+helper validates the complete stdin byte count and hash, fsyncs and reads back
+its private temporary file, and sends bounded readiness over a private IPC
+channel. The CLI grants publication with a one-use token only while the parent
+is still alive. Parent death or the five-second helper deadline before that
+grant authorizes no final output. The helper normally removes private staging;
+if the destination parent loses unlink permission after staging, a surviving
+CLI preserves the original cancellation/deadline cause and reports bounded
+`publication.effect: "none"`, cleanup status, and the private residue basename,
+mode, byte count, and completeness. Pre-commit staging remains private `0600`;
+restore access and inspect/remove that sibling before retrying.
+
+The grant is the publication commit boundary. Once the helper receives it, a
+caller or host interruption can occur after the final path changes but before
+the compact success summary arrives. That narrow state cannot be made
+transactional across a filesystem and process response. After any interrupted
+or `PUBLICATION_OUTCOME_UNCERTAIN` carrier call, inspect the intended destination before
+retrying; do not infer absence from a missing success response. An abrupt
+helper crash during create-only hard-link publication can also leave its
+private `.armorial-publish-*.tmp` sibling link, which must not be treated as a
+second candidate or removed without verifying the intended destination first.
+
+Caller-owned HTML must be valid UTF-8, no larger than 8 MiB, and
+contain exactly one explicit HTML body. The Armorial-managed marker block has a
+separate 512 KiB byte ceiling, plus four canonical framing bytes, so a valid
+published carrier may be at most 8,912,900 bytes and remains admissible for an
+exact retry or replacement. Armorial enforces a 5-second parse deadline, 50,000-node and
+50,000-attribute structural ceilings, a 256-open-element ceiling, a 2 MiB
+retained-attribute budget, and a 64 Ki-code-unit lexical-token ceiling before
+publication.
+
+Replacing an existing SVG and the pre-0.7 in-place HTML route are retained only
+as explicit optimistic modes:
+
+```text
+armorial batch icon-park:user --format json \
+  --inline-into page.html --allow-optimistic-overwrite
+```
+
+Both routes revalidate the target identity and metadata immediately before
+rename; HTML additionally revalidates the complete admitted bytes. Portable
+filesystem APIs cannot atomically compare those facts and replace the path. A
+non-cooperating writer can still save in that final window and be overwritten.
+Every successful optimistic result therefore reports `protectionLevel:
+"optimistic_preflight_only"` and a `concurrencyWarning`; neither route is the
+default. These are breaking pre-1.0 changes in 0.7.0; see
+[CHANGELOG.md](./CHANGELOG.md).
+
+The build also measures fresh 1, 4, 7.5, and 8 MiB calls against a 6-second
+boundary and a conservative 256 MiB aggregate-RSS boundary formed by adding
+the parent and publisher process maxima. These limits protect the carrier
+operation; they are not claims about browser rendering cost.
 
 ## MCP
 
@@ -108,6 +257,12 @@ Build first, then configure an MCP client to launch:
 node /absolute/path/to/armorial/dist/adapters/mcp.js \
   --policy /absolute/path/to/project/icon-policy.json
 ```
+
+The equivalent package-default command is `armorial mcp --policy ...`. The
+Registry-ready [`server.json`](./server.json) uses that explicit subcommand so
+npm clients cannot mistake the human CLI for the MCP process when the package
+contains several executables. After—not before—`armorial@0.7.0` is published to
+npm, the declared Registry launch shape is `npx armorial@0.7.0 mcp`.
 
 The policy is a server-operator startup decision, never a tool input. When no `--policy` argument is given, the server resolves one policy file at startup, in this order:
 
@@ -137,9 +292,9 @@ An MCP Apps-capable host opens the same picker. Grid clicks only change the loca
 
 The repository root is also a Codex plugin bundle: [plugin.json](./.codex-plugin/plugin.json), [.mcp.json](./.mcp.json), and the thin descriptive [product Skill](./skills/icon-svg-select/SKILL.md) all route to the same built server. Published tarballs are self-contained: `npm pack` runs `prepack` and ships the built `dist/` (source maps excluded), so hosts that install npm packages without running lifecycle scripts start the entry points directly.
 
-For local host testing, run `npm run plugin:check`. It assembles the ignored `plugins/armorial/` directory from the exact `npm pack` contents, installs production dependencies from `package-lock.json` without lifecycle scripts, gives the staged manifest a fresh local Codex cachebuster, and probes the isolated MCP entry with a project policy. [`.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json) points at that generated directory, so a fresh clone must run this command before adding the local marketplace. The staging swap rejects symlink ancestors and does not expose a half-written plugin. The result contains no sources, tests, dev dependencies, package lock, or Git data. After changing the plugin, re-run the command, reinstall, and start a new Codex session so the cached copy updates.
+For local host testing, run `npm run plugin:check`. It assembles the ignored `plugins/armorial/` directory from the exact `npm pack` contents, installs production dependencies from `package-lock.json` without lifecycle scripts, gives the staged manifest a fresh local Codex cachebuster, and probes the isolated MCP entry with a project policy. [`.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json) points at that generated directory, so a fresh clone must run this command before adding the local marketplace. The staging swap rejects symlink ancestors and does not expose a half-written plugin. The result contains no Armorial first-party `src/` or `test/`, dev dependencies, package lock, Git data, or production test hooks. Its installed third-party packages remain the upstream production package payload and may include their own source or test-named files; this staging route is not the trimmed immutable release. After changing the plugin, re-run the command, reinstall, and start a new Codex session so the cached copy updates.
 
-Armorial's current public distribution is the GitHub repository, the static GitHub Pages workbench, and tagged source releases. The npm-shaped archive is an internal reproducibility boundary for staging and verification; this release does not require an npm account or publish a registry package.
+Armorial's current public distribution is the GitHub repository, the static GitHub Pages workbench, and source releases. The Pages deployment publishes `source-commit.txt`, the exact immutable Git commit used for its task guide and workbench; the public probe checks out that commit instead of mutable `main`. The npm-shaped tarball and checksummed macOS arm64 Codex-plugin archive are staging and verification artifacts. The immutable builder removes declaration/TypeScript and exact test/spec dependency payload only when no current Node production package target protects it; source/types/development/browser-only conditions are not treated as Host runtime. Its report names the protected conditions and retained public runtime paths instead of claiming dependency-wide zero source or tests. Their probes bind behavior to the exact bytes under test; the current release builder does not claim byte-for-byte reproducibility across independent dependency installations. This work prepares npm and MCP Registry metadata but does not publish either one.
 
 ## Policy
 

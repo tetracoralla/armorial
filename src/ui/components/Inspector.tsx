@@ -13,6 +13,7 @@ type Props = {
   context: string | null;
   hasOverride: boolean;
   renderPending: boolean;
+  selectionReady: boolean;
   runtime: PickerRuntime;
   actionState: ActionState;
   onAppearanceChange: (patch: RenderStyleOverride) => void;
@@ -45,14 +46,14 @@ export function Inspector(props: Props) {
         </div>
       </div>
       <div className="action-stack" aria-label={t("humanExportActions")}>
-        <button className="primary-action" type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onCopySvg()}>
+        <button className="primary-action" type="button" disabled={!props.selectionReady || renderPending || actionState !== "idle"} onClick={() => void props.onCopySvg()}>
           {actionState === "copying-svg" ? t("copying") : t("copySvg")}
         </button>
         <div className="action-secondary">
-          <button type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onDownload()}>
+          <button type="button" disabled={!props.selectionReady || renderPending || actionState !== "idle"} onClick={() => void props.onDownload()}>
             {actionState === "downloading" ? t("downloading") : t("download")}
           </button>
-          <button type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onCopyForAgent()}>
+          <button type="button" disabled={!props.selectionReady || renderPending || actionState !== "idle"} onClick={() => void props.onCopyForAgent()}>
             {actionState === "copying-agent" ? t("copying") : t("copyForAgent")}
           </button>
         </div>
@@ -61,12 +62,12 @@ export function Inspector(props: Props) {
         <section className="agent-actions" aria-label={t("agentActions")}>
           <h3>{t("agentHeading")}</h3>
           {runtime.canAttach && (
-            <button type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onAttach()}>
+            <button type="button" disabled={!props.selectionReady || renderPending || actionState !== "idle"} onClick={() => void props.onAttach()}>
               {actionState === "attaching" ? t("attaching") : t("attachToConversation")}
             </button>
           )}
           {runtime.canContinue && (
-            <button className="continue-action" type="button" disabled={renderPending || actionState !== "idle"} onClick={() => void props.onContinue()}>
+            <button className="continue-action" type="button" disabled={!props.selectionReady || renderPending || actionState !== "idle"} onClick={() => void props.onContinue()}>
               {actionState === "continuing" ? t("sending") : t("selectAndContinue")}
             </button>
           )}

@@ -48,6 +48,7 @@ function renderInspector(runtime: PickerRuntime): string {
     context: catalog.context,
     hasOverride: false,
     renderPending: false,
+    selectionReady: true,
     runtime,
     actionState: "idle",
     onAppearanceChange: () => undefined,
