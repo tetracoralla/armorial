@@ -63,9 +63,13 @@ client can launch `node /absolute/path/to/armorial/dist/adapters/mcp.js`, or
 Agent Host is optional. For its packaged plugin, see
 [plugin runtime](docs/CODEX_PLUGIN_RUNTIME.md).
 
-Public distribution consists of this repository, source releases and the
-GitHub Pages workbench. npm and official MCP Registry publication are not
-claimed. `server.json` describes a prepared package route; it does not make
+Public distribution consists of this repository, source releases, the
+GitHub Pages workbench, and a macOS arm64 plugin archive on
+[GitHub Releases](https://github.com/tetracoralla/armorial/releases/latest).
+The archive includes the Agent runtime and dependencies; Node 22 or newer is
+required. See [archive setup](docs/CODEX_PLUGIN_RUNTIME.md#use-the-release-archive).
+npm and official MCP Registry publication are not claimed.
+`server.json` describes a prepared package route; it does not make
 `npx armorial` an available public installation. The hosted
 [source commit](https://tetracoralla.github.io/armorial/source-commit.txt)
 identifies the deployed version; an unreleased local change may be newer.

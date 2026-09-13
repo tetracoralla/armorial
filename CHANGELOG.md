@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
+- Distribute the macOS arm64 Agent runtime archive with a SHA-256 checksum;
+  Node 22 or newer is required. Update Hono to 4.13.7 for upstream security fixes.
 - Select one or several UI meanings through `select_icons`, CLI `select`, or
   `IconKernel.selectIcons` without generating SVG. Ordered partial results keep
   successful choices, policy and unresolved candidates. Legacy intent batches

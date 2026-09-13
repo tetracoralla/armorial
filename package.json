@@ -1,6 +1,6 @@
 {
   "name": "armorial",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "mcpName": "io.github.tetracoralla/armorial",
   "description": "Design-system-aware IconPark selection and SVG policy kernel for humans and AI agents.",
   "author": "openAdam",
