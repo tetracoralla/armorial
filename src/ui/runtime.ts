@@ -7,6 +7,7 @@ import {
   type BrowseIconsInput,
   type BrowseIconsOutput,
 } from "../core/contracts.js";
+import { readIconLink } from "./icon-link.js";
 import { browseStandaloneIcons } from "./standalone-browse.js";
 import { browserDownload, safeFilename, type CatalogData, type PickerRuntime } from "./runtime-shared.js";
 
@@ -44,10 +45,32 @@ class StandaloneRuntime implements PickerRuntime {
   readonly canContinue = false;
   readonly canFullscreen = false;
   readonly initialCatalog = null;
-  readonly session = null;
+  session: ChooseIconInput | null = null;
+  sharedIcon?: { icon: string; sha256: string };
+  invalidIconLink = false;
 
-  onInitialState(): () => void {
-    return () => undefined;
+  constructor() { this.readLocation(); }
+
+  private readLocation(): void {
+    delete this.sharedIcon;
+    try {
+      const shared = readIconLink(window.location.hash);
+      this.session = shared === null ? null : { intent: shared.icon, render: shared.render };
+      if (shared !== null) this.sharedIcon = { icon: shared.icon, sha256: shared.sha256 };
+      this.invalidIconLink = false;
+    } catch {
+      this.session = null;
+      this.invalidIconLink = true;
+    }
+  }
+
+  onInitialState(listener: (catalog: CatalogData | null, session: ChooseIconInput | null) => void): () => void {
+    const changed = () => {
+      this.readLocation();
+      listener(null, this.session);
+    };
+    window.addEventListener("hashchange", changed);
+    return () => window.removeEventListener("hashchange", changed);
   }
 
   async browse(input: BrowseIconsInput): Promise<BrowseIconsOutput> {

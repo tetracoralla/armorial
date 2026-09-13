@@ -1,114 +1,64 @@
 ---
 name: icon-svg-select
-description: Select and render existing project-aware IconPark SVG icons for product UI work. Use when an Agent needs an icon, should not draw SVG geometry, must follow project defaults or an explicit appearance request, needs alternatives, or the human asks to choose visually or rejects an earlier icon choice.
+description: Choose and use consistent UI icons while building or revising websites, apps, toolbars, navigation, and controls. Armorial searches English/Chinese IconPark meanings, applies project style, and delivers existing SVG assets or a visual picker.
 ---
 
 # Armorial
 
-Use Armorial as the only icon geometry and policy authority. Never redraw,
-approximate, or silently edit returned paths. Use only the installed MCP tools
-or the managed `scripts/armorial` launcher beside this Skill; never substitute a
-source checkout, another icon corpus, or model-authored SVG.
+Use Armorial when a UI task needs existing icons and IconPark fits the project.
+The user need not name the tool. Preserve an established project icon system or
+an explicit visual requirement; do not replace it just to use Armorial.
 
-## Route the request
+Choose the metaphor from the action and surrounding interface. For example,
+renewal could use refresh, and a membership benefit could use crown or star.
+You can compare appearance and choose among candidates using your judgment.
+An ambiguous result means the deterministic matcher has not chosen; it does
+not prevent you from choosing an id. Ask the human when their preference would
+materially change the result, or open the picker when visual comparison helps.
 
-1. For one ordinary meaning, call `resolve_icon` once with a compact visible
-   object or action. Do not forward a full business sentence. Its successful
-   result already includes the asset; do not follow it with `get_icon`.
-2. For two or more meanings when only canonical ids are needed, first decide
-   one compact visible meaning for every business label from its action and
-   context. For example, renewal may deliberately use `refresh`; a membership
-   benefit may deliberately use `crown`, `badge`, or `star`. That semantic
-   choice remains Agent or human judgment. Then run exactly one installed CLI
-   call:
-   `scripts/armorial batch <compact-intent...> --resolve-intents --format json`.
-   Use the ordered, indexed `items` mapping. Do not launch one resolver per
-   intent. If any item is unresolved, keep every returned resolved mapping,
-   search only the unresolved semantic axis, and issue at most one corrected
-   batch.
-3. For alternatives, call `search_icons` with one short catalog-facing term.
-   Compare `matchedOn`; search a second axis only when object, action, or
-   direction genuinely differs. Call `get_icon` only after an exact id is
-   chosen.
-4. For an already-known id, call `get_icon`. For up to eight independent known
-   ids, call `get_icons` once. For a larger or durable set, use the installed
-   CLI batch route so SVG payloads do not enter model context.
-5. Open `choose_icon` only when the user asks to choose visually, rejects the
-   prior choice, or taste is the remaining ambiguity. Stop after opening it and
-   wait for its explicit selection message.
-6. Before replacing several icons in an HTML artifact, read
-   `references/html-retrofit.md`.
+## Select and deliver
 
-Include `context` only when its exact configured ASCII key is already known.
-Pass explicit size, stroke width, theme, cap, join, or colors through `render`.
-Do not invent a context key from prose.
+| Need | Available route |
+| --- | --- |
+| One or several meanings, before rendering | `select_icons({intents:["search","settings"]})` returns ordered ids, policy, and unresolved candidates without SVG. |
+| One meaning and its SVG | `resolve_icon({intent:"search"})` includes the rendered asset. |
+| Explore a meaning or visual alternative | `search_icons({query:"notification"})`, then choose an id. |
+| Render chosen ids | `get_icon({id:"icon-park:search"})` or `get_icons({ids:[...]})` (up to 8 SVGs). |
+| Human comparison | `choose_icon({intent:"notification"})` opens the workbench. Only an explicit selection message supplies the human's choice. |
 
-## Installed CLI routes
+For partial selection, keep the successful mappings and work on the unresolved
+entries. Refine a meaning, compare candidates, or choose an exact id as needed.
+Batch related work when useful; call counts are an optimization, not a limit on
+investigation. Render through Armorial to preserve provider geometry and style;
+consumer markup, accessibility, layout, and visual judgment remain your work.
 
-- One id without SVG: `scripts/armorial resolve <compact-intent> --format text`.
-- Alternatives: `scripts/armorial search <compact-query> --limit 8 --format json`.
-- Exact asset: `scripts/armorial get <icon-id> --format json` or `--format svg`.
-- Known id batch: `scripts/armorial batch <icon-id...> --format json`.
-- New sprite carrier: `scripts/armorial batch <icon-id...> --format json
-  --output <new-relative.svg>`. Existing SVG output is never replaced by
-  default.
-- Safe HTML candidate: `scripts/armorial batch <icon-id...> --format json
-  --inline-from <source.html> --output <new-candidate.html>`. The source is
-  unchanged and an existing output is never replaced.
+Pass a known configured `context` key, or omit it. Explicit appearance changes
+use typed `render` settings, not edits to returned SVG paths. The response reports
+the effective policy and any override. Inspect generated assets when debugging
+requires it; avoid bringing large geometry dumps into context unnecessarily.
 
-For an explicit appearance request on the managed CLI route, append the typed
-flags `--theme`, `--size`, `--stroke-width`, `--stroke-linecap`,
-`--stroke-linejoin`, `--primary`, `--secondary`, `--inner-stroke`, or
-`--inner-fill`. They form the same bounded render override as the MCP `render`
-object; do not edit returned geometry.
-For a sprite carrier, omit `--size`: the consuming `<svg>` owns its rendered
-width and height, so accepting a symbol size would be a no-op. Set the consumer
-size while patching its markup or stylesheet.
+## Without MCP, or when writing assets
 
-Interpret CLI status, ambiguity, candidates, policy metadata, and assets exactly
-like the matching MCP result. Exit status `2` is a closed input, ambiguity,
-not-found, or policy failure; inspect its bounded JSON and do not retry with
-longer prose. Exit status `1` is internal unless its bounded error is
-`PUBLICATION_OUTCOME_UNCERTAIN`, which requires destination inspection rather
-than a blind retry. Add accessibility labels and interaction semantics at the
-consumer, never by editing returned geometry.
+An installed Host may supply `scripts/armorial` beside this Skill. Otherwise use
+an available `armorial` command or the CLI from a deliberately built source
+installation. Do not guess installation paths or assume the Host is required.
+Use that executable in the task's working directory:
 
-Never use `--allow-optimistic-overwrite` by default. It is required to replace
-an existing SVG or use in-place `--inline-into`, because a non-cooperating
-writer can save in the final check-to-rename window and be overwritten. Every
-such success reports `protectionLevel: optimistic_preflight_only` and a
-`concurrencyWarning`; repeat both when reporting the result. HTML candidates
-remain create-only even when that flag is present. Candidate hashes identify
-source/output bytes but are not atomic commit credentials.
-New SVG creation respects the caller's umask; explicit replacement preserves
-the admitted target mode. Passing the replacement-only flag for a new SVG is
-invalid and creates nothing. Every output basename must be portable, contain no
-backslash, and fit within 255 UTF-8 bytes; choose a simpler task-local name when
-the CLI returns `INVALID_INPUT`.
-The publication helper stages and verifies bytes before the live CLI parent
-authorizes the final-path change. Cancellation or timeout before that commit
-creates no final output. Private staging is normally removed, but lost unlink
-permission on the destination parent can make cleanup fail. A surviving CLI
-preserves the original cause and returns bounded `publication.effect`, cleanup,
-and private-residue fields; restore access and inspect/remove the reported
-`0600` sibling before retrying. Once authorized, a process interruption may leave a
-valid output without a success response. After any interrupted or explicitly
-uncertain carrier call—including `PUBLICATION_OUTCOME_UNCERTAIN`—inspect the
-intended destination before retrying; never
-retry blindly from the absence of stdout. A create-only helper crash can also
-leave a sibling `.armorial-publish-*.tmp` hard link; verify the destination
-before treating it as stale, and do not use that private name as a candidate.
-A successful result that includes `cleanupWarning` is still committed: preserve
-the reported hash and protection level, report the warning, and do not describe
-the final output as failed or absent.
+```sh
+armorial select search settings close
+armorial resolve search --format svg
+armorial batch icon-park:search icon-park:setting --output icons.svg
+```
 
-## Continue from a human selection
+`select` accepts up to 20 meanings and returns compact JSON. `batch
+--resolve-intents` can select and write a sprite together. For files, HTML
+integration, appearance flags, and interrupted-write recovery, read
+[artifact-output.md](references/artifact-output.md). If an installation lacks
+`select_icons` or `select`, the existing resolve/search routes remain usable.
+If no Armorial runtime is available, state that limitation and use a suitable
+existing project route; never describe another library's output as Armorial's.
 
-For an `[icon-selection:v3]`, `v2`, or `v1` message, read
-`references/selection-messages.md` before acting. The versions have different
-reproduction and hash rules. A selection authorizes only the icon choice for
-the current task.
-
-Present the icon name, useful meaning, and resulting asset. Keep hashes and
-protocol detail secondary unless a mismatch changes the decision. If neither
-the MCP tools nor the managed launcher is available, say so and stop.
+For a human `[icon-selection:v3]`, `v2`, or `v1` message, use
+[selection-messages.md](references/selection-messages.md) to reproduce the asset.
+Finish with the icon integrated in the requested work; expose protocol details
+only when needed to resolve a mismatch or support the user's next action.

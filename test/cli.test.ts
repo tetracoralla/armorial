@@ -1054,3 +1054,26 @@ test("CLI exposes the MCP server through the package-default executable", () => 
   assert.equal(failure.status, "error");
   assert.equal(failure.error.code, "INVALID_INPUT");
 });
+
+test("CLI select offers ordered metadata choices and usable partial output", () => {
+  const success = runCli("select", "search", "settings", "search", "--size", "32");
+  assert.equal(success.status, 0, success.stderr);
+  const output = JSON.parse(success.stdout);
+  assert.equal(output.kind, "icon_choices");
+  assert.deepEqual(output.summary, { requested: 3, resolved: 3, unresolved: 0, uniqueIcons: 2 });
+  assert.equal(output.policy.size, 32);
+  assert.equal(output.policyCompliance, "overridden");
+  assert.doesNotMatch(success.stdout, /<svg|"asset"/);
+  const partial = runCli("select", "search", "关闭", "zzzznoicon");
+  assert.equal(partial.status, 2);
+  assert.equal(partial.stderr, "");
+  const choices = JSON.parse(partial.stdout);
+  assert.equal(choices.status, "partial");
+  assert.deepEqual(choices.items.map((item: { status: string }) => item.status), ["ok", "ambiguous", "error"]);
+  assert.equal(choices.items[0].id, "icon-park:search");
+  assert.ok(choices.items[1].candidates.length >= 2);
+  const invalid = runCli("select");
+  assert.equal(invalid.status, 2);
+  assert.equal(invalid.stdout, "");
+  assert.equal(JSON.parse(invalid.stderr).error.code, "INVALID_INPUT");
+});

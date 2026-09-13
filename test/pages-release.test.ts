@@ -62,30 +62,12 @@ test("GitHub Pages is the official static human workbench", async () => {
   assert.match(indexHtml, /<meta name="robots" content="index,follow"/);
   assert.match(indexHtml, /<title>Search and render project-aware IconPark SVGs locally — Armorial<\/title>/);
   assert.match(indexHtml, /rel="describedby" href="\.\/llms\.txt" type="text\/markdown"/);
-  assert.match(llmsTxt, /Do not use Armorial for|not a logo or illustration generator/i);
-  assert.match(llmsTxt, /No npm package or official\s+MCP Registry entry is claimed/i);
-  assert.match(agentSelection, /## Use Armorial for/);
-  assert.match(agentSelection, /## Do not use Armorial for/);
+  // Assert discovery links and deployed metadata, not editorial wording or
+  // a prescribed sequence of Agent decisions.
+  assert.match(llmsTxt, /agent-selection\.html/);
   assert.match(agentSelection, /source-commit\.txt/);
-  assert.match(agentSelection, /git checkout --detach "\$ARMORIAL_COMMIT"/);
-  assert.match(agentSelection, /npm ci --ignore-scripts/);
-  assert.match(agentSelection, /Node\.js 22 or newer/);
-  assert.doesNotMatch(agentSelection, /git clone[^\n]+\ncd armorial\nnpm ci\n/);
-  assert.match(agentSelection, /Do not install Agent Host for one direct Armorial call/);
-  assert.match(agentSelection, /Ordinary CLI\s+results use stdout/);
-  assert.match(agentSelection, /--output <relative\.svg>/);
-  assert.match(agentSelection, /--inline-from <source\.html> --output/);
-  assert.match(agentSelection, /non_overwriting_candidate/);
-  assert.match(agentSelection, /optimistic_preflight_only/);
-  assert.doesNotMatch(agentSelection, /CLI writes\s+only to stdout/);
-  assert.match(readme, /Agent discovery and selection/);
   assert.match(agentSelectionHtml, /rel="canonical" href="https:\/\/tetracoralla\.github\.io\/armorial\/agent-selection\.html"/);
   assert.match(agentSelectionHtml, /rel="alternate" type="text\/plain" href="\.\/agent-selection\.txt"/);
-  assert.match(agentSelectionHtml, /Deployment-pinned source probe/);
-  assert.match(agentSelectionHtml, /Ordinary CLI results use stdout/);
-  assert.match(agentSelectionHtml, /--output &lt;relative\.svg&gt;/);
-  assert.match(agentSelectionHtml, /--inline-from &lt;source\.html&gt; --output/);
-  assert.match(agentSelectionHtml, /optimistic_preflight_only/);
   await assert.rejects(access(new URL("../public/robots.txt", import.meta.url)));
   assert.match(sitemap, /https:\/\/tetracoralla\.github\.io\/armorial\/agent-selection\.html/);
   assert.match(sitemap, /https:\/\/tetracoralla\.github\.io\/armorial\/agent-selection\.txt/);

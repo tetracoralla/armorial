@@ -146,10 +146,19 @@ let browseTop;
 let pickerResourceBytes;
 try {
   const tools = await client.listTools();
+  const selection = await client.callTool({ name: "select_icons", arguments: { intents: ["search", "关闭", "zzzznoicon", "search"] } });
+  assert.notEqual(selection.isError, true);
+  const selectionResult = JSON.parse(JSON.stringify(selection.structuredContent)).result;
+  assert.equal(selectionResult.status, "partial");
+  assert.deepEqual(selectionResult.summary, { requested: 4, resolved: 2, unresolved: 2, uniqueIcons: 1 });
+  assert.equal(selectionResult.items[0].id, "icon-park:search");
+  assert.deepEqual(selectionResult.items.map((item) => item.index), [0, 1, 2, 3]);
+  assert.doesNotMatch(JSON.stringify(selection), /<svg|"asset"/);
+
   toolCatalogBytes = Buffer.byteLength(JSON.stringify(tools), "utf8");
   assert.ok(toolCatalogBytes <= MAX_MCP_TOOL_CATALOG_BYTES);
   toolNames = tools.tools.map((tool) => tool.name);
-  assert.deepEqual(toolNames, ["resolve_icon", "search_icons", "get_icon", "get_icons", "choose_icon", "browse_icons"]);
+  assert.deepEqual(toolNames, ["select_icons", "resolve_icon", "search_icons", "get_icon", "get_icons", "choose_icon", "browse_icons"]);
   const chooseTool = tools.tools.find((tool) => tool.name === "choose_icon");
   const browseTool = tools.tools.find((tool) => tool.name === "browse_icons");
   assert.deepEqual(chooseTool?._meta?.ui?.visibility, ["model"]);

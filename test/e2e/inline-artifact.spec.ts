@@ -84,3 +84,40 @@ test("built CLI preserves executable HTML and publishes resolvable inline symbol
     await rm(scratch, { recursive: true, force: true });
   }
 });
+
+test("metadata choices and an explicit ambiguous choice become working accessible controls", async ({ page }) => {
+  const scratch = await mkdtemp(resolve(tmpdir(), "armorial-choice-consumer-"));
+  const cli = resolve(workspace, "dist/adapters/cli.js");
+  const cliEnvironment = { ...process.env };
+  delete cliEnvironment.FORCE_COLOR;
+  try {
+    const selection = spawnSync(process.execPath, [cli, "select", "search", "settings", "关闭"], { cwd: scratch, encoding: "utf8", env: cliEnvironment });
+    expect(selection.status).toBe(2);
+    expect(selection.stderr).toBe("");
+    expect(selection.stdout).not.toContain("<svg");
+    const choices = JSON.parse(selection.stdout);
+    expect(choices.status).toBe("partial");
+    expect(choices.items[2].candidates.some((item: { id: string }) => item.id === "icon-park:close")).toBe(true);
+    // The consumer deliberately chooses a candidate; successful meanings are not re-resolved.
+    const ids = [choices.items[0].id, choices.items[1].id, "icon-park:close"] as string[];
+    const labels = ["Search", "Settings", "Close"];
+    const original = `<!doctype html><html lang="en"><head><title>Settings toolbar</title></head><body>
+      <nav aria-label="Settings actions">${ids.map((id, index) => `<button type="button" aria-label="${labels[index]}" onclick="document.querySelector('output').textContent=this.getAttribute('aria-label')"><svg width="24" height="24" aria-hidden="true"><use href="#armorial-${id.replace('icon-park:', '')}" /></svg></button>`).join('')}</nav><output aria-live="polite"></output></body></html>`;
+    await writeFile(resolve(scratch, "toolbar.html"), original);
+    const published = spawnSync(process.execPath, [cli, "batch", ...ids, "--inline-from", "toolbar.html", "--output", "toolbar.icons.html"], { cwd: scratch, encoding: "utf8", env: cliEnvironment });
+    expect(published.status, published.stderr).toBe(0);
+    expect(published.stdout).not.toMatch(/<svg|<symbol|<path/);
+    expect(await readFile(resolve(scratch, "toolbar.html"), "utf8")).toBe(original);
+    await page.goto(pathToFileURL(resolve(scratch, "toolbar.icons.html")).href);
+    const rendered = await page.locator("button use").evaluateAll((uses) => uses.map((use) => {
+      const box = (use as SVGGraphicsElement).getBBox();
+      return { target: document.querySelector(use.getAttribute("href")!) !== null, visible: box.width > 0 && box.height > 0 };
+    }));
+    expect(rendered).toEqual(ids.map(() => ({ target: true, visible: true })));
+    expect(await page.locator("symbol").count()).toBe(3);
+    for (const label of labels) {
+      await page.getByRole("button", { name: label, exact: true }).click();
+      await expect(page.locator("output")).toHaveText(label);
+    }
+  } finally { await rm(scratch, { recursive: true, force: true }); }
+});

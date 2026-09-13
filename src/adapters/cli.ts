@@ -17,17 +17,11 @@ import { isMainModule } from "./main-module.js";
 type Format = "json" | "text" | "svg" | "sprite";
 
 const SYMBOL_PREFIX_PATTERN = /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/;
-type UnresolvedIntent = Readonly<{
-  index: number;
-  intent: string;
-  code: string;
-  message: string;
-  candidates?: readonly string[];
-}>;
 
 const HELP = `armorial ${KERNEL_VERSION}
 
 Usage:
+  armorial select <intent...> [--context name] [render options] [--format json|text] [--policy file]
   armorial mcp [--policy file]
   armorial search <query...> [--limit 8] [--format text|json] [--policy file]
   armorial resolve <intent...> [--context name] [render options] [--alternatives 3] [--format json|text|svg] [--policy file]
@@ -150,6 +144,30 @@ function parseCliArgs<T>(parse: () => T): T {
       });
     }
     throw error;
+  }
+}
+
+async function runSelect(args: string[]): Promise<void> {
+  const parsed = parseCliArgs(() => parseArgs({
+    args, allowPositionals: true, strict: true,
+    options: { context: { type: "string" }, format: { type: "string" },
+      policy: { type: "string" }, ...RENDER_OPTIONS },
+  }));
+  const format = parseFormat(parsed.values.format, ["json", "text"], "json");
+  const render = parseRenderOverride(parsed.values);
+  const output = (await createKernel(parsed.values.policy)).selectIcons({
+    intents: parsed.positionals,
+    ...(parsed.values.context === undefined ? {} : { context: parsed.values.context }),
+    ...(render === undefined ? {} : { render }),
+  });
+  if (output.status === "error") writeFailure(output);
+  else {
+    if (format === "json") writeJson(output);
+    else writeText(output.items.map((item) => item.status === "ok"
+      ? `${item.index}\t${JSON.stringify(item.intent)}\t${item.id}`
+      : `${item.index}\t${JSON.stringify(item.intent)}\t${item.error.code}\t${item.candidates?.map(({ id }) => id).join(", ") ?? ""}`,
+    ).join("\n"));
+    if (output.status === "partial") process.exitCode = 2;
   }
 }
 
@@ -377,29 +395,19 @@ async function runBatch(args: string[]): Promise<void> {
   let resolved: ResolvedIntent[] | undefined;
   let iconIds = parsed.positionals;
   if (resolveIntents) {
-    resolved = [];
-    const unresolved: UnresolvedIntent[] = [];
-    for (const [index, intent] of parsed.positionals.entries()) {
-      const resolution = kernel.resolve({
-        intent,
-        alternatives: 0,
-        ...(parsed.values.context === undefined ? {} : { context: parsed.values.context }),
-        ...(render === undefined ? {} : { render }),
-      });
-      if (resolution.status !== "ok") {
-        unresolved.push({
-          index,
-          intent,
-          code: resolution.error.code,
-          message: resolution.error.message,
-          ...(resolution.status === "ambiguous"
-            ? { candidates: resolution.candidates.map(({ id }) => id) }
-            : {}),
-        });
-        continue;
-      }
-      resolved.push({ intent, id: resolution.icon.id });
-    }
+    const choices = kernel.selectIcons({
+      intents: parsed.positionals,
+      ...(parsed.values.context === undefined ? {} : { context: parsed.values.context }),
+      ...(render === undefined ? {} : { render }),
+    });
+    if (choices.status === "error") { writeFailure(choices); return; }
+    resolved = choices.items.filter((item) => item.status === "ok")
+      .map(({ index, id }) => ({ intent: parsed.positionals[index]!, id }));
+    const unresolved = choices.items.filter((item) => item.status !== "ok")
+      .map((item) => ({ index: item.index, intent: parsed.positionals[item.index]!,
+        code: item.error.code, message: item.error.message,
+        ...(item.candidates === undefined ? {} : { candidates: item.candidates.map(({ id }) => id) }),
+      }));
     if (unresolved.length > 0) {
       const codes = new Set(unresolved.map(({ code }) => code));
       writeFailure({
@@ -527,6 +535,9 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   switch (command) {
     case "mcp":
       await (await import("./mcp.js")).main(rest);
+      return;
+    case "select":
+      await runSelect(rest);
       return;
     case "search":
       await runSearch(rest);

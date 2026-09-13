@@ -15,6 +15,8 @@ export {
   KERNEL_VERSION,
   ResolveInputSchema,
   ResolveOutputSchema,
+  SelectIconsInputSchema,
+  SelectIconsOutputSchema,
   SearchInputSchema,
   SearchOutputSchema,
 } from "./core/contracts.js";
@@ -36,6 +38,8 @@ export type {
   RenderStyleOverride,
   ResolveInput,
   ResolveOutput,
+  SelectIconsInput,
+  SelectIconsOutput,
   SearchInput,
   SearchOutput,
 } from "./core/contracts.js";

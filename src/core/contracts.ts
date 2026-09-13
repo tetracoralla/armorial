@@ -21,6 +21,11 @@ export const MAX_SVG_BYTES = 64 * 1024;
 // enough headroom for metadata and render overrides without allowing an
 // ordinary Agent call to consume half a megabyte of context.
 export const MAX_BATCH_RESPONSE_BYTES = 128 * 1024;
+// Selection returns metadata only, so its realistic worst case stays far below a
+// geometry batch. Keeping this under the model-visible envelope budget makes an
+// oversized selection close as a structured kernel failure instead of a
+// transport-level error at the MCP adapter.
+export const MAX_SELECTION_RESPONSE_BYTES = 64 * 1024;
 export const MAX_POLICY_BYTES = 64 * 1024;
 // The live catalog publishes complete closed input schemas plus compact
 // terminal-status projections. Full result schemas stay in the package rather
@@ -149,9 +154,16 @@ export const SearchInputSchema = z.strictObject({
 export const ResolveInputSchema = z.strictObject({
   intent: z.string().trim().min(1).max(MAX_QUERY_LENGTH),
   context: ContextSchema
-    .describe("Known configured ASCII policy key; omit prose or unknown.")
+    .describe("Configured policy context.")
     .optional(),
   alternatives: z.number().int().min(0).max(8).default(3),
+  render: RenderStyleOverrideSchema.optional(),
+});
+
+// Selection is useful before an artifact exists; it does not generate SVG.
+export const SelectIconsInputSchema = z.strictObject({
+  intents: z.array(ResolveInputSchema.shape.intent).min(1).max(MAX_BATCH_SIZE),
+  context: ContextSchema.optional(),
   render: RenderStyleOverrideSchema.optional(),
 });
 
@@ -357,6 +369,45 @@ export const ResolveAmbiguousSchema = z.strictObject({
 });
 
 export const ResolveOutputSchema = z.union([ResolveSuccessSchema, ResolveAmbiguousSchema, FailureSchema]);
+
+export const IconSummarySchema = IconResultSchema.pick({
+  id: true, collection: true, name: true, title: true, category: true, categoryCN: true,
+});
+export const IconChoiceOutputSchema = z.union([
+  ResolveSuccessSchema.extend({ icon: IconSummarySchema }),
+  ResolveAmbiguousSchema,
+  FailureSchema,
+]);
+export type IconChoiceOutput = z.infer<typeof IconChoiceOutputSchema>;
+
+export const SelectIconsOutputSchema = z.union([
+  z.strictObject({
+    status: z.enum(["ok", "partial"]),
+    kind: z.literal("icon_choices"),
+    policy: EffectivePolicySchema,
+    policyCompliance: z.enum(["compliant", "overridden"]),
+    warnings: z.array(WarningSchema),
+    items: z.array(z.union([
+      z.strictObject({
+        index: z.number().int().nonnegative(), intent: z.string(), status: z.literal("ok"),
+        id: IconIdSchema, name: z.string(), title: z.string(),
+        selectionMethod: ResolveSuccessSchema.shape.selectionMethod,
+      }),
+      z.strictObject({
+        index: z.number().int().nonnegative(), intent: z.string(),
+        status: z.enum(["ambiguous", "error"]), error: ErrorSchema,
+        candidates: z.array(CandidateSchema).max(8).optional(),
+      }),
+    ])).min(1).max(MAX_BATCH_SIZE),
+    summary: z.strictObject({
+      requested: z.number().int().nonnegative(), resolved: z.number().int().nonnegative(),
+      unresolved: z.number().int().nonnegative(), uniqueIcons: z.number().int().nonnegative(),
+    }),
+  }),
+  FailureSchema,
+]);
+export type SelectIconsInput = z.infer<typeof SelectIconsInputSchema>;
+export type SelectIconsOutput = z.infer<typeof SelectIconsOutputSchema>;
 
 export const BatchItemSchema = z.union([
   z.strictObject({

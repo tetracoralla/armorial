@@ -25,8 +25,12 @@ try {
   mkdirSync(pluginDirectory);
   execFileSync("tar", ["-xzf", archive, "-C", pluginDirectory, "--strip-components=1"], { stdio: "ignore" });
   const runtime = readFileSync(join(pluginDirectory, "RUNTIME.md"), "utf8");
-  assert.match(runtime, /Agent Host binds that command to the Node runtime/);
-  assert.match(runtime, /already manages/);
+  for (const match of runtime.matchAll(/\]\(([^)]+)\)/g)) {
+    if (!match[1]!.includes(":")) assert.equal(existsSync(resolve(pluginDirectory, match[1]!)), true, `Missing packaged guide: ${match[1]}`);
+  }
+  for (const reference of ["artifact-output.md", "selection-messages.md"]) {
+    assert.equal(existsSync(join(pluginDirectory, "skills/icon-svg-select/references", reference)), true);
+  }
   const manifest = JSON.parse(readFileSync(join(pluginDirectory, ".codex-plugin/plugin.json"), "utf8")) as { name?: unknown; version?: unknown };
   const packageManifest = JSON.parse(readFileSync(join(pluginDirectory, "package.json"), "utf8")) as { name?: unknown; version?: unknown; scripts?: unknown; bin?: unknown };
   assert.equal(manifest.name, "armorial");
@@ -41,6 +45,10 @@ try {
     assert.doesNotMatch(runtimeSource, /ARMORIAL_PUBLISH_HELPER_TEST_(?:IMPORT|FAILURE)/);
   }
   const cli = join(pluginDirectory, "dist/adapters/cli.js");
+  const selectedIds = JSON.parse(execFileSync(process.execPath, [cli, "select", "search", "settings"], { cwd: pluginDirectory, encoding: "utf8" }));
+  assert.equal(selectedIds.status, "ok");
+  assert.equal(selectedIds.summary.resolved, 2);
+  assert.doesNotMatch(JSON.stringify(selectedIds), /<svg|"asset"/);
   assert.equal(execFileSync(process.execPath, [cli, "--version"], { cwd: pluginDirectory, encoding: "utf8" }).trim(), packageJson.version);
   const cliResolved = JSON.parse(execFileSync(process.execPath, [cli, "resolve", "search", "--format", "json"], {
     cwd: pluginDirectory,
@@ -244,7 +252,16 @@ try {
   try {
     await client.connect(transport);
     const tools = await client.listTools();
-    assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ["browse_icons", "choose_icon", "get_icon", "get_icons", "resolve_icon", "search_icons"]);
+  const selection = await client.callTool({ name: "select_icons", arguments: { intents: ["search", "关闭", "zzzznoicon", "search"] } });
+  assert.notEqual(selection.isError, true);
+  const selectionResult = JSON.parse(JSON.stringify(selection.structuredContent)).result;
+  assert.equal(selectionResult.status, "partial");
+  assert.deepEqual(selectionResult.summary, { requested: 4, resolved: 2, unresolved: 2, uniqueIcons: 1 });
+  assert.equal(selectionResult.items[0].id, "icon-park:search");
+  assert.deepEqual(selectionResult.items.map((item: { index: number }) => item.index), [0, 1, 2, 3]);
+  assert.doesNotMatch(JSON.stringify(selection), /<svg|"asset"/);
+
+    assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ["browse_icons", "choose_icon", "get_icon", "get_icons", "resolve_icon", "search_icons", "select_icons"]);
     const resolved = await client.callTool({ name: "resolve_icon", arguments: { intent: "settings", context: "toolbar" } });
     assert.equal(resolved.isError, undefined);
     assert.equal((resolved.structuredContent as { result?: { icon?: { id?: unknown } } }).result?.icon?.id, "icon-park:setting-two");
@@ -264,8 +281,8 @@ try {
     status: "ok",
     archive,
     sha256: digest,
-    tools: "list+resolve+get+choose",
-    cli: "version+resolve+inline-candidate+pinned-parent+precommit-cancellation+basename-boundary+inline-conflict+mcp",
+    tools: "list+select+resolve+get+choose",
+    cli: "version+select+resolve+inline-candidate+pinned-parent+precommit-cancellation+basename-boundary+inline-conflict+mcp",
     resource: "picker",
     packageReport: {
       archiveBytes: statSync(archive).size,

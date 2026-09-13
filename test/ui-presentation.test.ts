@@ -54,6 +54,7 @@ function renderInspector(runtime: PickerRuntime): string {
     onAppearanceChange: () => undefined,
     onAppearanceReset: () => undefined,
     onCopySvg: noop,
+    onCopyLink: async () => undefined,
     onDownload: noop,
     onCopyForAgent: noop,
     onAttach: noop,
