@@ -8,6 +8,7 @@ import {
   type RenderStyleOverride,
 } from "../core/contracts.js";
 import { createIconSelectionDecision, formatIconSelectionMessage } from "../core/selection.js";
+import { createIconLink } from "./icon-link.js";
 import { AppHeader } from "./components/AppHeader.js";
 import { CategoryNav } from "./components/CategoryNav.js";
 import { IconGrid } from "./components/IconGrid.js";
@@ -25,6 +26,8 @@ type LoadBasis = {
   category: string | null;
   context: string | null;
 };
+
+type LinkWarning = "invalidIconLink" | "changedIconLink" | "missingIconLink";
 
 function loadBasisMatches(left: LoadBasis | null, right: LoadBasis): boolean {
   return left !== null
@@ -54,6 +57,8 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
   const [loading, setLoading] = useState(initial === null);
   const [replacementLoading, setReplacementLoading] = useState(initial === null);
   const [error, setError] = useState<string | null>(null);
+  const [linkWarning, setLinkWarning] = useState<LinkWarning | null>(runtime.invalidIconLink ? "invalidIconLink" : null);
+  const sharedIconChecked = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionState, setActionState] = useState<ActionState>("idle");
   const [figmaCompact, setFigmaCompact] = useState(false);
@@ -114,6 +119,13 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
 
   async function loadCatalog(input: BrowseIconsInput, append = false): Promise<void> {
     const sequence = ++requestSequence.current;
+    // Only the original link's query and appearance can attest to that link.
+    // A user's new search or style may settle first while its request is pending.
+    const sharedIcon = !append
+      && input.query === runtime.sharedIcon?.icon
+      && (input.category ?? null) === null
+      && renderOverrideKey(input.render ?? null) === renderOverrideKey(runtime.session?.render ?? null)
+      ? runtime.sharedIcon : undefined;
     setLoading(true);
     if (!append) setReplacementLoading(true);
     setError(null);
@@ -126,12 +138,23 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
         category: output.category,
         context: output.context,
       };
+      const checkingSharedIcon = !sharedIconChecked.current && sharedIcon !== undefined && sharedIcon === runtime.sharedIcon;
+      if (checkingSharedIcon) {
+        sharedIconChecked.current = true;
+        // An existing icon always ranks first for its own canonical-id query, so
+        // absence from the loaded first page means the id left the collection.
+        const shared = output.items.find((item) => item.id === sharedIcon.icon);
+        if (shared === undefined) setLinkWarning("missingIconLink");
+        else if (shared.asset.sha256 !== sharedIcon.sha256) setLinkWarning("changedIconLink");
+      }
       setCatalog(output);
       setAppliedStyleOverride(input.render ?? null);
       setItems((current) => append ? [...current, ...output.items] : output.items);
       if (!append) {
         setSettledBasis(lastLoadBasis.current);
-        setSelected((current) => output.items.find((item) => item.id === current?.id) ?? output.items[0] ?? null);
+        setSelected((current) => checkingSharedIcon
+          ? output.items.find((item) => item.id === sharedIcon.icon) ?? null
+          : output.items.find((item) => item.id === current?.id) ?? output.items[0] ?? null);
       }
     } catch (loadError) {
       if (sequence !== requestSequence.current) return;
@@ -155,12 +178,15 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
 
   useEffect(() => {
     return runtime.onInitialState((nextCatalog, nextSession) => {
-      if (nextSession !== null && nextSession !== appliedSession.current) {
+      if (runtime.mode === "standalone") setLinkWarning(runtime.invalidIconLink ? "invalidIconLink" : null);
+      if (nextSession !== appliedSession.current && (nextSession !== null || runtime.mode === "standalone")) {
         appliedSession.current = nextSession;
+        sharedIconChecked.current = false;
+        setLinkWarning(runtime.invalidIconLink ? "invalidIconLink" : null);
         setHostSession(nextSession);
-        setQuery(nextSession.intent);
+        setQuery(nextSession?.intent ?? "");
         setCategory(null);
-        setStyleOverride(nextSession.render ?? null);
+        setStyleOverride(nextSession?.render ?? null);
       }
       if (nextCatalog !== null && !appliedHostInitialState.current) {
         appliedHostInitialState.current = true;
@@ -280,7 +306,7 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
     const decision = await createIconSelectionDecision({
       ...(hostSession?.requestId === undefined ? {} : { requestId: hostSession.requestId }),
       iconId: selected.id,
-      intent: hostSession?.intent ?? (settledBasis.query || selected.name),
+      intent: runtime.mode === "standalone" ? (settledBasis.query || selected.name) : hostSession?.intent ?? (settledBasis.query || selected.name),
       context: catalog.context,
       render,
       assetSha256: selected.asset.sha256,
@@ -357,6 +383,10 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
               </>
             )}
           />
+          {linkWarning !== null && <div className="error-banner link-warning" role="alert">
+            {t(linkWarning)}
+            <button type="button" onClick={() => setLinkWarning(null)}>{t("dismiss")}</button>
+          </div>}
           {error !== null && <div className="error-banner" role="alert">{error}</div>}
           <IconGrid
             items={items}
@@ -402,6 +432,10 @@ export function App({ runtime }: { runtime: PickerRuntime }) {
             if (selected === null) throw new Error(t("selectAnIconFirst"));
             await copyText(selected.asset.svg);
           }, t("svgCopied"))}
+          onCopyLink={() => withAction("copying-link", async () => {
+            const { decision } = await selectionMessage();
+            await copyText(createIconLink(window.location.href, decision.iconId, decision.render, decision.assetSha256));
+          }, t("iconLinkCopied"))}
           onDownload={() => withAction("downloading", async () => {
             if (selected === null) throw new Error(t("selectAnIconFirst"));
             await runtime.download(selected.name, selected.asset.svg);

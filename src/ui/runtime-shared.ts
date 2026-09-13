@@ -22,6 +22,8 @@ export type RuntimeMode = "standalone" | "embedded" | "figma";
 
 export interface PickerRuntime {
   readonly mode: RuntimeMode;
+  readonly sharedIcon?: { icon: string; sha256: string };
+  readonly invalidIconLink?: boolean;
   readonly canAttach: boolean;
   readonly canContinue: boolean;
   readonly canFullscreen: boolean;

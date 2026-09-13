@@ -55,13 +55,10 @@ test("MCP exposes bounded model tools plus one app-only catalog tool", async () 
     assert.equal((chooseTool?._meta?.ui as { resourceUri?: string } | undefined)?.resourceUri, ICON_PICKER_RESOURCE_URI);
     assert.equal(JSON.stringify(chooseTool?.outputSchema).includes('"session"'), false);
     const resolveTool = listed.tools.find((tool) => tool.name === "resolve_icon");
-    assert.match(resolveTool?.description ?? "", /never prose; omit when unknown/);
-    assert.match(resolveTool?.description ?? "", /do not follow with get_icon/);
     const resolveProperties = resolveTool?.inputSchema.properties as
       | Record<string, { default?: unknown; description?: string }>
       | undefined;
     assert.equal(resolveProperties?.alternatives?.default, 0);
-    assert.match(resolveProperties?.context?.description ?? "", /omit prose or unknown/);
     const renderSchema = JSON.stringify(resolveProperties?.render);
     assert.match(renderSchema, /RenderColor/);
     assert.match(renderSchema, /"minimum":1/);
@@ -247,7 +244,7 @@ test("MCP resolve, ambiguity, validation, and batch partial failure use structur
 });
 
 test("public tool registry distinguishes model entry points from app-only helpers", () => {
-  assert.deepEqual(PUBLIC_TOOL_NAMES, ["resolve_icon", "search_icons", "get_icon", "get_icons", "choose_icon"]);
+  assert.deepEqual(PUBLIC_TOOL_NAMES, ["select_icons", "resolve_icon", "search_icons", "get_icon", "get_icons", "choose_icon"]);
   assert.deepEqual(APP_ONLY_TOOL_NAMES, ["browse_icons"]);
 });
 

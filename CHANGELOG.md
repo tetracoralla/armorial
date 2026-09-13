@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0
+
+- Distribute the macOS arm64 Agent runtime archive with a SHA-256 checksum;
+  Node 22 or newer is required. Update Hono to 4.13.7 for upstream security fixes.
+- Select one or several UI meanings through `select_icons`, CLI `select`, or
+  `IconKernel.selectIcons` without generating SVG. Ordered partial results keep
+  successful choices, policy and unresolved candidates. Legacy intent batches
+  now share this selection path and render only when assets are requested.
+- Share a selected icon and its appearance from the standalone workbench with
+  Copy link. Reopening checks the asset hash; malformed links and icons that
+  left the current collection allow recovery.
+- Clarify task-based Agent discovery and allow caller judgment among candidates.
+  Consolidate artifact recovery guidance and replace historical review procedures
+  with a map of behavioral verification.
+
 ## 0.7.0
 
 - Breaking: SVG `--output` is create-only by default. Replacing an existing

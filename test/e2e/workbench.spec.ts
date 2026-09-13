@@ -319,6 +319,7 @@ test("selection decisions stay disabled until the current query has a settled re
   await page.getByPlaceholder("Search icons", { exact: true }).fill("notification");
   await expect(copyForAgent).toBeDisabled();
   await expect(copySvg).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Copy link", exact: true })).toBeDisabled();
   await expect(downloadSvg).toBeDisabled();
   await expect(staleOption).toHaveAttribute("draggable", "false");
   expect(await staleOption.evaluate((element) => {
@@ -600,3 +601,117 @@ test("repeated full-catalog loading stays virtualized and End reaches the exact 
   });
   console.log(`full-catalog-baseline ${JSON.stringify(baselines)}`);
 });
+
+test("a shared link reproduces an adjusted icon, supports another search, and follows hash navigation", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:4178" });
+  await page.goto("/");
+  await page.getByPlaceholder("Search icons", { exact: true }).fill("notification");
+  await page.getByRole("option", { name: "remind", exact: true }).click();
+  await page.getByLabel("Size value", { exact: true }).fill("32");
+  await page.getByLabel("Size value", { exact: true }).press("Enter");
+  await expect(page.getByRole("button", { name: "Copy link", exact: true })).toBeEnabled();
+  const original = await page.locator(".preview-panel img").getAttribute("src");
+  await page.getByRole("button", { name: "Copy link", exact: true }).click();
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  expect(new URL(link).hash).toContain("icon=");
+  expect(link).not.toContain("context");
+  const other = await context.newPage();
+  await other.goto(link);
+  await expect(other.locator(".preview-meta code")).toHaveText("icon-park:remind");
+  await expect(other.locator(".preview-panel img")).toHaveAttribute("src", original!);
+  await expect(other.getByRole("alert")).toHaveCount(0);
+  await other.getByPlaceholder("Search icons", { exact: true }).fill("search");
+  await other.getByRole("option", { name: "search", exact: true }).click();
+  await other.getByRole("button", { name: "Copy for Agent", exact: true }).click();
+  expect(await other.evaluate(() => navigator.clipboard.readText())).toContain('"intent": "search"');
+  await other.getByRole("button", { name: "Copy link", exact: true }).click();
+  const secondLink = await other.evaluate(() => navigator.clipboard.readText());
+  await page.goto(secondLink);
+  await expect(page.locator(".preview-meta code")).toHaveText("icon-park:search");
+  await page.goto(link);
+  await expect(page.locator(".preview-meta code")).toHaveText("icon-park:remind");
+  await page.reload();
+  await expect(page.locator(".preview-panel img")).toHaveAttribute("src", original!);
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(page.getByLabel("Size value", { exact: true })).toHaveValue("24");
+  await expect(page.getByRole("button", { name: "Copy link", exact: true })).toBeEnabled();
+  await other.close();
+});
+
+test("invalid links recover to browsing and changed shared assets are disclosed", async ({ page }) => {
+  await page.goto("/#icon=search&render=invalid");
+  await expect(page.getByRole("alert")).toContainText("This icon link is invalid");
+  await expect(page.getByRole("option").first()).toBeVisible();
+  await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  const policy = { theme: "outline", size: 32, strokeWidth: 4, strokeLinecap: "round", strokeLinejoin: "round",
+    colors: { primary: "currentColor", secondary: "#2f88ff", innerStroke: "#ffffff", innerFill: "#43ccf8" } };
+  const hash = new URLSearchParams({ icon: "icon-park:search", render: JSON.stringify(policy), sha256: "a".repeat(64) });
+  await page.goto(`/#${hash}`);
+  await expect(page.getByRole("alert")).toContainText("differs from the shared version");
+  await expect(page.locator(".preview-meta code")).toHaveText("icon-park:search");
+  await expect(page.getByLabel("Size value", { exact: true })).toHaveValue("32");
+  const missing = new URLSearchParams({ icon: "icon-park:not-in-the-collection", render: JSON.stringify(policy), sha256: "a".repeat(64) });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/#${missing}`);
+  await expect(page.getByRole("alert")).toContainText("not in the current collection");
+  await expect(page.locator(".preview-meta code")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toHaveCount(0);
+  expect((await page.locator(".category-nav").boundingBox())!.height).toBeLessThan(70);
+  await page.getByRole("option").first().click();
+  await expect(page.getByRole("button", { name: "Copy SVG", exact: true })).toBeEnabled();
+});
+
+test("a shared link selects its exact icon even when the previous selection is another returned candidate", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:4178" });
+  await page.goto("/");
+  await page.getByPlaceholder("Search icons", { exact: true }).fill("search");
+  await page.getByRole("option", { name: "search", exact: true }).click();
+  await page.getByRole("button", { name: "Copy link", exact: true }).click();
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  await page.getByRole("option", { name: "find", exact: true }).click();
+  await expect(page.locator(".preview-meta code")).toHaveText("icon-park:find");
+  await page.goto(link);
+  await expect(page.getByPlaceholder("Search icons", { exact: true })).toHaveValue("icon-park:search");
+  await expect(page.locator(".preview-meta code")).toHaveText("icon-park:search");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+for (const action of ["search", "appearance"] as const) {
+  test(`changing ${action} during shared-link loading does not report a false link warning`, async ({ page, request }) => {
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: "Copy link", exact: true })).toBeEnabled();
+    const response = await request.post("/api/browse", { data: { query: "icon-park:remind", render: { size: 32 } } });
+    const { result } = await response.json();
+    const shared = result.items.find((item: { id: string }) => item.id === "icon-park:remind");
+    const { theme, size, strokeWidth, strokeLinecap, strokeLinejoin, colors } = result.policy;
+    const hash = new URLSearchParams({ icon: shared.id,
+      render: JSON.stringify({ theme, size, strokeWidth, strokeLinecap, strokeLinejoin, colors }),
+      sha256: shared.asset.sha256 });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route("**/api/browse", async (route) => {
+      const input = route.request().postDataJSON();
+      if (input.query === "icon-park:remind" && input.render?.size === 32) await held;
+      await route.continue();
+    });
+    try {
+      const started = page.waitForRequest((req) => req.url().endsWith("/api/browse")
+        && req.postDataJSON()?.query === "icon-park:remind");
+      await page.goto(`/#${hash}`);
+      await started;
+      if (action === "search") {
+        await page.getByPlaceholder("Search icons", { exact: true }).fill("settings");
+        await expect(page.locator(".preview-meta code")).toHaveText("icon-park:setting");
+      } else {
+        await page.getByLabel("Size value", { exact: true }).fill("48");
+        await page.getByLabel("Size value", { exact: true }).press("Enter");
+        await expect(page.locator(".preview-panel img")).toHaveAttribute("src", /width%3D%2248%22/);
+      }
+      await expect(page.getByRole("alert")).toHaveCount(0);
+    } finally {
+      release();
+      await page.unrouteAll({ behavior: "wait" });
+    }
+  });
+}

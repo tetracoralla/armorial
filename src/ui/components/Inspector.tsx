@@ -5,7 +5,7 @@ import { useMessages } from "../messages.js";
 import { AppearancePanel } from "./AppearancePanel.js";
 import { LanguageSelect } from "./LanguageSelect.js";
 
-type ActionState = "idle" | "copying-svg" | "copying-agent" | "downloading" | "attaching" | "continuing" | "inserting";
+type ActionState = "idle" | "copying-svg" | "copying-agent" | "copying-link" | "downloading" | "attaching" | "continuing" | "inserting";
 
 type Props = {
   selected: CatalogItem | null;
@@ -19,6 +19,7 @@ type Props = {
   onAppearanceChange: (patch: RenderStyleOverride) => void;
   onAppearanceReset: () => void;
   onCopySvg: () => Promise<void>;
+  onCopyLink: () => Promise<void>;
   onDownload: () => Promise<void>;
   onCopyForAgent: () => Promise<void>;
   onAttach: () => Promise<void>;
@@ -57,6 +58,11 @@ export function Inspector(props: Props) {
             {actionState === "copying-agent" ? t("copying") : t("copyForAgent")}
           </button>
         </div>
+        {runtime.mode === "standalone" && (
+          <button type="button" disabled={!props.selectionReady || renderPending || actionState !== "idle"} onClick={() => void props.onCopyLink()}>
+            {actionState === "copying-link" ? t("copying") : t("copyIconLink")}
+          </button>
+        )}
       </div>
       {runtime.mode === "embedded" && (runtime.canAttach || runtime.canContinue) && (
         <section className="agent-actions" aria-label={t("agentActions")}>

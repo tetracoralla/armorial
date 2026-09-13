@@ -34,10 +34,20 @@ try {
     "dist/adapters/mcp.js",
     "dist/mcp-app/index.html",
     "skills/icon-svg-select/SKILL.md",
+    "skills/icon-svg-select/references/artifact-output.md",
+    "skills/icon-svg-select/references/selection-messages.md",
   ]) assert.equal(paths.has(required), true, `packed npm route is missing ${required}`);
   assert.equal([...paths].some((path) => path.startsWith("figma-plugin/")), false);
   assert.ok(packed[0].size <= 512 * 1024, `Registry npm package is ${packed[0].size} bytes`);
-  assert.ok(packed[0].unpackedSize <= 2 * 1024 * 1024, `Unpacked Registry npm package is ${packed[0].unpackedSize} bytes`);
+  // The unpacked route sits at ~2.02 MiB: the selection tool, the shared workbench
+  // link feature, and the shipped artifact guide grew the declared payload past
+  // the previous 2 MiB tripwire. Keep the ceiling close so an accidental catalog,
+  // map, or source inclusion still fails here.
+  const MAX_UNPACKED_REGISTRY_PACKAGE_BYTES = 2 * 1024 * 1024 + 64 * 1024;
+  assert.ok(
+    packed[0].unpackedSize <= MAX_UNPACKED_REGISTRY_PACKAGE_BYTES,
+    `Unpacked Registry npm package is ${packed[0].unpackedSize} bytes`,
+  );
 
   const npmEnvironment = {
     ...process.env,
@@ -58,9 +68,18 @@ try {
     const connectMs = performance.now() - startedAt;
     try {
       const tools = await client.listTools();
+      const selection = await client.callTool({ name: "select_icons", arguments: { intents: ["search", "关闭", "zzzznoicon", "search"] } });
+      assert.notEqual(selection.isError, true);
+      const selectionResult = JSON.parse(JSON.stringify(selection.structuredContent)).result;
+      assert.equal(selectionResult.status, "partial");
+      assert.deepEqual(selectionResult.summary, { requested: 4, resolved: 2, unresolved: 2, uniqueIcons: 1 });
+      assert.equal(selectionResult.items[0].id, "icon-park:search");
+      assert.deepEqual(selectionResult.items.map((item) => item.index), [0, 1, 2, 3]);
+      assert.doesNotMatch(JSON.stringify(selection), /<svg|"asset"/);
+
       assert.deepEqual(
         tools.tools.map((tool) => tool.name).sort(),
-        ["browse_icons", "choose_icon", "get_icon", "get_icons", "resolve_icon", "search_icons"],
+        ["browse_icons", "choose_icon", "get_icon", "get_icons", "resolve_icon", "search_icons", "select_icons"],
       );
       const result = await client.callTool({ name: "resolve_icon", arguments: { intent: "location" } });
       assert.equal(result.isError, undefined);

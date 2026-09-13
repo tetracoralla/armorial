@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { expandAliases, isGenericTaskTerm } from "./aliases.js";
 import {
+  IconChoiceOutputSchema,
+  SelectIconsInputSchema,
+  SelectIconsOutputSchema,
+  type IconChoiceOutput,
+  type SelectIconsInput,
+  type SelectIconsOutput,
   BrowseIconsInputSchema,
   BrowseIconsOutputSchema,
   CandidateSchema,
@@ -11,6 +17,7 @@ import {
   GetIconsOutputSchema,
   IconResultSchema,
   MAX_BATCH_RESPONSE_BYTES,
+  MAX_SELECTION_RESPONSE_BYTES,
   MAX_UI_CATALOG_RESPONSE_BYTES,
   ResolveInputSchema,
   ResolveOutputSchema,
@@ -252,12 +259,67 @@ export class IconKernel {
   resolve(input: ResolveInput): ResolveOutput {
     const parsed = ResolveInputSchema.safeParse(input);
     if (!parsed.success) return ResolveOutputSchema.parse(failure(invalidInput(parsed.error)));
+    const choice = this.#choose(parsed.data);
+    if (choice.status !== "ok") return choice;
+    try {
+      return ResolveOutputSchema.parse({
+        ...choice, icon: this.#renderIcon(choice.icon.id, parsed.data.context, parsed.data.render),
+      });
+    } catch (error) {
+      return ResolveOutputSchema.parse(failure(toKernelError(error)));
+    }
+  }
+
+  selectIcons(input: SelectIconsInput): SelectIconsOutput {
+    const parsed = SelectIconsInputSchema.safeParse(input);
+    if (!parsed.success) return SelectIconsOutputSchema.parse(failure(invalidInput(parsed.error)));
+    try {
+      const { intents, context, render } = parsed.data;
+      const base = resolveEffectivePolicy(this.policy, context);
+      const effective = resolveEffectivePolicy(this.policy, context, render);
+      const items = intents.map((intent, index) => {
+        const choice = this.#choose({ intent, alternatives: 0,
+          ...(context === undefined ? {} : { context }),
+        });
+        if (choice.status === "ok") return {
+          index, intent, status: "ok" as const,
+          id: choice.icon.id, name: choice.icon.name, title: choice.icon.title,
+          selectionMethod: choice.selectionMethod,
+        };
+        return { index, intent, status: choice.status, error: choice.error,
+          ...(choice.status === "ambiguous" ? { candidates: choice.candidates } : {}),
+        };
+      });
+      const resolved = items.filter((item) => item.status === "ok");
+      const output = {
+        status: resolved.length === items.length ? "ok" : "partial",
+        kind: "icon_choices", policy: effective.policy,
+        policyCompliance: renderStyleEquals(base.policy, effective.policy) ? "compliant" : "overridden",
+        warnings: effective.warnings, items,
+        summary: { requested: items.length, resolved: resolved.length,
+          unresolved: items.length - resolved.length, uniqueIcons: new Set(resolved.map((item) => item.id)).size },
+      };
+      if (utf8ByteLength(JSON.stringify(output)) > MAX_SELECTION_RESPONSE_BYTES) {
+        return failure({
+          code: "RESPONSE_TOO_LARGE",
+          message: `Selection response exceeds the ${MAX_SELECTION_RESPONSE_BYTES}-byte limit. Request fewer icon meanings.`,
+        });
+      }
+      return SelectIconsOutputSchema.parse(output);
+    } catch (error) {
+      return SelectIconsOutputSchema.parse(failure(toKernelError(error)));
+    }
+  }
+
+  #choose(input: ResolveInput): IconChoiceOutput {
+    const parsed = ResolveInputSchema.safeParse(input);
+    if (!parsed.success) return IconChoiceOutputSchema.parse(failure(invalidInput(parsed.error)));
 
     try {
       const selection = findSemanticSelection(this.policy, parsed.data.intent);
       if (selection !== undefined && parsed.data.alternatives === 0) {
-        const icon = this.#renderIcon(selection, parsed.data.context, parsed.data.render);
-        return ResolveOutputSchema.parse({
+        const icon = this.#recordSummary(this.provider.get(selection)!);
+        return IconChoiceOutputSchema.parse({
           status: "ok",
           kind: "icon_resolution",
           intent: parsed.data.intent,
@@ -270,8 +332,8 @@ export class IconKernel {
       const directId = parsed.data.intent.trim().toLocaleLowerCase("en-US");
       const directRecord = this.provider.get(directId);
       if (selection === undefined && directRecord !== undefined && parsed.data.alternatives === 0) {
-        const icon = this.#renderIcon(directRecord.canonicalId, parsed.data.context, parsed.data.render);
-        return ResolveOutputSchema.parse({
+        const icon = this.#recordSummary(directRecord);
+        return IconChoiceOutputSchema.parse({
           status: "ok",
           kind: "icon_resolution",
           intent: parsed.data.intent,
@@ -285,8 +347,8 @@ export class IconKernel {
         ? this.#fastSemanticRecord(parsed.data.intent)
         : undefined;
       if (fastSemantic !== undefined) {
-        const icon = this.#renderIcon(fastSemantic.record.canonicalId, parsed.data.context, parsed.data.render);
-        return ResolveOutputSchema.parse({
+        const icon = this.#recordSummary(fastSemantic.record);
+        return IconChoiceOutputSchema.parse({
           status: "ok",
           kind: "icon_resolution",
           intent: parsed.data.intent,
@@ -300,8 +362,8 @@ export class IconKernel {
       const candidates = ranked.slice(0, Math.max(2, parsed.data.alternatives + 1)).map(({ candidate }) => candidate);
 
       if (selection !== undefined) {
-        const icon = this.#renderIcon(selection, parsed.data.context, parsed.data.render);
-        return ResolveOutputSchema.parse({
+        const icon = this.#recordSummary(this.provider.get(selection)!);
+        return IconChoiceOutputSchema.parse({
           status: "ok",
           kind: "icon_resolution",
           intent: parsed.data.intent,
@@ -313,7 +375,7 @@ export class IconKernel {
 
       const first = candidates[0];
       if (first === undefined || first.rankScore < 50) {
-        return ResolveOutputSchema.parse(
+        return IconChoiceOutputSchema.parse(
           failure({
             code: "ICON_NOT_FOUND",
             message: `No sufficiently specific IconPark match was found for "${parsed.data.intent}".`,
@@ -323,7 +385,7 @@ export class IconKernel {
 
       if (!hasAutoResolvableBasis(first)) {
         if (candidates.length >= 2) {
-          return ResolveOutputSchema.parse({
+          return IconChoiceOutputSchema.parse({
             status: "ambiguous",
             kind: "icon_resolution",
             intent: parsed.data.intent,
@@ -334,7 +396,7 @@ export class IconKernel {
             candidates: candidates.slice(0, Math.max(2, parsed.data.alternatives || 2)),
           });
         }
-        return ResolveOutputSchema.parse(
+        return IconChoiceOutputSchema.parse(
           failure({
             code: "ICON_NOT_FOUND",
             message: `Only upstream tag or weak matches were found for "${parsed.data.intent}". Pin the intent in policy.selections or choose an id via search_icons.`,
@@ -343,7 +405,7 @@ export class IconKernel {
       }
 
       if (isSemanticAmbiguity(candidates, hasMultipleDirectSemanticTargets)) {
-        return ResolveOutputSchema.parse({
+        return IconChoiceOutputSchema.parse({
           status: "ambiguous",
           kind: "icon_resolution",
           intent: parsed.data.intent,
@@ -357,13 +419,13 @@ export class IconKernel {
         });
       }
 
-      const icon = this.#renderIcon(first.id, parsed.data.context, parsed.data.render);
+      const icon = this.#recordSummary(this.provider.get(first.id)!);
       const selectionMethod = first.matchKind === "exact_id"
         ? "exact_id"
         : first.matchKind === "exact_name"
           ? "exact_name"
           : "ranked";
-      return ResolveOutputSchema.parse({
+      return IconChoiceOutputSchema.parse({
         status: "ok",
         kind: "icon_resolution",
         intent: parsed.data.intent,
@@ -372,7 +434,7 @@ export class IconKernel {
         alternatives: candidates.slice(1, parsed.data.alternatives + 1),
       });
     } catch (error) {
-      return ResolveOutputSchema.parse(failure(toKernelError(error)));
+      return IconChoiceOutputSchema.parse(failure(toKernelError(error)));
     }
   }
 

@@ -20,6 +20,7 @@ test("real stdio MCP process lists and executes the policy-pinned dominant route
   try {
     const tools = await client.listTools();
     assert.deepEqual(tools.tools.map((tool) => tool.name), [
+      "select_icons",
       "resolve_icon",
       "search_icons",
       "get_icon",

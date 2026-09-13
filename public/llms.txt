@@ -9,7 +9,7 @@ an arbitrary SVG editor, or an automatic design-approval system.
 
 ## Start here
 
-- [Task fit, rejection cases, execution boundary, install, and probe](./agent-selection.html)
+- [Task fit, selection, visual sharing, and installation](./agent-selection.html)
 - [Plain-text Markdown representation of the task guide](./agent-selection.txt)
 - [Interactive local-first workbench](./)
 - [Source repository and complete README](https://github.com/tetracoralla/armorial)
@@ -20,10 +20,10 @@ an arbitrary SVG editor, or an automatic design-approval system.
 - [Product routing Skill](https://github.com/tetracoralla/armorial/blob/main/skills/icon-svg-select/SKILL.md)
 - [Executable icon-policy schema](https://github.com/tetracoralla/armorial/blob/main/icon-policy.schema.json)
 
-## Product and trust boundaries
+## Product and integration
 
 - [Product model](https://github.com/tetracoralla/armorial/blob/main/docs/PRODUCT_MODEL.md)
-- [Review contract](https://github.com/tetracoralla/armorial/blob/main/docs/REVIEW_CONTRACT.md)
+- [CLI and artifact integration](https://github.com/tetracoralla/armorial/blob/main/docs/CLI.md)
 - [License and third-party notices](https://github.com/tetracoralla/armorial/blob/main/THIRD_PARTY_NOTICES.md)
 
 The current public MCP route is built from source. No npm package or official

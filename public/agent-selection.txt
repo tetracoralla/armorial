@@ -1,158 +1,78 @@
-# Use Armorial to select and render project-aware IconPark SVGs locally
+# Use Armorial while building a UI
 
-Armorial is a deterministic local icon-selection and rendering product for
-humans and Agents. It searches the pinned IconPark collection, applies one
-explicit project policy, reports unresolved semantic ambiguity, and returns a
-bounded structured result and SVG.
+Choose existing, consistent interface icons in English or Simplified Chinese.
+Armorial supplies the IconPark collection, executable project appearance,
+compact selection and deterministic SVG. The human or Agent chooses metaphors
+and evaluates how the result works in the interface.
 
-## Use Armorial for
+## Task fit
 
-- finding an existing IconPark icon from an English or Simplified Chinese
-  intent;
-- applying project defaults for theme, colors, size, stroke weight, cap, and
-  join;
-- rendering one known `icon-park:*` id reproducibly;
-- comparing compact candidates when more than one icon is plausible;
-- opening a visual picker when taste or a rejected choice requires a human;
-- rendering up to 8 already-known ids while preserving order and per-item
-  failures.
+Useful for a new page, toolbar, navigation or control set when IconPark fits.
+Preserve an existing project icon system when it already serves the design.
+Armorial does not draw logos, illustrations or arbitrary SVG geometry.
 
-Representative requests:
+For example, a request to build a settings page can lead to selecting search,
+settings and close icons without asking the user to name an icon tool.
+Ambiguity from the matcher is a set of candidates for judgment, not an automatic
+requirement to ask the user.
 
-- "Choose a settings icon for this toolbar using the project defaults."
-- "Find several notification icon alternatives without drawing new SVG."
-- "Render `icon-park:search` at size 32 with the current policy."
-- "Let me compare the ambiguous choices visually."
+## Agent entry points
 
-## Do not use Armorial for
+- `select_icons({intents:["search","settings","close"]})`: up to 20 meanings,
+  no SVG rendering, ordered results, policy, and unresolved candidates.
+- `resolve_icon({intent:"search"})`: one meaning and its rendered SVG.
+- `search_icons({query:"notification"})`: compare candidates.
+- `get_icon` / `get_icons`: render chosen ids; up to 8 SVGs per MCP batch.
+- `choose_icon`: open the visual workbench for a human choice.
 
-- drawing a logo, illustration, or new icon geometry;
-- editing arbitrary SVG paths or normalizing a different icon collection;
-- making a final aesthetic choice when the remaining difference is subjective;
-- treating a natural-language surface description as a configured policy
-  context key;
-- inferring that a technically valid SVG is approved for a product or design
-  system;
-- searching fonts, photos, emoji, or non-IconPark assets.
+The CLI offers `select`, `resolve`, `search`, `get`, and `batch`. Use the available
+installed command, Host launcher, or a deliberately built source installation.
+Older versions may lack `select`; their resolve/search routes remain usable.
+Agent Host is optional, and ordinary CLI/MCP operations work offline after build.
 
-## Execution and data boundary
+## Human entry point
 
-- The CLI, local web workbench, Figma plugin, MCP server, and hosted workbench
-  share the same deterministic kernel and pinned IconPark catalog.
-- Local CLI and MCP rendering need no network after dependencies and build
-  artifacts are present. Queries and project policy values are not sent to an
-  Armorial service.
-- Direct MCP search and render operations do not write files. Ordinary CLI
-  results use stdout. An explicit batch `--output <relative.svg>` publishes one
-  new, create-only sprite and reports `protectionLevel:
-  non_overwriting_create`. Replacing an existing SVG requires explicit
-  `--allow-optimistic-overwrite`; it can overwrite a non-cooperating writer in
-  the final check-to-rename window, and every success reports
-  `protectionLevel: optimistic_preflight_only` plus a warning. Passing that
-  replacement-only flag for a new SVG is invalid and creates nothing. The default HTML
-  route uses `--inline-from <source.html> --output
-  <new-candidate.html>` to create a distinct, non-overwriting candidate while
-  leaving the source unchanged; same paths, hard-link aliases, and existing
-  outputs are rejected. Inline admission bounds caller-owned
-  HTML to 8 MiB and the Armorial-managed marker block to 512 KiB plus four
-  framing bytes, so an accepted first insert remains retryable and replaceable.
-  SVG and HTML publication is pinned to the admitted parent-directory inode;
-  replacing that parent path cannot redirect writes through a new symlink.
-  The helper stages and verifies bytes, then waits for a one-use commit from
-  its still-live CLI parent. Parent death or the five-second deadline before
-  that commit leaves no final output and normally removes private staging. If
-  destination-parent permissions prevent cleanup, the surviving CLI preserves
-  the cause and reports bounded publication effect, cleanup, and private `0600`
-  residue metadata. Restore access and inspect/remove that sibling before retry.
-  After commit,
-  an interruption may leave a valid output without a success summary. A
-  surviving CLI reports `PUBLICATION_OUTCOME_UNCERTAIN`; inspect
-  the destination before retrying an interrupted carrier call. A create-only
-  helper crash can also leave a private sibling hard link; verify the intended
-  destination before treating it as stale.
-  Successful candidate JSON reports source and candidate hashes plus
-  `protectionLevel: non_overwriting_candidate`; hashes identify bytes but are
-  not atomic commit credentials. The legacy in-place `--inline-into` route is
-  also available only with `--allow-optimistic-overwrite`. It can overwrite a
-  non-cooperating editor save in the final check-to-rename window, and every
-  success reports `protectionLevel: optimistic_preflight_only` plus a warning.
-  Browser download, clipboard, Figma
-  insertion, and an explicit human decision are separate user-visible effects.
-- MCP tools do not accept paths, URLs, raw SVG, or source code. The server
-  operator may select one policy file at startup.
-- A successful call establishes only the returned deterministic product result;
-  it does not establish design approval, task success, or suitability outside
-  the declared IconPark boundary.
+Open https://tetracoralla.github.io/armorial/ to search, compare and adjust
+appearance. Copy SVG, download or drag the asset. Copy link reopens the exact id
+and style, with a hash check; a mismatch is shown for review. The URL fragment
+contains no project path or policy name. Copy for Agent carries a typed choice
+back to a task. Figma has a separate offline development plugin.
 
-## Cheapest correct route
+## Installation and version
 
-| Task | Route |
-| --- | --- |
-| Ordinary semantic icon request | Call `resolve_icon` once. |
-| Exact known id | Call `get_icon` once. |
-| Alternatives requested | Call `search_icons`; call `get_icon` only after selection. |
-| Up to 8 known ids needed in the current Agent turn | Call `get_icons` once. |
-| Larger structured batch automation or durable output | Call the CLI/library directly (up to 20 ids) so SVG payloads do not enter model context. |
-| Human visual decision needed | Call `choose_icon` once, then wait for the explicit selection. |
+Source, GitHub releases and the hosted workbench are public. npm and official
+MCP Registry publication are not claimed. Do not assume `npx armorial` is a
+published installation. Node.js 22 or newer is required for the source runtime.
+The hosted `source-commit.txt` identifies its deployed source; local unreleased
+features may be newer.
 
-Do not install Agent Host for one direct Armorial call. Agent Host becomes
-useful when the environment must keep several provider packages immutable,
-control which tools are active, enforce catalog budgets, preserve host
-bindings, or provide verified update and rollback behavior.
-
-## Deployment-pinned source install and repeatable probe
-
-The current public distribution is the GitHub repository and static workbench.
-The workbench publishes the exact 40-character Git commit from which it was
-built. There is no public npm package or official MCP Registry entry yet.
-
-Prerequisites: Git, curl, and Node.js 22 or newer. The dependency install below
-disables lifecycle scripts; the following build command is the explicit source
-execution step.
+To inspect the exact deployed source:
 
 ```sh
-ARMORIAL_COMMIT="$(curl -fsSL https://tetracoralla.github.io/armorial/source-commit.txt)"
+ARMORIAL_COMMIT=$(curl -fsSL https://tetracoralla.github.io/armorial/source-commit.txt)
 printf '%s\n' "$ARMORIAL_COMMIT" | grep -Eq '^[0-9a-f]{40}$'
 git clone https://github.com/tetracoralla/armorial.git
 cd armorial
 git checkout --detach "$ARMORIAL_COMMIT"
-test "$(git rev-parse HEAD)" = "$ARMORIAL_COMMIT"
-node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
 npm ci --ignore-scripts
 npm run build:node
-node dist/adapters/cli.js resolve settings
+node dist/adapters/cli.js resolve settings --format text
 ```
 
-Expected observations from the last command:
+## Output and effects
 
-- stdout is one JSON result;
-- `status` is `ok` or `ambiguous`, never an invented fallback drawing;
-- an `ok` result names an `icon-park:*` id and includes the rendered asset,
-  effective policy, byte count, and SHA-256;
-- an `ambiguous` result lists candidates and does not claim a chosen SVG.
+Selection/search/MCP calls do not write files. Explicit CLI batch output creates
+a sprite or a distinct HTML candidate and preserves existing files by default.
+Interrupted writes require destination inspection before retry. See the artifact
+guide for explicit replacement modes and recovery. Appearance overrides report
+the effective policy and whether it was changed. Local queries are not sent to
+an Armorial service. Human clipboard, download, Figma insertion and connected
+selection delivery are explicit actions.
 
-For complete source regression and the real CLI/MCP probe, run:
+## Details
 
-```sh
-npm run check
-```
-
-## Integration surfaces
-
-- Human workbench: <https://tetracoralla.github.io/armorial/>
-- Source and install details: <https://github.com/tetracoralla/armorial>
-- MCP configuration: <https://github.com/tetracoralla/armorial/blob/main/.mcp.json>
-- Product routing Skill: <https://github.com/tetracoralla/armorial/blob/main/skills/icon-svg-select/SKILL.md>
-- Executable policy schema: <https://github.com/tetracoralla/armorial/blob/main/icon-policy.schema.json>
-- Product model: <https://github.com/tetracoralla/armorial/blob/main/docs/PRODUCT_MODEL.md>
-- Review boundary: <https://github.com/tetracoralla/armorial/blob/main/docs/REVIEW_CONTRACT.md>
-
-The MCP Registry can become an additional discovery carrier after Armorial has
-an independently installable public MCP artifact. Registry namespace ownership
-would identify the publisher; it would not by itself establish security,
-quality, suitability, or successful execution.
-
-This GitHub Pages project intentionally does not publish a path-scoped
-`robots.txt`: crawler policy belongs at the origin root. The page itself is
-indexable, and its public Sitemap is available at
-<https://tetracoralla.github.io/armorial/sitemap.xml>.
+- Source and installation: https://github.com/tetracoralla/armorial
+- CLI: https://github.com/tetracoralla/armorial/blob/main/docs/CLI.md
+- Shipped Skill: https://github.com/tetracoralla/armorial/blob/main/skills/icon-svg-select/SKILL.md
+- File effects: https://github.com/tetracoralla/armorial/blob/main/skills/icon-svg-select/references/artifact-output.md
+- Policy schema: https://github.com/tetracoralla/armorial/blob/main/icon-policy.schema.json

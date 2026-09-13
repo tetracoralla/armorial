@@ -169,9 +169,18 @@ const client = new Client({ name: "armorial-staged-probe", version: "1.0.0" });
 try {
   await client.connect(transport);
   const tools = await client.listTools();
+  const selection = await client.callTool({ name: "select_icons", arguments: { intents: ["search", "关闭", "zzzznoicon", "search"] } });
+  assert.notEqual(selection.isError, true);
+  const selectionResult = JSON.parse(JSON.stringify(selection.structuredContent)).result;
+  assert.equal(selectionResult.status, "partial");
+  assert.deepEqual(selectionResult.summary, { requested: 4, resolved: 2, unresolved: 2, uniqueIcons: 1 });
+  assert.equal(selectionResult.items[0].id, "icon-park:search");
+  assert.deepEqual(selectionResult.items.map((item: { index: number }) => item.index), [0, 1, 2, 3]);
+  assert.doesNotMatch(JSON.stringify(selection), /<svg|"asset"/);
+
   assert.deepEqual(
     tools.tools.map((tool) => tool.name).sort(),
-    ["browse_icons", "choose_icon", "get_icon", "get_icons", "resolve_icon", "search_icons"],
+    ["browse_icons", "choose_icon", "get_icon", "get_icons", "resolve_icon", "search_icons", "select_icons"],
   );
   const result = await client.callTool({
     name: "resolve_icon",

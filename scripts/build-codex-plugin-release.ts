@@ -262,7 +262,8 @@ try {
   // tooling cannot appear as a missing dependency or in the SBOM itself.
   writeRuntimePackageJson(pluginDirectory);
   writeSbom(pluginDirectory);
-  copyFileSync(runtimeGuide, join(pluginDirectory, "RUNTIME.md"));
+  writeFileSync(join(pluginDirectory, "RUNTIME.md"),
+    readFileSync(runtimeGuide, "utf8").replaceAll("(../skills/", "(skills/"), "utf8");
   writePluginNotices(pluginDirectory);
   const beforePruning = summarizeRuntimeTree(pluginDirectory);
   pruneToPluginRuntime(pluginDirectory);

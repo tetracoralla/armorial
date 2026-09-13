@@ -1,44 +1,38 @@
-# Contributing to Armorial
+# Contributing
 
-This repository's working contract lives in [AGENTS.md](./AGENTS.md): one
-deterministic kernel, adapters that only translate transport, and acceptance
-lanes instead of prose claims. Changes are expected to keep that shape.
+Read [AGENTS.md](AGENTS.md) for the shared source boundaries and
+[docs/PRODUCT_MODEL.md](docs/PRODUCT_MODEL.md) for product intent.
+Keep selection, search, policy and rendering in `IconKernel`; adapters own their
+transport and destination behavior. Improve an existing design when the task
+and evidence justify it.
 
-## Development loop
+With Node.js 22 or newer:
 
 ```sh
-npm install
+npm ci
 npm run check
 ```
 
-`npm run check` runs type checks, tests, policy-schema drift detection, the
-production builds, a fresh-process probe of the built CLI and stdio MCP
-server, and an offline Figma bundle/UI/drag probe.
-
-For a focused Figma loop:
-
-```sh
-npm run build:figma
-npm run figma:probe
-```
-
-Import `figma-plugin/manifest.json` with Figma Desktop's development-plugin
-flow. Keep generated `figma-plugin/dist/` files out of Git; `prepack` rebuilds
-and includes them in the npm package.
-
-The browser regression lane runs separately:
+The check includes types, behavioral tests, schema drift, builds, licenses,
+fresh-process CLI/MCP, artifact publication and Pages/Figma build probes.
+For browser interaction:
 
 ```sh
 npx playwright install chromium
 npm run ui:e2e
 ```
 
-## Change expectations
+Use focused checks while developing; [the verification map](docs/REVIEW_CONTRACT.md)
+helps locate affected tests. Inspect rendered UI changes and their real user
+flows. Keep regression assertions about behavior and meaningful contracts;
+wording or a prescribed Agent thinking sequence is not a product invariant.
 
-- Search, policy, rendering, and selection-decision rules belong in
-  `src/core`; CLI, web UI, MCP, and Figma are adapters over `IconKernel`.
-- Every parser, guard, or failure-path fix ships with the smallest negative
-  regression test that fails if the fix is reverted.
-- `icon-policy.schema.json` is generated; run `npm run schema:generate` after
-  changing `IconPolicySchema`, never edit the JSON by hand.
-- Do not redraw or mutate IconPark geometry; the pinned provider owns it.
+Run `npm run schema:generate` when changing `IconPolicySchema`. For Figma, use
+`npm run build:figma`, `npm run figma:probe`, and import the development manifest
+in Figma Desktop. Generated Figma files are ignored and distributed separately
+from the npm package. Package changes have their own probes documented in
+[plugin runtime](docs/CODEX_PLUGIN_RUNTIME.md).
+
+Public docs serve users and contributors. Private task notes, local captures,
+review history and handoffs belong in ignored `.task-notes/`. Consolidate repeated
+technical information instead of copying every failure lesson into each guide.

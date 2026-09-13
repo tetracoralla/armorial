@@ -96,8 +96,8 @@ try {
     );
   }
   assert.match(await llmsResponse.text(), /# Armorial/);
-  assert.match(await selectionResponse.text(), /## Do not use Armorial for/);
-  assert.match(await selectionHtmlResponse.text(), /<h2>Do not use Armorial for<\/h2>/);
+  assert.match(await selectionResponse.text(), /source-commit\.txt/);
+
   assert.equal(robotsResponse.status(), 404);
   assert.match(await sitemapResponse.text(), /agent-selection\.html/);
   const sourceCommit = await sourceCommitResponse.text();
@@ -128,6 +128,16 @@ try {
   const svg = await page.evaluate(() => navigator.clipboard.readText());
   assert.match(svg, /<svg /);
   assert.match(svg, /width="32"/);
+
+  const sharedPreview = await page.locator(".preview-panel img").getAttribute("src");
+  await page.getByRole("button", { name: "Copy link", exact: true }).click();
+  const sharedUrl = await page.evaluate(() => navigator.clipboard.readText());
+  const sharedPage = await context.newPage();
+  await sharedPage.goto(sharedUrl);
+  await sharedPage.getByRole("heading", { name: "remind", exact: true }).waitFor();
+  assert.equal(await sharedPage.locator(".preview-panel img").getAttribute("src"), sharedPreview);
+  assert.equal(await sharedPage.getByRole("alert").count(), 0);
+  await sharedPage.close();
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download", exact: true }).click();

@@ -9,3 +9,6 @@ test-results/
 playwright-report/
 .DS_Store
 *.log
+
+# Private task plans, historical reviews, and local validation captures
+.task-notes/

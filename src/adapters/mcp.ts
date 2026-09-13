@@ -27,6 +27,7 @@ import {
   MIN_STROKE_WIDTH,
   ResolveInputSchema,
   SafeColorSchema,
+  SelectIconsInputSchema,
   SearchInputSchema,
   StrokeLinecapSchema,
   StrokeLinejoinSchema,
@@ -39,7 +40,7 @@ import { resolvePolicyInput } from "./policy-file.js";
 import { presentBatch, presentGet, presentResolve, presentSearch } from "./presentation.js";
 
 export const ICON_PICKER_RESOURCE_URI = "ui://icon-svg-select/picker.html";
-export const PUBLIC_TOOL_NAMES = ["resolve_icon", "search_icons", "get_icon", "get_icons", "choose_icon"] as const;
+export const PUBLIC_TOOL_NAMES = ["select_icons", "resolve_icon", "search_icons", "get_icon", "get_icons", "choose_icon"] as const;
 export const APP_ONLY_TOOL_NAMES = ["browse_icons"] as const;
 export const ALL_TOOL_NAMES = [...PUBLIC_TOOL_NAMES, ...APP_ONLY_TOOL_NAMES] as const;
 
@@ -182,11 +183,30 @@ export function createMcpServer(
   const server = new McpServer({ name: "armorial", version: KERNEL_VERSION });
 
   server.registerTool(
+    "select_icons",
+    {
+      title: "Select icons for a UI",
+      description: "Select up to 20 UI meanings without SVG. Returns ids, policy, unresolved candidates. Caller judges ambiguous choices.",
+      inputSchema: SelectIconsInputSchema.extend({ render: RenderStyleOverrideMcpSchema.optional() }),
+      outputSchema: z.strictObject({ result: z.looseObject({
+        status: z.enum(["ok", "partial", "error"]),
+      }) }),
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    (input) => {
+      const output = kernel.selectIcons(input);
+      const text = output.status === "error" ? output.error.message
+        : `${output.summary.resolved}/${output.summary.requested} meanings selected; ${output.summary.unresolved} need a choice. No SVG generated.`;
+      return boundedMcpResult("select_icons", output as Record<string, unknown>, text, output.status === "error");
+    },
+  );
+
+  server.registerTool(
     "resolve_icon",
     {
       title: "Resolve icon",
       description:
-        "Default one-call route: select and render a project-aware IconPark SVG; do not follow with get_icon. Context is a configured ASCII policy key, never prose; omit when unknown.",
+        "Resolve one UI meaning with SVG and policy. Omit context unless configured.",
       inputSchema: ResolveInputMcpSchema,
       outputSchema: ResolveMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -201,7 +221,7 @@ export function createMcpServer(
     "search_icons",
     {
       title: "Search icons",
-      description: "Find compact IconPark candidates by name/title/tag/alias/category; only for alternatives.",
+      description: "Explore IconPark names, Chinese titles, tags, and categories; compare by UI context.",
       inputSchema: SearchInputSchema,
       outputSchema: SearchMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -216,7 +236,7 @@ export function createMcpServer(
     "get_icon",
     {
       title: "Render exact icon",
-      description: "Render one known IconPark id deterministically under project policy.",
+      description: "Render a known IconPark id under project policy.",
       inputSchema: GetIconInputMcpSchema,
       outputSchema: GetIconMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -231,7 +251,7 @@ export function createMcpServer(
     "get_icons",
     {
       title: "Render icon batch",
-      description: "Render up to 8 known IconPark ids needed now; preserves order/failures. Use CLI/library for larger automation.",
+      description: "Render up to 8 known ids with ordered per-item results; CLI/library allows 20.",
       inputSchema: GetIconsInputMcpSchema,
       outputSchema: GetIconsMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
@@ -247,7 +267,7 @@ export function createMcpServer(
     "choose_icon",
     {
       title: "Open icon picker",
-      description: "Open the human picker only for visual choice, rejection, or unresolved taste; wait for icon_selection.",
+      description: "Open the human workbench; an explicit user action delivers the selection.",
       inputSchema: ChooseIconInputMcpSchema,
       outputSchema: ChooseIconMcpOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
